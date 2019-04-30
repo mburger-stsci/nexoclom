@@ -1,0 +1,9 @@
+quantity = radiance
+mechanism = resscat
+origin = Mercury
+dims = 501,501
+center = 0,0
+width = 8,8
+subobslongitude = 4.71238898038469
+subobslatitude = 0.
+

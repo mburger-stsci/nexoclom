@@ -1,0 +1,16 @@
+name: physicsMB
+
+channels:
+    - defaults
+
+dependencies:
+    - python>=3.6
+    - astropy
+    - matplotlib
+    - numpy
+    - pip:
+      - sphinx
+      - sphinx_rtd_theme
+      - stsci_rtd_theme
+      - sphinx-astropy
+      - periodictable

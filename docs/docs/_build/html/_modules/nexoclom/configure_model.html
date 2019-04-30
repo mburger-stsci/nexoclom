@@ -1,0 +1,361 @@
+
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8" />
+    <title>nexoclom.configure_model &#8212; nexoclom v0.1.dev20</title>
+    <link rel="stylesheet" href="../../_static/bootstrap-astropy.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/graphviz.css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/language_data.js"></script>
+    <script type="text/javascript" src="../../_static/sidebar.js"></script>
+    <link rel="shortcut icon" href="../../_static/astropy_logo.ico"/>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+<link href='https://fonts.googleapis.com/css?family=Source+Sans+Pro:200,600' rel='stylesheet' type='text/css'/>
+<script type="text/javascript" src="../../_static/copybutton.js"></script>
+
+
+  </head><body>
+<div class="topbar">
+  <a class="brand" title="Documentation Home" href="../../index.html"><span id="logotext1">nexoclom</span><span id="logotext2"></span><span id="logotext3">:docs</span></a>
+  <ul>
+    <li><a class="homelink" title="Astropy Homepage" href="http://www.astropy.org"></a></li>
+    <li><a title="General Index" href="../../genindex.html">Index</a></li>
+    <li><a title="Module Index" href="../../py-modindex.html">Modules</a></li>
+    <li>
+      
+      
+<form action="../../search.html" method="get">
+  <input type="text" name="q" placeholder="Search" />
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+      
+    </li>
+  </ul>
+</div>
+
+<div class="related">
+    <h3>Navigation</h3>
+    <ul>
+      <li>
+	<a href="../../index.html">nexoclom v0.1.dev20</a>
+	 &#187;
+      </li>
+      <li><a href="../index.html" >Module code</a> &#187;</li>
+      <li><a href="../nexoclom.html" accesskey="U">nexoclom</a> &#187;</li>
+      
+       
+    </ul>
+</div>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for nexoclom.configure_model</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">os.path</span>
+<span class="kn">import</span> <span class="nn">psycopg2</span>
+
+
+<div class="viewcode-block" id="configfile"><a class="viewcode-back" href="../../api/nexoclom.configfile.html#nexoclom.configfile">[docs]</a><span class="k">def</span> <span class="nf">configfile</span><span class="p">(</span><span class="n">setconfig</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&#39;&#39;&#39;Configure external resources used in the model</span>
+
+<span class="sd">    Paths are saved in $HOME/.nexoclom</span>
+<span class="sd">    * savepath = path where output files are saved</span>
+<span class="sd">    * database = name of the postgresql database to use</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+
+    <span class="c1"># Read in current config file if it exists</span>
+    <span class="n">configfile</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;HOME&#39;</span><span class="p">],</span> <span class="s1">&#39;.nexoclom&#39;</span><span class="p">)</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">configfile</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="nb">open</span><span class="p">(</span><span class="n">configfile</span><span class="p">,</span> <span class="s1">&#39;r&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">readlines</span><span class="p">():</span>
+            <span class="k">if</span> <span class="s1">&#39;=&#39;</span> <span class="ow">in</span> <span class="n">line</span><span class="p">:</span>
+                <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;=&#39;</span><span class="p">)</span>
+                <span class="n">config</span><span class="p">[</span><span class="n">key</span><span class="o">.</span><span class="n">strip</span><span class="p">()]</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">setconfig</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">if</span> <span class="n">setconfig</span><span class="p">:</span>
+        <span class="c1"># Prompt user for paths</span>
+        <span class="k">if</span> <span class="s1">&#39;savepath&#39;</span> <span class="ow">in</span> <span class="n">config</span><span class="p">:</span>
+            <span class="n">oldfile</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;savepath&#39;</span><span class="p">]</span>
+            <span class="n">savepath_</span> <span class="o">=</span> <span class="nb">input</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;Path to save files [</span><span class="si">{oldfile}</span><span class="s1">]: &#39;</span><span class="p">)</span>
+            <span class="n">savepath</span> <span class="o">=</span> <span class="n">oldfile</span> <span class="k">if</span> <span class="n">savepath_</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span> <span class="k">else</span> <span class="n">savepath_</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">savepath</span> <span class="o">=</span> <span class="nb">input</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;Path to save model output: &#39;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="s1">&#39;datapath&#39;</span> <span class="ow">in</span> <span class="n">config</span><span class="p">:</span>
+            <span class="n">oldfile</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;datapath&#39;</span><span class="p">]</span>
+            <span class="n">datapath_</span> <span class="o">=</span> <span class="nb">input</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;Path to data files [</span><span class="si">{oldfile}</span><span class="s1">]: &#39;</span><span class="p">)</span>
+            <span class="n">datapath</span> <span class="o">=</span> <span class="n">oldfile</span> <span class="k">if</span> <span class="n">datapath_</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span> <span class="k">else</span> <span class="n">datapath_</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">datapath</span> <span class="o">=</span> <span class="nb">input</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;Path to data files: &#39;</span><span class="p">)</span>
+
+        <span class="c1"># database name</span>
+        <span class="k">if</span> <span class="s1">&#39;database&#39;</span> <span class="ow">in</span> <span class="n">config</span><span class="p">:</span>
+            <span class="n">olddb</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;database&#39;</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">olddb</span> <span class="o">=</span> <span class="s1">&#39;thesolarsystem&#39;</span>
+        <span class="n">database_</span> <span class="o">=</span> <span class="nb">input</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;Database name [</span><span class="si">{olddb}</span><span class="s1">]: &#39;</span><span class="p">)</span>
+        <span class="n">database</span> <span class="o">=</span> <span class="n">olddb</span> <span class="k">if</span> <span class="n">database_</span> <span class="o">==</span> <span class="s1">&#39;&#39;</span> <span class="k">else</span> <span class="n">database_</span>
+
+        <span class="c1"># make sure the database exists</span>
+        <span class="k">with</span> <span class="n">psycopg2</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s1">&#39;localhost&#39;</span><span class="p">,</span> <span class="n">database</span><span class="o">=</span><span class="s1">&#39;postgres&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">con</span><span class="p">:</span>
+            <span class="n">con</span><span class="o">.</span><span class="n">autocommit</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">cur</span> <span class="o">=</span> <span class="n">con</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;CREATE database </span><span class="si">{database}</span><span class="s1">&#39;</span><span class="p">)</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="k">pass</span>
+
+        <span class="c1"># Create save directory if necessary</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">savepath</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">makedir</span><span class="p">(</span><span class="n">savepath</span><span class="p">)</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="mi">0</span><span class="p">,</span> <span class="n">f</span><span class="s1">&#39;Could not create directory </span><span class="si">{savepath}</span><span class="s1">&#39;</span>
+
+        <span class="c1"># Create the data directory if necessary</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">datapath</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                 <span class="n">os</span><span class="o">.</span><span class="n">makedir</span><span class="p">(</span><span class="n">datapath</span><span class="p">)</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="mi">0</span><span class="p">,</span> <span class="n">f</span><span class="s1">&#39;Could not create directory </span><span class="si">{datapath}</span><span class="s1">&#39;</span>
+
+        <span class="c1"># Save the config file</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">cfile</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">configfile</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="mi">0</span><span class="p">,</span> <span class="n">f</span><span class="s1">&#39;Could not open </span><span class="si">{configfile}</span><span class="s1">&#39;</span>
+
+        <span class="n">cfile</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;savepath = </span><span class="si">{savepath}</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">cfile</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;datapath = </span><span class="si">{datapath}</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">cfile</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;database = </span><span class="si">{database}</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">cfile</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">savepath</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;savepath&#39;</span><span class="p">]</span>
+        <span class="n">datapath</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;datapath&#39;</span><span class="p">]</span>
+        <span class="n">database</span> <span class="o">=</span> <span class="n">config</span><span class="p">[</span><span class="s1">&#39;database&#39;</span><span class="p">]</span>
+
+    <span class="k">return</span> <span class="n">database</span><span class="p">,</span> <span class="n">savepath</span><span class="p">,</span> <span class="n">datapath</span></div>
+
+
+<span class="k">def</span> <span class="nf">set_up_output_tables</span><span class="p">(</span><span class="n">con</span><span class="p">):</span>
+    <span class="n">cur</span> <span class="o">=</span> <span class="n">con</span><span class="o">.</span><span class="n">cursor</span><span class="p">()</span>
+
+    <span class="c1"># drop tables if necessary</span>
+    <span class="n">tables</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;outputfile&#39;</span><span class="p">,</span> <span class="s1">&#39;geometry&#39;</span><span class="p">,</span> <span class="s1">&#39;sticking_info&#39;</span><span class="p">,</span> <span class="s1">&#39;forces&#39;</span><span class="p">,</span>
+              <span class="s1">&#39;spatialdist&#39;</span><span class="p">,</span> <span class="s1">&#39;speeddist&#39;</span><span class="p">,</span> <span class="s1">&#39;angulardist&#39;</span><span class="p">,</span> <span class="s1">&#39;options&#39;</span><span class="p">,</span>
+              <span class="s1">&#39;modelimages&#39;</span><span class="p">,</span> <span class="s1">&#39;uvvsmodels&#39;</span><span class="p">]</span>
+    <span class="k">for</span> <span class="n">tab</span> <span class="ow">in</span> <span class="n">tables</span><span class="p">:</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;&#39;&#39;DROP table </span><span class="si">{tab}</span><span class="s1">&#39;&#39;&#39;</span><span class="p">)</span>
+        <span class="k">except</span><span class="p">:</span>
+            <span class="n">con</span><span class="o">.</span><span class="n">rollback</span><span class="p">()</span>
+
+    <span class="c1"># Create SSObject datatype</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;CREATE TYPE SSObject</span>
+<span class="s1">                       as ENUM (</span>
+<span class="s1">                            &#39;Milky Way&#39;,</span>
+<span class="s1">                            &#39;Sun&#39;,</span>
+<span class="s1">                            &#39;Mercury&#39;,</span>
+<span class="s1">                            &#39;Venus&#39;,</span>
+<span class="s1">                            &#39;Earth&#39;,</span>
+<span class="s1">                            &#39;Mars&#39;,</span>
+<span class="s1">                            &#39;Jupiter&#39;,</span>
+<span class="s1">                            &#39;Saturn&#39;,</span>
+<span class="s1">                            &#39;Uranus&#39;,</span>
+<span class="s1">                            &#39;Neptune&#39;,</span>
+<span class="s1">                            &#39;Ceres&#39;,</span>
+<span class="s1">                            &#39;Pluto&#39;,</span>
+<span class="s1">                            &#39;Moon&#39;,</span>
+<span class="s1">                            &#39;Phobos&#39;,</span>
+<span class="s1">                            &#39;Deimos&#39;,</span>
+<span class="s1">                            &#39;Io&#39;,</span>
+<span class="s1">                            &#39;Europa&#39;,</span>
+<span class="s1">                            &#39;Ganymede&#39;,</span>
+<span class="s1">                            &#39;Callisto&#39;,</span>
+<span class="s1">                            &#39;Mimas&#39;,</span>
+<span class="s1">                            &#39;Enceladus&#39;,</span>
+<span class="s1">                            &#39;Tethys&#39;,</span>
+<span class="s1">                            &#39;Dione&#39;,</span>
+<span class="s1">                            &#39;Rhea&#39;,</span>
+<span class="s1">                            &#39;Titan&#39;,</span>
+<span class="s1">                            &#39;Hyperion&#39;,</span>
+<span class="s1">                            &#39;Iapetus&#39;,</span>
+<span class="s1">                            &#39;Phoebe&#39;,</span>
+<span class="s1">                            &#39;Charon&#39;,</span>
+<span class="s1">                            &#39;Nix&#39;,</span>
+<span class="s1">                            &#39;Hydra&#39;)&#39;&#39;&#39;</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+    <span class="c1"># create outputfile table</span>
+    <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;CREATE TABLE outputfile (</span>
+<span class="s1">                       idnum SERIAL PRIMARY KEY,</span>
+<span class="s1">                       filename text UNIQUE,</span>
+<span class="s1">                       npackets bigint,</span>
+<span class="s1">                       totalsource float,</span>
+<span class="s1">                       creationtime timestamp NOT NULL)&#39;&#39;&#39;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Created outputfile table&#39;</span><span class="p">)</span>
+
+    <span class="c1"># create geometry table</span>
+    <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;CREATE TABLE geometry (</span>
+<span class="s1">                       geo_idnum bigint PRIMARY KEY,</span>
+<span class="s1">                       planet SSObject,</span>
+<span class="s1">                       StartPoint SSObject,</span>
+<span class="s1">                       objects SSObject ARRAY,</span>
+<span class="s1">                       starttime timestamp,</span>
+<span class="s1">                       phi real ARRAY,</span>
+<span class="s1">                       subsolarpt point,</span>
+<span class="s1">                       TAA float)&#39;&#39;&#39;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Created geometry table&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Create sticking_info table</span>
+    <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;CREATE TABLE sticking_info (</span>
+<span class="s1">                       st_idnum bigint PRIMARY KEY,</span>
+<span class="s1">                       stickcoef float,</span>
+<span class="s1">                       tsurf float,</span>
+<span class="s1">                       stickfn text,</span>
+<span class="s1">                       stick_mapfile text,</span>
+<span class="s1">                       epsilon float,</span>
+<span class="s1">                       n float,</span>
+<span class="s1">                       tmin float,</span>
+<span class="s1">                       emitfn text,</span>
+<span class="s1">                       accom_mapfile text,</span>
+<span class="s1">                       accom_factor float)&#39;&#39;&#39;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Created sticking_info table&#39;</span><span class="p">)</span>
+
+    <span class="c1"># create forces table</span>
+    <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;CREATE TABLE forces (</span>
+<span class="s1">                       f_idnum bigint PRIMARY KEY,</span>
+<span class="s1">                       gravity boolean,</span>
+<span class="s1">                       radpres boolean)&#39;&#39;&#39;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Created forces table&#39;</span><span class="p">)</span>
+
+    <span class="c1"># create spatialdist table</span>
+    <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;CREATE TABLE spatialdist (</span>
+<span class="s1">                       spat_idnum bigint PRIMARY KEY,</span>
+<span class="s1">                       type text,</span>
+<span class="s1">                       exobase float,</span>
+<span class="s1">                       use_map boolean,</span>
+<span class="s1">                       mapfile text,</span>
+<span class="s1">                       longitude float[2],</span>
+<span class="s1">                       latitude float[2])&#39;&#39;&#39;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Created spatialdist table&#39;</span><span class="p">)</span>
+
+    <span class="c1"># create table speeddist</span>
+    <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;CREATE TABLE speeddist (</span>
+<span class="s1">                       spd_idnum bigint PRIMARY KEY,</span>
+<span class="s1">                       type text,</span>
+<span class="s1">                       vprob float,</span>
+<span class="s1">                       sigma float,</span>
+<span class="s1">                       U float,</span>
+<span class="s1">                       alpha float,</span>
+<span class="s1">                       beta float,</span>
+<span class="s1">                       temperature float,</span>
+<span class="s1">                       delv float)&#39;&#39;&#39;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Created speeddist table&#39;</span><span class="p">)</span>
+
+    <span class="c1"># create table angulardist</span>
+    <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;CREATE TABLE angulardist (</span>
+<span class="s1">                       ang_idnum bigint PRIMARY KEY,</span>
+<span class="s1">                       type text,</span>
+<span class="s1">                       azimuth float[2],</span>
+<span class="s1">                       altitude float[2],</span>
+<span class="s1">                       n float)&#39;&#39;&#39;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Created angulardist table&#39;</span><span class="p">)</span>
+
+    <span class="c1">## Skipping perturbvel and plasma_info for now</span>
+
+    <span class="c1"># create table options</span>
+    <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;CREATE TABLE options (</span>
+<span class="s1">                       opt_idnum bigint PRIMARY KEY,</span>
+<span class="s1">                       endtime float,</span>
+<span class="s1">                       resolution float,</span>
+<span class="s1">                       at_once boolean,</span>
+<span class="s1">                       atom text,</span>
+<span class="s1">                       lifetime float,</span>
+<span class="s1">                       fullsystem boolean,</span>
+<span class="s1">                       outeredge float,</span>
+<span class="s1">                       motion boolean,</span>
+<span class="s1">                       streamlines boolean,</span>
+<span class="s1">                       nsteps int)&#39;&#39;&#39;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Created options table&#39;</span><span class="p">)</span>
+
+    <span class="c1"># Create table for model images</span>
+    <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;CREATE TABLE modelimages (</span>
+<span class="s1">                       idnum SERIAL PRIMARY KEY,</span>
+<span class="s1">                       out_idnum bigint,</span>
+<span class="s1">                       quantity text,</span>
+<span class="s1">                       origin text,</span>
+<span class="s1">                       dims float[2],</span>
+<span class="s1">                       center float[2],</span>
+<span class="s1">                       width float[2],</span>
+<span class="s1">                       subobslongitude float,</span>
+<span class="s1">                       subobslatitude float,</span>
+<span class="s1">                       mechanism text,</span>
+<span class="s1">                       wavelength text,</span>
+<span class="s1">                       filename text)&#39;&#39;&#39;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Created modelimages table&#39;</span><span class="p">)</span>
+
+    <span class="c1"># # Create table for MESSENGER comparison</span>
+    <span class="n">cur</span><span class="o">.</span><span class="n">execute</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;CREATE TABLE uvvsmodels (</span>
+<span class="s1">                       idnum SERIAL PRIMARY KEY,</span>
+<span class="s1">                       out_idnum bigint,</span>
+<span class="s1">                       quantity text,</span>
+<span class="s1">                       orbit int,</span>
+<span class="s1">                       dphi float,</span>
+<span class="s1">                       mechanism text,</span>
+<span class="s1">                       wavelength text,</span>
+<span class="s1">                       filename text)&#39;&#39;&#39;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Created uvvsmodels table&#39;</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="c1"># Configuration file</span>
+    <span class="n">cfgfile</span> <span class="o">=</span> <span class="nb">input</span><span class="p">(</span><span class="s1">&#39;Reset the model configuration file? (y/n) &#39;</span><span class="p">)</span>
+    <span class="n">setcfg</span> <span class="o">=</span> <span class="kc">True</span> <span class="k">if</span> <span class="n">cfgfile</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="s1">&#39;yes&#39;</span><span class="p">)</span> <span class="k">else</span> <span class="kc">False</span>
+    <span class="n">database</span><span class="p">,</span> <span class="n">savepath</span><span class="p">,</span> <span class="n">datapath</span> <span class="o">=</span> <span class="n">configfile</span><span class="p">(</span><span class="n">setconfig</span><span class="o">=</span><span class="n">setcfg</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="n">database</span><span class="p">,</span> <span class="n">savepath</span><span class="p">,</span> <span class="n">datapath</span><span class="p">)</span>
+
+    <span class="n">cfgdb</span> <span class="o">=</span> <span class="nb">input</span><span class="p">(</span><span class="s1">&#39;Reset the modeloutputs database? (y/n) &#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cfgdb</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;y&#39;</span><span class="p">,</span> <span class="s1">&#39;yes&#39;</span><span class="p">):</span>
+        <span class="k">with</span> <span class="n">psycopg2</span><span class="o">.</span><span class="n">connect</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s1">&#39;localhost&#39;</span><span class="p">,</span> <span class="n">database</span><span class="o">=</span><span class="n">database</span><span class="p">)</span> <span class="k">as</span> <span class="n">con</span><span class="p">:</span>
+            <span class="n">con</span><span class="o">.</span><span class="n">autocommit</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">set_up_output_tables</span><span class="p">(</span><span class="n">con</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><h3>Page Contents</h3>
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+<footer class="footer">
+  <p class="pull-right"> &nbsp;
+    <a href="#">Back to Top</a></p>
+  <p>
+    &copy; Copyright 2019, Matthew Burger.<br/>
+    Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 2.0.0. &nbsp;
+    Last built 04 Apr 2019. <br/>
+  </p>
+</footer>
+  </body>
+</html>

@@ -1,0 +1,170 @@
+running install
+running bdist_egg
+running egg_info
+writing nexoclom.egg-info/PKG-INFO
+writing dependency_links to nexoclom.egg-info/dependency_links.txt
+writing entry points to nexoclom.egg-info/entry_points.txt
+writing requirements to nexoclom.egg-info/requires.txt
+writing top-level names to nexoclom.egg-info/top_level.txt
+reading manifest file 'nexoclom.egg-info/SOURCES.txt'
+reading manifest template 'MANIFEST.in'
+writing manifest file 'nexoclom.egg-info/SOURCES.txt'
+installing library code to build/bdist.macosx-10.9-x86_64/egg
+running install_lib
+running build_py
+creating build/bdist.macosx-10.9-x86_64/egg
+creating build/bdist.macosx-10.9-x86_64/egg/nexoclom
+copying build/lib/nexoclom/nexoclom.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom
+copying build/lib/nexoclom/conftest.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom
+copying build/lib/nexoclom/config.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom
+copying build/lib/nexoclom/version.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom
+copying build/lib/nexoclom/modeldriver.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom
+copying build/lib/nexoclom/example_mod.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom
+copying build/lib/nexoclom/_astropy_init.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom
+copying build/lib/nexoclom/rk5.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom
+creating build/bdist.macosx-10.9-x86_64/egg/nexoclom/tests
+copying build/lib/nexoclom/tests/__init__.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom/tests
+copying build/lib/nexoclom/tests/test_config.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom/tests
+copying build/lib/nexoclom/tests/coveragerc -> build/bdist.macosx-10.9-x86_64/egg/nexoclom/tests
+copying build/lib/nexoclom/tests/test_example.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom/tests
+copying build/lib/nexoclom/tests/test_configure_model.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom/tests
+copying build/lib/nexoclom/tests/setup_package.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom/tests
+copying build/lib/nexoclom/__init__.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom
+copying build/lib/nexoclom/source_distribution.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom
+copying build/lib/nexoclom/configure_model.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom
+creating build/bdist.macosx-10.9-x86_64/egg/nexoclom/utils
+creating build/bdist.macosx-10.9-x86_64/egg/nexoclom/utils/tests
+copying build/lib/nexoclom/utils/tests/__init__.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom/utils/tests
+copying build/lib/nexoclom/utils/__init__.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom/utils
+copying build/lib/nexoclom/test.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom
+copying build/lib/nexoclom/Inputs.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom
+copying build/lib/nexoclom/State_onepart.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom
+copying build/lib/nexoclom/Input.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom
+copying build/lib/nexoclom/set_environment_variables.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom
+copying build/lib/nexoclom/modelmap.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom
+creating build/bdist.macosx-10.9-x86_64/egg/nexoclom/extern
+copying build/lib/nexoclom/extern/__init__.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom/extern
+creating build/bdist.macosx-10.9-x86_64/egg/nexoclom/data
+copying build/lib/nexoclom/data/PlanetaryConstants.dat -> build/bdist.macosx-10.9-x86_64/egg/nexoclom/data
+copying build/lib/nexoclom/data/naif_ids.dat -> build/bdist.macosx-10.9-x86_64/egg/nexoclom/data
+copying build/lib/nexoclom/data/README.rst -> build/bdist.macosx-10.9-x86_64/egg/nexoclom/data
+creating build/bdist.macosx-10.9-x86_64/egg/nexoclom/example_subpkg
+creating build/bdist.macosx-10.9-x86_64/egg/nexoclom/example_subpkg/tests
+copying build/lib/nexoclom/example_subpkg/tests/__init__.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom/example_subpkg/tests
+copying build/lib/nexoclom/example_subpkg/__init__.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom/example_subpkg
+copying build/lib/nexoclom/example_subpkg/setup_package.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom/example_subpkg
+copying build/lib/nexoclom/Output.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom
+copying build/lib/nexoclom/State.py -> build/bdist.macosx-10.9-x86_64/egg/nexoclom
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/nexoclom.py to nexoclom.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/conftest.py to conftest.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/config.py to config.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/version.py to version.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/modeldriver.py to modeldriver.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/example_mod.py to example_mod.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/_astropy_init.py to _astropy_init.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/rk5.py to rk5.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/tests/__init__.py to __init__.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/tests/test_config.py to test_config.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/tests/test_example.py to test_example.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/tests/test_configure_model.py to test_configure_model.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/tests/setup_package.py to setup_package.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/__init__.py to __init__.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/source_distribution.py to source_distribution.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/configure_model.py to configure_model.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/utils/tests/__init__.py to __init__.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/utils/__init__.py to __init__.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/test.py to test.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/Inputs.py to Inputs.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/State_onepart.py to State_onepart.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/Input.py to Input.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/set_environment_variables.py to set_environment_variables.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/modelmap.py to modelmap.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/extern/__init__.py to __init__.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/example_subpkg/tests/__init__.py to __init__.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/example_subpkg/__init__.py to __init__.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/example_subpkg/setup_package.py to setup_package.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/Output.py to Output.cpython-37.pyc
+byte-compiling build/bdist.macosx-10.9-x86_64/egg/nexoclom/State.py to State.cpython-37.pyc
+creating build/bdist.macosx-10.9-x86_64/egg/EGG-INFO
+copying nexoclom.egg-info/PKG-INFO -> build/bdist.macosx-10.9-x86_64/egg/EGG-INFO
+copying nexoclom.egg-info/SOURCES.txt -> build/bdist.macosx-10.9-x86_64/egg/EGG-INFO
+copying nexoclom.egg-info/dependency_links.txt -> build/bdist.macosx-10.9-x86_64/egg/EGG-INFO
+copying nexoclom.egg-info/entry_points.txt -> build/bdist.macosx-10.9-x86_64/egg/EGG-INFO
+copying nexoclom.egg-info/not-zip-safe -> build/bdist.macosx-10.9-x86_64/egg/EGG-INFO
+copying nexoclom.egg-info/requires.txt -> build/bdist.macosx-10.9-x86_64/egg/EGG-INFO
+copying nexoclom.egg-info/top_level.txt -> build/bdist.macosx-10.9-x86_64/egg/EGG-INFO
+creating 'dist/nexoclom-0.1.dev3-py3.7.egg' and adding 'build/bdist.macosx-10.9-x86_64/egg' to it
+removing 'build/bdist.macosx-10.9-x86_64/egg' (and everything under it)
+Processing nexoclom-0.1.dev3-py3.7.egg
+removing '/anaconda3/lib/python3.7/site-packages/nexoclom-0.1.dev3-py3.7.egg' (and everything under it)
+creating /anaconda3/lib/python3.7/site-packages/nexoclom-0.1.dev3-py3.7.egg
+Extracting nexoclom-0.1.dev3-py3.7.egg to /anaconda3/lib/python3.7/site-packages
+nexoclom 0.1.dev3 is already the active version in easy-install.pth
+Installing astropy-package-template-example script to /anaconda3/bin
+
+Installed /anaconda3/lib/python3.7/site-packages/nexoclom-0.1.dev3-py3.7.egg
+Processing dependencies for nexoclom==0.1.dev3
+Searching for matplotlib==3.0.0
+Best match: matplotlib 3.0.0
+Adding matplotlib 3.0.0 to easy-install.pth file
+
+Using /anaconda3/lib/python3.7/site-packages
+Searching for scipy==1.1.0
+Best match: scipy 1.1.0
+Adding scipy 1.1.0 to easy-install.pth file
+
+Using /anaconda3/lib/python3.7/site-packages
+Searching for astropy==3.0.5
+Best match: astropy 3.0.5
+Adding astropy 3.0.5 to easy-install.pth file
+Installing fits2bitmap script to /anaconda3/bin
+Installing fitscheck script to /anaconda3/bin
+Installing fitsdiff script to /anaconda3/bin
+Installing fitsheader script to /anaconda3/bin
+Installing fitsinfo script to /anaconda3/bin
+Installing samp_hub script to /anaconda3/bin
+Installing showtable script to /anaconda3/bin
+Installing volint script to /anaconda3/bin
+Installing wcslint script to /anaconda3/bin
+
+Using /anaconda3/lib/python3.7/site-packages
+Searching for python-dateutil==2.7.5
+Best match: python-dateutil 2.7.5
+Processing python_dateutil-2.7.5-py3.7.egg
+python-dateutil 2.7.5 is already the active version in easy-install.pth
+
+Using /anaconda3/lib/python3.7/site-packages/python_dateutil-2.7.5-py3.7.egg
+Searching for pyparsing==2.2.2
+Best match: pyparsing 2.2.2
+Processing pyparsing-2.2.2-py3.7.egg
+pyparsing 2.2.2 is already the active version in easy-install.pth
+
+Using /anaconda3/lib/python3.7/site-packages/pyparsing-2.2.2-py3.7.egg
+Searching for kiwisolver==1.0.1
+Best match: kiwisolver 1.0.1
+Adding kiwisolver 1.0.1 to easy-install.pth file
+
+Using /anaconda3/lib/python3.7/site-packages
+Searching for cycler==0.10.0
+Best match: cycler 0.10.0
+Processing cycler-0.10.0-py3.7.egg
+cycler 0.10.0 is already the active version in easy-install.pth
+
+Using /anaconda3/lib/python3.7/site-packages/cycler-0.10.0-py3.7.egg
+Searching for numpy==1.15.2
+Best match: numpy 1.15.2
+Adding numpy 1.15.2 to easy-install.pth file
+
+Using /anaconda3/lib/python3.7/site-packages
+Searching for six==1.11.0
+Best match: six 1.11.0
+Adding six 1.11.0 to easy-install.pth file
+
+Using /anaconda3/lib/python3.7/site-packages
+Searching for setuptools==40.4.3
+Best match: setuptools 40.4.3
+Adding setuptools 40.4.3 to easy-install.pth file
+Installing easy_install script to /anaconda3/bin
+
+Using /anaconda3/lib/python3.7/site-packages
+Finished processing dependencies for nexoclom==0.1.dev3
