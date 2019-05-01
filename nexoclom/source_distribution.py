@@ -4,7 +4,7 @@ import pickle
 import astropy.units as u
 import astropy.constants as const
 import mathMB
-import physicsMB
+from atomicdataMB import atomicmass
 
 
 def gaussiandist(velocity, vprob, sigma):
@@ -14,7 +14,7 @@ def gaussiandist(velocity, vprob, sigma):
 
 
 def sputdist(velocity, U, alpha, beta, atom):
-    matom = physicsMB.atomicmass(atom)
+    matom = atomicmass(atom)
     v_b = np.sqrt(2*U/matom)
     v_b = v_b.to(u.km/u.s)
     f_v = velocity**(2*beta+1) / (velocity**2 + v_b**2)**alpha
@@ -23,7 +23,7 @@ def sputdist(velocity, U, alpha, beta, atom):
 
 
 def MaxwellianDist(velocity, temperature, atom):
-    vth2 = 2*temperature*const.k_B/physicsMB.atomicmass(atom)
+    vth2 = 2*temperature*const.k_B/atomicmass(atom)
     vth2 = vth2.to(u.km**2/u.s**2)
     f_v = velocity**3 * np.exp(-velocity**2/vth2)
     f_v /= np.max(f_v)
@@ -239,7 +239,7 @@ def speed_distribution(inputs, npackets):
     elif SpeedDist.type == 'maxwellian':
         if SpeedDist.temperature != 0:
             # Use a constant temperature
-            amass = physicsMB.atomicmass(inputs.options.atom)
+            amass = atomicmass(inputs.options.atom)
             v_th = np.sqrt(2*SpeedDist.temperature*const.k_B/amass)
             v_th = v_th.to(u.km/u.s)
             velocity = np.linspace(0.1*u.km/u.s, v_th*5, 5000)
