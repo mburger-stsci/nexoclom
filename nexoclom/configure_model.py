@@ -258,7 +258,7 @@ def set_up_output_tables(con):
                        filename text)''')
     print('Created uvvsmodels table')
 
-if __name__ == '__main__':
+def configure_model():
     # Configuration file
     cfgfile = input('Reset the model configuration file? (y/n) ')
     setcfg = True if cfgfile.lower() in ('y', 'yes') else False
