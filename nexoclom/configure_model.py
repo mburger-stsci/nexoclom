@@ -3,12 +3,12 @@ import psycopg2
 
 
 def configfile(setconfig=False):
-    '''Configure external resources used in the model
+    """Configure external resources used in the model
 
     Paths are saved in $HOME/.nexoclom
     * savepath = path where output files are saved
     * database = name of the postgresql database to use
-    '''
+    """
 
     # Read in current config file if it exists
     configfile = os.path.join(os.environ['HOME'], '.nexoclom')
@@ -98,44 +98,6 @@ def set_up_output_tables(con):
             cur.execute(f'''DROP table {tab}''')
         except:
             con.rollback()
-
-    # Create SSObject datatype
-    try:
-        cur.execute('''CREATE TYPE SSObject
-                       as ENUM (
-                            'Milky Way',
-                            'Sun',
-                            'Mercury',
-                            'Venus',
-                            'Earth',
-                            'Mars',
-                            'Jupiter',
-                            'Saturn',
-                            'Uranus',
-                            'Neptune',
-                            'Ceres',
-                            'Pluto',
-                            'Moon',
-                            'Phobos',
-                            'Deimos',
-                            'Io',
-                            'Europa',
-                            'Ganymede',
-                            'Callisto',
-                            'Mimas',
-                            'Enceladus',
-                            'Tethys',
-                            'Dione',
-                            'Rhea',
-                            'Titan',
-                            'Hyperion',
-                            'Iapetus',
-                            'Phoebe',
-                            'Charon',
-                            'Nix',
-                            'Hydra')''')
-    except:
-        pass
 
     # create outputfile table
     cur.execute('''CREATE TABLE outputfile (
@@ -258,16 +220,21 @@ def set_up_output_tables(con):
                        filename text)''')
     print('Created uvvsmodels table')
 
-def configure_model():
-    # Configuration file
-    cfgfile = input('Reset the model configuration file? (y/n) ')
-    setcfg = True if cfgfile.lower() in ('y', 'yes') else False
+def configure_model(setcfg=None, setdb=None):
+    if cfgfile is None:
+        cfgfile = input('Reset the model configuration file? (y/n) ')
+        setcfg = True if cfgfile.lower() in ('y', 'yes') else False
+    else:
+        pass
     database, savepath, datapath = configfile(setconfig=setcfg)
 
-    print(database, savepath, datapath)
+    if setdb is None:
+        cfgdb = input('Reset the modeloutputs database? (y/n) ')
+        setdb = True if cfgfile.lower() in ('y', 'yes') else False
+    else:
+        pass
 
-    cfgdb = input('Reset the modeloutputs database? (y/n) ')
-    if cfgdb.lower() in ('y', 'yes'):
+    if setdb:
         with psycopg2.connect(host='localhost', database=database) as con:
             con.autocommit = True
             set_up_output_tables(con)
