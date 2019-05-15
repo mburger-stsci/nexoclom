@@ -15,21 +15,9 @@ class LossInfo():
             self.photo = np.abs(1./lifetime.value)
             self.reactions = 'Generic photo reaction.'
         else:
-            con = psycopg2.connect(host='localhost', database=database)
-            cur = con.cursor()
-
-            # Photo rate adjusted to proper heliocentric distance
-            cur.execute('''SELECT reaction, kappa
-                           FROM photorates
-                           WHERE species=%s and bestvalue=True''',
-                        (atom, ))
-            if cur.rowcount == 0:
-                print('No photoreactions found')
-            else:
-                rows = cur.fetchall()
-                for r in rows:
-                    self.reactions.append(r[0])
-                    self.photo += r[1]/aplanet**2
+            photo = PhotoRates(atom)
+            self.photo = photo.rate.value
+            self.reactions = photo.reactions['reaction'].values
 
             # Electron impact
 

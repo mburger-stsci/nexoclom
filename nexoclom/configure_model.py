@@ -1,5 +1,6 @@
 import os, os.path
 import psycopg2
+from . import database
 
 
 def configfile(setconfig=False):
@@ -37,14 +38,6 @@ def configfile(setconfig=False):
         else:
             datapath = input(f'Path to data files: ')
 
-        # database name
-        if 'database' in config:
-            olddb = config['database']
-        else:
-            olddb = 'thesolarsystem'
-        database_ = input(f'Database name [{olddb}]: ')
-        database = olddb if database_ == '' else database_
-
         # make sure the database exists
         with psycopg2.connect(host='localhost', database='postgres') as con:
             con.autocommit = True
@@ -76,14 +69,12 @@ def configfile(setconfig=False):
 
         cfile.write(f'savepath = {savepath}\n')
         cfile.write(f'datapath = {datapath}\n')
-        cfile.write(f'database = {database}\n')
         cfile.close()
     else:
         savepath = config['savepath']
         datapath = config['datapath']
-        database = config['database']
 
-    return database, savepath, datapath
+    return savepath, datapath
 
 
 def set_up_output_tables(con):
@@ -221,7 +212,7 @@ def set_up_output_tables(con):
     print('Created uvvsmodels table')
 
 def configure_model(setcfg=None, setdb=None):
-    if cfgfile is None:
+    if setcfg is None:
         cfgfile = input('Reset the model configuration file? (y/n) ')
         setcfg = True if cfgfile.lower() in ('y', 'yes') else False
     else:

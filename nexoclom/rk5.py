@@ -90,15 +90,5 @@ def rk5(t1, x1, v1, f1, h, output):
              t6, x6, v6, f6, a6, i6,
              t7, x7, v7, f7, a7, i7,
              deltax, deltav, deltaf)
-    import pickle
-    with open('rk5_py.pkl', 'wb') as f:
-        pickle.dump(stuff, f)
-    # assert 0
-
-    # data = (x1, x2, x3, x4, x5, x6, x7, v1, v2, v3, v4, v5, v6, v7,
-    #         a1, a3, a3, a4, a5, a6, a7, i1, i2, i3, i4, i5, i6, i7)
-    # import pickle
-    # with open('rk5.pkl', 'wb') as f:
-    #     pickle.dump(data, f)
 
     return t7, x7, v7, f7, deltax, deltav, deltaf

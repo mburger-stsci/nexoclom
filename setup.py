@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
-# Note: This file needs to be Python 2 / <3.6 compatible, so that the nice
-# "This package only supports Python 3.x+" error prints without syntax errors etc.
-
 import glob
 import os
+import subprocess
 import sys
+from setuptools import setup, find_packages, Extension, Command
+from setuptools.command.test import test as TestCommand
+
 try:
     from configparser import ConfigParser
 except ImportError:
@@ -17,44 +18,90 @@ conf.read(['setup.cfg'])
 metadata = dict(conf.items('metadata'))
 
 PACKAGENAME = metadata.get('package_name', 'nexoclom')
-DESCRIPTION = metadata.get('description', 'Neutral Exosphere and Cloud Model')
+DESCRIPTION = metadata.get('description', '')
 AUTHOR = metadata.get('author', 'Matthew Burger')
-AUTHOR_EMAIL = metadata.get('author_email', '')
+AUTHOR_EMAIL = metadata.get('author_email', 'mburger@stsci.edu')
 LICENSE = metadata.get('license', 'unknown')
-URL = metadata.get('url', 'https://github.com/mburger-stsci/nexoclom')
-__minimum_python_version__ = metadata.get("minimum_python_version", "3.6")
+URL = metadata.get('url', 'unknown')
+__minimum_python_version__ = metadata.get("minimum_python_version", "3.7")
 
-# Enforce Python version check - this is the same check as in __init__.py but
-# this one has to happen before importing ah_bootstrap.
-if sys.version_info < tuple((int(val) for val in __minimum_python_version__.split('.'))):
-    sys.stderr.write("ERROR: nexoclom requires Python {} or later\n".format(__minimum_python_version__))
-    sys.exit(1)
+# if os.path.exists('relic'):
+#     sys.path.insert(1, 'relic')
+#     import relic.release
+# else:
+#     try:
+#         # Note: This is the way this will work
+#         import relic.release
+#     except ImportError:
+#         try:
+#             subprocess.check_call(['git', 'clone',
+#                                    'https://github.com/jhunkeler/relic.git'])
+#             sys.path.insert(1, 'relic')
+#             import relic.release
+#         except subprocess.CalledProcessError as e:
+#             print(e)
+#             exit(1)
 
-# Import ah_bootstrap after the python version validation
-
-import ah_bootstrap
-from setuptools import setup
-
-import builtins
-builtins._ASTROPY_SETUP_ = True
+#version = relic.release.get_info()
+#relic.release.write_template(version, PACKAGENAME)
+for line in open(f'{PACKAGENAME}/__init__.py', 'r').readlines():
+    if 'version' in line:
+        version = line.split('=')[1].strip().replace("'", "").replace('"', '')
 
 
-from astropy_helpers.setup_helpers import (register_commands, get_debug_option,
-                                           get_package_info)
-from astropy_helpers.git_helpers import get_git_devstr
-from astropy_helpers.version_helpers import generate_version_py
+# allows you to build sphinx docs from the pacakge
+# main directory with python setup.py build_sphinx
+try:
+    from sphinx.cmd.build import build_main
+    from sphinx.setup_command import BuildDoc
+
+    class BuildSphinx(BuildDoc):
+        """Build Sphinx documentation after compiling C source files"""
+
+        description = 'Build Sphinx documentation'
+
+        def initialize_options(self):
+            BuildDoc.initialize_options(self)
+
+        def finalize_options(self):
+            BuildDoc.finalize_options(self)
+
+        def run(self):
+            build_cmd = self.reinitialize_command('build_ext')
+            build_cmd.inplace = 1
+            self.run_command('build_ext')
+            build_main(['-b', 'html', './docs', './docs/_build/html'])
+
+except ImportError:
+    class BuildSphinx(Command):
+        user_options = []
+
+        def initialize_options(self):
+            pass
+
+        def finalize_options(self):
+            pass
+
+        def run(self):
+            print('!\n! Sphinx is not installed!\n!', file=sys.stderr)
+            exit(1)
 
 
-# order of priority for long_description:
-#   (1) set in setup.cfg,
-#   (2) load LONG_DESCRIPTION.rst,
-#   (3) load README.rst,
-#   (4) package docstring
+class PyTest(TestCommand):
+    def finalize_options(self):
+        TestCommand.finalize_options(self)
+        self.test_args = ['nexoclom/tests']
+        self.test_suite = True
+
+    def run_tests(self):
+        # import here, cause outside the eggs aren't loaded
+        import pytest
+        errno = pytest.main(self.test_args)
+        sys.exit(errno)
+
+
 readme_glob = 'README*'
-_cfg_long_description = metadata.get('long_description', '')
-if _cfg_long_description:
-    LONG_DESCRIPTION = _cfg_long_description
-elif os.path.exists('LONG_DESCRIPTION.rst'):
+if os.path.exists('LONG_DESCRIPTION.rst'):
     with open('LONG_DESCRIPTION.rst') as f:
         LONG_DESCRIPTION = f.read()
 elif len(glob.glob(readme_glob)) > 0:
@@ -66,88 +113,24 @@ else:
     package = sys.modules[PACKAGENAME]
     LONG_DESCRIPTION = package.__doc__
 
-# Store the package name in a built-in variable so it's easy
-# to get from other parts of the setup infrastructure
-builtins._ASTROPY_PACKAGE_NAME_ = PACKAGENAME
-
-# VERSION should be PEP440 compatible (http://www.python.org/dev/peps/pep-0440)
-# VERSION = metadata.get('version', '0.0.dev')
-
-# Get version info from __init__.py
-for line in open(f'{PACKAGENAME}/__init__.py', 'r').readlines():
-    if 'version' in line:
-        VERSION = line.split('=')[1].strip().replace("'", "").replace('"', '')
-
-# Indicates if this version is a release version
-RELEASE = 'dev' not in VERSION
-
-# if not RELEASE:
-#     VERSION += get_git_devstr(False)
-
-# Populate the dict of setup command overrides; this should be done before
-# invoking any other functionality from distutils since it can potentially
-# modify distutils' behavior.
-cmdclassd = register_commands(PACKAGENAME, VERSION, RELEASE)
-
-# Freeze build information in version.py
-generate_version_py(PACKAGENAME, VERSION, RELEASE,
-                    get_debug_option(PACKAGENAME))
-
-# Treat everything in scripts except README* as a script to be installed
-scripts = [fname for fname in glob.glob(os.path.join('scripts', '*'))
-           if not os.path.basename(fname).startswith('README')]
-
-
-# Get configuration information from all of the various subpackages.
-# See the docstring for setup_helpers.update_package_files for more
-# details.
-package_info = get_package_info()
-
-# Add the project-global data
-package_info['package_data'].setdefault(PACKAGENAME, [])
-package_info['package_data'][PACKAGENAME].append('data/*')
-
-# Define entry points for command-line scripts
-entry_points = {'console_scripts': []}
-
-if conf.has_section('entry_points'):
-    entry_point_list = conf.items('entry_points')
-    for entry_point in entry_point_list:
-        entry_points['console_scripts'].append('{0} = {1}'.format(
-            entry_point[0], entry_point[1]))
-
-# Include all .c files, recursively, including those generated by
-# Cython, since we can not do this in MANIFEST.in with a "dynamic"
-# directory name.
-c_files = []
-for root, dirs, files in os.walk(PACKAGENAME):
-    for filename in files:
-        if filename.endswith('.c'):
-            c_files.append(
-                os.path.join(
-                    os.path.relpath(root, PACKAGENAME), filename))
-package_info['package_data'][PACKAGENAME].extend(c_files)
-
-# Note that requires and provides should not be included in the call to
-# ``setup``, since these are now deprecated. See this link for more details:
-# https://groups.google.com/forum/#!topic/astropy-dev/urYO8ckB2uM
-
 setup(name=PACKAGENAME,
-      version=VERSION,
-      description=DESCRIPTION,
-      scripts=scripts,
-      install_requires= [s.strip() for s in
-                 metadata.get('install_requires', 'astropy').split(',')],
-#      setup_requires=['pbr'], pbr=True,
+      version=version,
       author=AUTHOR,
       author_email=AUTHOR_EMAIL,
       license=LICENSE,
       url=URL,
+      description=DESCRIPTION,
       long_description=LONG_DESCRIPTION,
-      cmdclass=cmdclassd,
-      zip_safe=False,
-      use_2to3=False,
-      entry_points=entry_points,
+      install_requires= [s.strip() for s in
+                 metadata.get('install_requires', 'astropy').split(',')],
       python_requires='>={}'.format(__minimum_python_version__),
-      **package_info
+          tests_require=['pytest'],
+          packages=find_packages(),
+          package_data={PACKAGENAME:
+                        ['data/g-values/*.dat',
+                         'data/Loss/Photo/*.dat']},
+          include_package_data=True,
+          cmdclass={
+              'test': PyTest,
+              'build_sphinx': BuildSphinx},
 )
