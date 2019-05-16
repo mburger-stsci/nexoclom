@@ -22,24 +22,26 @@ def configfile():
     else:
         pass
 
-    if 'database' in config:
-        database = config['database']
-    else:
-        database = 'thesolarsystemmb'
-        with open(configfile, 'a') as f:
-            f.write(f'database = {database}\n')
+    database = 'thesolarsystemmb'
+    # if 'database' in config:
+    #     database = config['database']
+    #     database = 'thesolarsystemmb'
+    # else:
+    #     database = 'thesolarsystemmb'
+    #     with open(configfile, 'a') as f:
+    #         f.write(f'database = {database}\n')
+    #
+    with psycopg2.connect(host='localhost', database='postgres') as con:
+        con.autocommit = True
+        cur = con.cursor()
+        cur.execute('select datname from pg_database')
+        dbs = [r[0] for r in cur.fetchall()]
 
-        with psycopg2.connect(host='localhost', database='postgres') as con:
-            con.autocommit = True
-            cur = con.cursor()
-            cur.execute('select datname from pg_database')
-            dbs = [r[0] for r in cur.fetchall()]
-
-            if database not in dbs:
-                print(f'Creating database {database}')
-                cur.execute(f'create database {database}')
-            else:
-                pass
+        if database not in dbs:
+            print(f'Creating database {database}')
+            cur.execute(f'create database {database}')
+        else:
+            pass
 
     if 'savepath' in config:
         savepath = config['savepath']
