@@ -2,6 +2,7 @@ import numpy as np
 import psycopg2
 import astropy.units as u
 import astropy.units.astrophys as ua
+from atomicdataMB import PhotoRate
 
 class LossInfo():
     def __init__(self, atom, lifetime, aplanet, database):
@@ -15,7 +16,7 @@ class LossInfo():
             self.photo = np.abs(1./lifetime.value)
             self.reactions = 'Generic photo reaction.'
         else:
-            photo = PhotoRates(atom)
+            photo = PhotoRate(atom)
             self.photo = photo.rate.value
             self.reactions = photo.reactions['reaction'].values
 

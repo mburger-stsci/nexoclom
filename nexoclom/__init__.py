@@ -9,7 +9,7 @@ from .configure_model import configure_model
 name = 'nexoclom'
 __author__ = 'Matthew Burger'
 __email__ = 'mburger@stsci.edu'
-__version__ = '1.0.8'
+__version__ = '1.1.0'
 database = 'thesolarsystemmb'
 
 

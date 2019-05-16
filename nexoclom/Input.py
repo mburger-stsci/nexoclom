@@ -13,7 +13,7 @@ from .input_classes import (Geometry, StickingInfo, Forces,
 class Input():
     def __init__(self, infile, verbose=False):
         # Read the configuration file
-        self.database, self.savepath, self.datapath = configfile()
+        self.savepath, self.database = configfile()
 
         # Read in the input file:
         self.inputfile = infile
