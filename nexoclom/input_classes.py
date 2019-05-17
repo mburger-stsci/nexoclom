@@ -1,11 +1,28 @@
 '''Classes used by the Inputs class'''
-
 import os
 import numpy as np
+import pandas as pd
+import psycopg2
 from astropy.time import Time
 import astropy.units as u
 from solarsystemMB import SSObject
 
+
+def isNone(x):
+    try:
+        q = x.value
+    except:
+        q = x
+
+    if type(q) == str:
+        return f'is NULL' if q is None else f"= '{q}'"
+    else:
+        return f'is NULL' if q is None else f"= {q}"
+
+def inRange(field, x, delta):
+    return f'ABS({field} - {x}) <= {delta/2}'
+
+dtor = np.pi/180.
 
 class Geometry():
     def __init__(self, gparam):
@@ -96,6 +113,66 @@ class Geometry():
         print('geometry.subsolarpoint = ({}, {})'.format(*self.subsolarpoint))
         print('geometry.TAA = {}'.format(self.taa))
         return ''
+
+    def search(self, database='thesolarsystemmb', startlist=None):
+        # Make list of objects in planet system
+        objs = [obj.object for obj in self.objects]
+        objs.sort()
+        objs2 = ','.join(objs)
+
+        if startlist is None:
+            startstr = ''
+        else:
+            start_ = [str(s) for s in startlist]
+            startstr = f"and geo_idnum in ({', '.join(start_)})"
+
+        if self.time is None:
+            # Fields to query:
+            #   planet, startpoint, objects, phi, subsolarpoint, TAA
+            dtaa = (5.*u.deg).to(u.rad)
+            taa = [self.taa-dtaa/2., self.taa+dtaa/2.]
+            taa = [taa[0].value, taa[1].value]
+            if taa[0] < 0.:
+                taabit = '(taa>={} or taa<{})'.format(2*np.pi+taa[0],
+                                                        taa[1])
+            elif taa[1] > 2*np.pi:
+                taabit = '(taa>={} or taa<{})'.format(taa[0],
+                                                       taa[1] % (2*np.pi))
+            else:
+                taabit = inRange('taa', self.taa.value, dtaa.value)
+
+            phi = [p.value for p in self.phi]
+            assert phi[0] == 0., 'phi for planet should be zero.'
+            ptxt = [inRange('phi[{}]'.format(i+1), p, 5.*dtor) for
+                    i,p in enumerate(phi)]
+            ptxt2 = ' and '.join(ptxt)
+
+            sspt0 = inRange('subsolarpt[0]', self.subsolarpoint[0].value,
+                            5*dtor)
+            sspt1 = inRange('subsolarpt[1]', self.subsolarpoint[1].value,
+                            5*dtor)
+
+            query = f'''SELECT geo_idnum FROM geometry
+                        WHERE planet = '{self.planet.object}' and
+                              startpoint = '{self.startpoint}' and
+                              objects = ARRAY['{objs2}']::SSObject[] and
+                              {ptxt2} and
+                              {sspt0} and
+                              {sspt1} and
+                              {taabit} {startstr}'''
+        else:
+            # Fields to query
+            # planet, StartPoint, objects, time
+            # query =
+            assert 0, 'Not working yet.'
+
+        with psycopg2.connect(database=database) as con:
+            result = pd.read_sql(query, con)
+        if len(result) == 0:
+            return None
+        else:
+            return result.geo_idnum.to_list()
+
 ###############################################################
 
 
@@ -187,7 +264,36 @@ class StickingInfo():
             print('sticking_info.accom_factor = {}'.format(self.accom_factor))
 
         return ''
-###############################################################
+
+    def search(self, database='thesolarsystemmb', startlist=None):
+        if startlist is None:
+            startstr = ''
+        else:
+            start_ = [str(s) for s in startlist]
+            startstr = f"and st_idnum in ({', '.join(start_)})"
+
+        if self.stickcoef == 1:
+            query = f'''SELECT st_idnum FROM sticking_info
+                        WHERE stickcoef=1 {startstr}'''
+        else:
+            query = f'''SELECT st_idnum FROM sticking_info
+                        WHERE stickcoef={self.stickcoef}
+                             tsurf {self.tsurf} and
+                             stickfn {self.stickfn} and
+                             stick_mapfile {self.stick_mapfile} and
+                             epsilon {self.epsilon} and
+                             n {self.n} and
+                             tmin {self.tmin} and
+                             emitfn {self.emitfn} and
+                             accom_mapfile {self.accom_mapfile}
+                             {startstr}'''
+
+        with psycopg2.connect(database=database) as con:
+            result = pd.read_sql(query, con)
+        if len(result) == 0:
+            return None
+        else:
+            return result.st_idnum.to_list()
 
 
 class Forces():
@@ -207,6 +313,25 @@ class Forces():
         print('forces.gravity = {}'.format(self.gravity))
         print('forces.radpres = {}'.format(self.radpres))
         return ''
+
+    def search(self, database='thesolarsystemmb', startlist=None):
+        if startlist is None:
+            startstr = ''
+        else:
+            start_ = [str(s) for s in startlist]
+            startstr = f"and f_idnum in ({', '.join(start_)})"
+
+        query = f'''SELECT f_idnum FROM forces
+                    WHERE gravity={self.gravity} and
+                          radpres={self.radpres} {startstr}'''
+        with psycopg2.connect(database=database) as con:
+            result = pd.read_sql(query, con)
+
+        if len(result) == 0:
+            return None
+        else:
+            return result.f_idnum.to_list()
+
 ###############################################################
 
 
@@ -293,6 +418,44 @@ class SpatialDist():
             print('spatialdist.latitude = ({:0.2f}, {:0.2f})'.
               format(*self.latitude))
         return ''
+
+    def search(self, database='thesolarsystemmb', startlist=None):
+        if startlist is None:
+            startstr = ''
+        else:
+            start_ = [str(s) for s in startlist]
+            startstr = f"and spat_idnum in ({', '.join(start_)})"
+
+        if self.longitude is None:
+            long0 = 'longitude[1] = 0.'
+            long1 = 'longitude[2] = 0.'
+        else:
+            long0 = inRange('longitude[1]', self.longitude[0].value, 5*dtor)
+            long1 = inRange('longitude[2]', self.longitude[1].value, 5*dtor)
+
+        if self.latitude is None:
+            lat0 = 'latitude[1] = 0.'
+            lat1 = 'latitude[2] = 0.'
+        else:
+            lat0 = inRange('latitude[1]', self.latitude[0].value, 5*dtor)
+            lat1 = inRange('latitude[2]', self.latitude[1].value, 5*dtor)
+
+        query = f'''SELECT spat_idnum FROM spatialdist
+                    WHERE type = '{self.type}' and
+                         {inRange('exobase', self.exobase, 0.05)} and
+                         use_map {isNone(self.use_map)} and
+                         mapfile {isNone(self.mapfile)} and
+                         {long0} and
+                         {long1} and
+                         {lat0} and
+                         {lat1} {startstr}'''
+
+        with psycopg2.connect(database=database) as con:
+            result = pd.read_sql(query, con)
+        if len(result) == 0:
+            return None
+        else:
+            return result.spat_idnum.to_list()
 ###############################################################
 
 
@@ -354,6 +517,42 @@ class SpeedDist():
             print('SpeedDist.delv = {}'.format(self.delv))
 
         return ''
+
+    def search(self, database='thesolarsystemmb', startlist=None):
+        if startlist is None:
+            startstr = ''
+        else:
+            start_ = [str(s) for s in startlist]
+            startstr = f"and spd_idnum in ({', '.join(start_)})"
+
+        if self.vprob is None:
+            vstr = 'vprob is NULL'
+        else:
+            vstr = inRange('vprob', self.vprob.value,
+                           self.vprob.value*0.05)
+
+        if self.temperature is None:
+            Tstr = 'temperature is NULL'
+        else:
+            Tstr = inRange('temperature', self.temperature.value,
+                           self.temperature.value*0.05)
+
+        query = f'''SELECT spd_idnum FROM speeddist
+                    WHERE type = '{self.type}' and
+                          {vstr} and
+                          sigma {isNone(self.sigma)} and
+                          U  {isNone(self.U)} and
+                          alpha  {isNone(self.alpha)} and
+                          beta  {isNone(self.beta)} and
+                          {Tstr} and
+                          delv  {isNone(self.delv)} {startstr}'''
+
+        with psycopg2.connect(database=database) as con:
+            result = pd.read_sql(query, con)
+        if len(result) == 0:
+            return None
+        else:
+            return result.spd_idnum.to_list()
 
 
 class AngularDist():
@@ -425,6 +624,41 @@ class AngularDist():
             print('AngularDist.n = {}'.format(self.n))
 
         return ''
+
+    def search(self, database='thesolarsystemmb', startlist=None):
+        if startlist is None:
+            startstr = ''
+        else:
+            start_ = [str(s) for s in startlist]
+            startstr = f"and ang_idnum in ({', '.join(start_)})"
+
+        if self.azimuth is None:
+            az0 = 'azimuth[1] is NULL'
+            az1 = 'azimuth[2] is NULL'
+        else:
+            az0 = inRange('azimuth[1]', self.azimuth[0].value, 5*dtor)
+            az1 = inRange('azimuth[2]', self.azimuth[1].value, 5*dtor)
+
+        if self.altitude is None:
+            alt0 = 'altitude[1] is NULL'
+            alt1 = 'altitude[2] is NULL'
+        else:
+            alt0 = inRange('altitude[1]', self.altitude[0].value, 5*dtor)
+            alt1 = inRange('altitude[2]', self.altitude[1].value, 5*dtor)
+        n = isNone(self.n)
+
+        query = f'''SELECT ang_idnum from angulardist
+                    WHERE type = '{self.type}' and
+                          {az0} and {az1} and
+                          {alt0} and {alt1} and
+                          n {n} {startstr}'''
+        with psycopg2.connect(database=database) as con:
+            result = pd.read_sql(query, con)
+
+        if len(result) == 0:
+            return None
+        else:
+            return result.ang_idnum.to_list()
 ###############################################################
 
 
@@ -490,4 +724,35 @@ class Options():
             print('options.nsteps = {}'.format(self.nsteps))
 
         return ''
-###############################################################
+
+    def search(self, database='thesolarsystemmb', startlist=None):
+        if startlist is None:
+            startstr = ''
+        else:
+            start_ = [str(s) for s in startlist]
+            startstr = f"and opt_idnum in ({', '.join(start_)})"
+
+        endtime = inRange('endtime', self.endtime.value,
+                          self.endtime.value*0.05)
+        outeredge = isNone(self.outeredge)
+        nsteps = isNone(self.nsteps)
+        res = isNone(self.resolution)
+
+        query = f'''SELECT opt_idnum from options
+                    WHERE {endtime} and
+                          resolution {res} and
+                          at_once = {self.at_once} and
+                          atom = '{self.atom}' and
+                          lifetime = {self.lifetime.value} and
+                          fullsystem = {self.fullsystem} and
+                          outeredge {outeredge} and
+                          motion = {self.motion} and
+                          streamlines = {self.streamlines} and
+                          nsteps {nsteps} {startstr}'''
+        with psycopg2.connect(database=database) as con:
+            result = pd.read_sql(query, con)
+
+        if len(result) == 0:
+            return None
+        else:
+            return result.opt_idnum.to_list()

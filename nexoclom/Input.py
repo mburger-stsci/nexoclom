@@ -1,6 +1,33 @@
+"""Read the model inputs from a file and create the Input object.
+
+The Input object is build from smaller objects defining different model
+options.
+
+Geometry
+    Defines the Solar System geometry for the Input.
+
+StickingInfo
+    Defines the surface interactions.
+
+Forces
+    Set which forces act on model particles.
+
+SpatialDist
+    Define the initial spatial distribution of particles.
+
+SpeedDist
+    Define the initial speed distribution of particles.
+
+AngularDist
+    Define the initial angular distribtuion of particles.
+
+Options
+    Configure other model parameters
+"""
 import os, os.path
 import numpy as np
 import psycopg2
+import pandas as pd
 from astropy.io import ascii
 import astropy.units as u
 from .produce_image import ModelImage
@@ -11,12 +38,34 @@ from .input_classes import (Geometry, StickingInfo, Forces,
 
 
 class Input():
-    def __init__(self, infile, verbose=False):
+    def __init__(self, infile):
+        """Read the input options from a file.
+
+        **Parameters**
+        infile
+            Plain text file containing model input parameters.
+
+        **Class Attributes**
+
+        * geometry
+        * sticking_info
+        * forces
+        * spatialdist
+        * speeddist
+        * angulardist
+        * options
+
+        **Class Methods**
+
+        * findpackets()
+        * run(npackets, overwrite=False, compress=True)
+        * produce_image(format_, filenames=None)
+        """
         # Read the configuration file
-        self.savepath, self.database = configfile()
+        self.__savepath, self.__database = configfile()
 
         # Read in the input file:
-        self.inputfile = infile
+        self.__inputfile = infile
         if os.path.isfile(infile):
             data = ascii.read(infile, delimiter='=', comment=';',
                               data_start=0, names=['Param', 'Value'])
@@ -39,7 +88,8 @@ class Input():
         self.sticking_info = StickingInfo(sparam)
 
         # Extract the forces
-        fparam = {b:c for a,b,c in zip(section, param, values) if a == 'forces'}
+        fparam = {b:c for a,b,c in zip(section, param, values)
+                  if a == 'forces'}
         self.forces = Forces(fparam)
 
         # Extract the spatial distribution
@@ -48,7 +98,8 @@ class Input():
         self.spatialdist = SpatialDist(sparam)
 
         # Extract the speed distribution
-        sparam = {b:c for a,b,c in zip(section, param, values) if a == 'speeddist'}
+        sparam = {b:c for a,b,c in zip(section, param, values)
+                  if a == 'speeddist'}
         self.speeddist = SpeedDist(sparam)
 
         # Extract the angular distribution
@@ -57,7 +108,8 @@ class Input():
         self.angulardist = AngularDist(aparam, self.spatialdist)
 
         # Extract the options
-        oparam = {b:c for a,b,c in zip(section, param, values) if a == 'options'}
+        oparam = {b:c for a,b,c in zip(section, param, values)
+                  if a == 'options'}
         self.options = Options(oparam, self.geometry.planet)
 
     def __str__(self):
@@ -74,308 +126,34 @@ class Input():
         '''
         Search the database for identical inputs
         '''
+        georesult = self.geometry.search(self.__database, startlist=None)
+        stickresult = self.sticking_info.search(self.__database,
+                                                startlist=georesult)
+        forceresult = self.forces.search(self.__database,
+                                         startlist=stickresult)
+        spatresult = self.spatialdist.search(self.__database,
+                                             startlist=forceresult)
+        spdresult = self.speeddist.search(self.__database,
+                                          startlist=spatresult)
+        angresult = self.angulardist.search(self.__database,
+                                            startlist=spdresult)
+        finalresult = self.options.search(self.__database,
+                                          startlist=angresult)
 
-        # connect to the database
-        con = psycopg2.connect(host='localhost', database=self.database)
-        cur = con.cursor()
-
-        dtor = np.pi/180.
-
-        def isNone(x):
-            try:
-                q = x.value
-            except:
-                q = x
-
-            if type(q) == str:
-                return f'is NULL' if q is None else f"= '{q}'"
-            else:
-                return f'is NULL' if q is None else f"= {q}"
-
-        def inRange(field, x, delta):
-            return f'ABS({field} - {x}) <= {delta/2}'
-
-        # Search geometry
-        # Note: StartTime not included in query
-        geometry = self.geometry
-        objs = [obj.object for obj in geometry.objects]
-
-        objs.sort()
-        objs2 = ','.join(objs)
-
-        phi = [p.value for p in geometry.phi]
-        assert phi[0] == 0., 'There is a problem with phi'
-
-        dtaa = (5.*u.deg).to(u.rad)
-        taa = [geometry.taa-dtaa/2., geometry.taa+dtaa/2.]
-        taa = [taa[0].value, taa[1].value]
-        if taa[0] < 0.:
-            taabit = '(taa>={} or taa<{})'.format(2*np.pi+taa[0],
-                                                    taa[1])
-        elif taa[1] > 2*np.pi:
-            taabit = '(taa>={} or taa<{})'.format(taa[0],
-                                                   taa[1] % (2*np.pi))
-        else:
-            taabit = inRange('taa', geometry.taa.value, dtaa.value)
-
-        ptxt = [inRange('phi[{}]'.format(i+1), p, 5.*dtor) for
-                i,p in enumerate(phi)]
-        ptxt2 = ' and '.join(ptxt)
-
-        query = '''SELECT geo_idnum FROM geometry
-                   WHERE planet='{}' and
-                         StartPoint='{}' and
-                         objects=ARRAY['{}']::SSObject[] and
-                         {} and
-                         {} and
-                         {} and
-                         {}'''.format(geometry.planet.object,
-                                      geometry.startpoint,
-                                      objs2,
-                                      ptxt2,
-            inRange('subsolarpt[0]', geometry.subsolarpoint[0].value, 5*dtor),
-            inRange('subsolarpt[1]', geometry.subsolarpoint[1].value, 5*dtor),
-                    taabit)
-
-        cur.execute(query)
-        if cur.rowcount == 0:
+        if finalresult is None:
             return [], 0, 0
-        result = cur.fetchall()
-        georesult = [r[0] for r in result]
-
-        # Sticking Info
-        sticking_info = self.sticking_info
-        geostr = [str(i) for i in georesult]
-        geostr = '(' + ', '.join(geostr) + ')'
-
-        if sticking_info.stickcoef == 1:
-            query = '''SELECT st_idnum FROM sticking_info
-                       WHERE stickcoef=1 and
-                             st_idnum in {}'''.format(geostr)
         else:
-            query = '''SELECT st_idnum FROM sticking_info
-                       WHERE stickcoef={} and
-                             tsurf {} and
-                             stickfn {} and
-                             stick_mapfile {} and
-                             epsilon {} and
-                             n {} and
-                             tmin {} and
-                             emitfn {} and
-                             accom_mapfile {} and
-                             st_idnum in {}'''.format(
-                                sticking_info.stickcoef,
-                                isNone(sticking_info.tsurf),
-                                isNone(sticking_info.stickfn),
-                                isNone(sticking_info.stick_mapfile),
-                                isNone(sticking_info.epsilon),
-                                isNone(sticking_info.n),
-                                isNone(sticking_info.tmin),
-                                isNone(sticking_info.emitfn),
-                                isNone(sticking_info.accom_mapfile),
-                                geostr)
+            result_ = [str(s) for s in finalresult]
+            resultstr = f"({', '.join(result_)})"
+            with psycopg2.connect(database=self.__database) as con:
+                result = pd.read_sql(
+                    f'''SELECT filename, npackets, totalsource
+                        FROM outputfile
+                        WHERE idnum in {resultstr}''', con)
+            npackets = result.npackets.sum()
+            totalsource = result.totalsource.sum()
 
-        cur.execute(query)
-        if cur.rowcount == 0:
-            return [], 0, 0
-        result = cur.fetchall()
-        stickresult = [s[0] for s in result]
-
-        # Forces
-        stickstr = [str(i) for i in stickresult]
-        stickstr = '(' + ', '.join(stickstr) + ')'
-        forces = self.forces
-        query = '''SELECT f_idnum FROM forces
-                   WHERE gravity=%s and
-                         radpres=%s and
-                         f_idnum in {}'''.format(stickstr)
-        cur.execute(query,
-                    (forces.gravity, forces.radpres))
-        result = cur.fetchall()
-        if cur.rowcount == 0:
-            return [], 0, 0
-        forceresult = [s[0] for s in result]
-
-        # SpatialDist
-        spatialdist = self.spatialdist
-        forcestr = [str(i) for i in forceresult]
-        forcestr = '(' + ', '.join(forcestr) + ')'
-
-        if spatialdist.longitude is None:
-            long0 = 'longitude[1] = 0.'
-            long1 = 'longitude[2] = 0.'
-        else:
-            long0 = inRange('longitude[1]', spatialdist.longitude[0].value,
-                            5*dtor)
-            long1 = inRange('longitude[2]', spatialdist.longitude[1].value,
-                            5*dtor)
-
-        if spatialdist.latitude is None:
-            lat0 = 'latitude[1] = 0.'
-            lat1 = 'latitude[2] = 0.'
-        else:
-            lat0 = inRange('latitude[1]', spatialdist.latitude[0].value,
-                            5*dtor)
-            lat1 = inRange('latitude[2]', spatialdist.latitude[1].value,
-                            5*dtor)
-
-        query = '''SELECT spat_idnum FROM spatialdist
-                   WHERE type = '{}' and
-                         {} and
-                         use_map {} and
-                         mapfile {} and
-                         {} and
-                         {} and
-                         {} and
-                         {} and
-                         spat_idnum in {}'''.format(
-                            spatialdist.type,
-                            inRange('exobase', spatialdist.exobase, 0.05),
-                            isNone(spatialdist.use_map),
-                            isNone(spatialdist.mapfile),
-                            long0,
-                            long1,
-                            lat0,
-                            lat1,
-                            forcestr)
-
-        cur.execute(query)
-        if cur.rowcount == 0:
-            return [], 0, 0
-        result = cur.fetchall()
-        spatresult = [s[0] for s in result]
-
-        # Speeddist
-        speeddist = self.speeddist
-        spatstr = [str(i) for i in spatresult]
-        spatstr = '(' + ', '.join(spatstr) + ')'
-
-        if speeddist.vprob is None:
-            vstr = 'vprob is NULL'
-        else:
-            vstr = inRange('vprob', speeddist.vprob.value,
-                           speeddist.vprob.value*0.05)
-        if speeddist.temperature is None:
-            Tstr = 'temperature is NULL'
-        else:
-            Tstr = inRange('temperature', speeddist.temperature.value,
-                           speeddist.temperature.value*0.05)
-
-        query = '''SELECT spd_idnum FROM speeddist
-                   WHERE type = '{}' and
-                         {} and
-                         sigma {} and
-                         U {} and
-                         alpha {} and
-                         beta {} and
-                         {} and
-                         delv {} and
-                         spd_idnum in {}'''.format(
-                             speeddist.type,
-                             vstr,
-                             isNone(speeddist.sigma),
-                             isNone(speeddist.U),
-                             isNone(speeddist.alpha),
-                             isNone(speeddist.beta),
-                             Tstr,
-                             isNone(speeddist.delv),
-                             spatstr)
-        cur.execute(query)
-        if cur.rowcount == 0:
-            return [], 0, 0
-        result = cur.fetchall()
-        speedresult = [s[0] for s in result]
-
-        # Angular distribution
-        angdist = self.angulardist
-        spdstr = [str(i) for i in speedresult]
-        spdstr = '(' + ', '.join(spdstr) + ')'
-
-        if angdist.azimuth is None:
-            az0 = 'azimuth[1] is NULL'
-            az1 = 'azimuth[2] is NULL'
-        else:
-            az0 = inRange('azimuth[1]', angdist.azimuth[0].value,
-                            5*dtor)
-            az1 = inRange('azimuth[2]', angdist.azimuth[1].value,
-                            5*dtor)
-        if angdist.altitude is None:
-            alt0 = 'altitude[1] is NULL'
-            alt1 = 'altitude[2] is NULL'
-        else:
-            alt0 = inRange('altitude[1]', angdist.altitude[0].value,
-                            5*dtor)
-            alt1 = inRange('altitude[2]', angdist.altitude[1].value,
-                            5*dtor)
-        n = isNone(angdist.n)
-
-        query = '''SELECT ang_idnum from angulardist
-                   WHERE type = '{}' and
-                         {} and {} and
-                         {} and {} and
-                         n {} and
-                         ang_idnum in {}'''.format(angdist.type,
-                             az0, az1,
-                             alt0, alt1,
-                             n,
-                             spdstr)
-        cur.execute(query)
-        if cur.rowcount == 0:
-            return [], 0, 0
-        result = cur.fetchall()
-        angresult = [a[0] for a in result]
-
-        # Options
-        options = self.options
-        angstr = [str(i) for i in angresult]
-        angstr = '(' + ', '.join(angstr) + ')'
-
-        endtime = inRange('endtime', options.endtime.value,
-                          options.endtime.value*0.05)
-        outeredge = isNone(options.outeredge)
-        nsteps = isNone(options.nsteps)
-        res = isNone(options.resolution)
-
-        query = '''SELECT opt_idnum from options
-                   WHERE {} and
-                         resolution {} and
-                         at_once = {} and
-                         atom = '{}' and
-                         lifetime = {} and
-                         fullsystem = {} and
-                         outeredge {} and
-                         motion = {} and
-                         streamlines = {} and
-                         nsteps {} and
-                         opt_idnum in {}'''.format(
-                             endtime,
-                             res,
-                             options.at_once,
-                             options.atom,
-                             options.lifetime.value,
-                             options.fullsystem,
-                             outeredge,
-                             options.motion,
-                             options.streamlines,
-                             nsteps,
-                             angstr)
-        cur.execute(query)
-        if cur.rowcount == 0:
-            return [], 0, 0
-        result = cur.fetchall()
-        finalresult = [str(a[0]) for a in result]
-        finalresult = '(' + ', '.join(finalresult) + ')'
-
-        # Get final list of files and # packets
-        query = '''SELECT filename, npackets, totalsource FROM outputfile
-                   WHERE idnum in {}'''.format(finalresult)
-        cur.execute(query)
-        result = cur.fetchall()
-        filenames = [r[0] for r in result]
-        npackets = sum(r[1] for r in result)
-        totalsource = sum(r[2] for r in result)
-
-        return filenames, npackets, totalsource
+            return result.filename.to_list(), npackets, totalsource
 
     def run(self, npackets, overwrite=False, compress=True):
         modeldriver(self, npackets, overwrite, compress)
