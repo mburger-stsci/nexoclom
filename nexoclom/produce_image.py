@@ -149,7 +149,7 @@ class ModelImage(ModelResult):
         self.image = self.image * self.atoms_per_packet
 
     def save(self, fname, image, packets):
-        con = psycopg2.connect(database=self.inputs.database)
+        con = psycopg2.connect(database=self.inputs._database)
         con.autocommit = True
         cur = con.cursor()
 
@@ -196,7 +196,7 @@ class ModelImage(ModelResult):
                         WHERE idnum = %s''', (savefile, idnum))
 
     def restore(self, fname):
-        con = psycopg2.connect(database=self.inputs.database)
+        con = psycopg2.connect(database=self.inputs._database)
         con.autocommit = True
 
         # Determine the id of the outputfile

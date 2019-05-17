@@ -12,8 +12,7 @@ from .LossInfo import LossInfo
 from .rk5 import rk5
 from .bouncepackets import bouncepackets
 from .source_distribution import (surface_distribution, speed_distribution,
-                                  angular_distribution, surface_spot,
-                                  idlversion)
+                                  angular_distribution, surface_spot)
 from mathMB import minmaxmean
 
 
@@ -48,14 +47,14 @@ class Output:
             self.loss_info = LossInfo(inputs.options.atom,
                                       inputs.options.lifetime,
                                       self.aplanet,
-                                      inputs.database)
+                                      inputs._database)
         else:
             self.loss_info = None
 
         # Set up the radiation pressure
         if inputs.forces.radpres:
             radpres = RadPresConst(inputs.options.atom, self.aplanet,
-                                   inputs.database)
+                                   inputs._database)
             radpres.velocity = radpres.velocity.to(self.unit/u.s).value
             radpres.accel = radpres.accel.to(self.unit/u.s**2).value
             self.radpres = radpres
@@ -90,11 +89,6 @@ class Output:
             pass
 
         # Determine initial source distribution
-        # Eventual way to do this
-        # if inputs.SpatialDist.type == 'inputfile':
-        #     out = outputfile_source(inputs, packs_per_it, seed=seed)
-        # else:
-        #     self.source_distribution()
         self.source_distribution()
 
     def __str__(self):
@@ -135,8 +129,6 @@ class Output:
             X0, lon, lat = surface_spot(self.inputs,
                                         self.npackets,
                                         self.unit)
-        elif self.inputs.spatialdist.type == 'idlversion':
-            X0, V0_, _ = idlversion(self.inputs, self.unit)
         else:
             assert 0, 'Spatial Distribution {} not supported.'.format(
                 self.inputs.spatialdist.type)
@@ -170,21 +162,22 @@ class Output:
         else:
             pass
 
-        self.x0 = X0[0, :]
-        self.y0 = X0[1, :]
-        self.z0 = X0[2, :]
-        self.vx0 = V0[0, :]
-        self.vy0 = V0[1, :]
-        self.vz0 = V0[2, :]
+        self.x0 = X0[0,:]
+        self.y0 = X0[1,:]
+        self.z0 = X0[2,:]
+        self.vx0 = V0[0,:]
+        self.vy0 = V0[1,:]
+        self.vz0 = V0[2,:]
 
-        self.x = X0[0, :]
-        self.y = X0[1, :]
-        self.z = X0[2, :]
-        self.vx = V0[0, :]
-        self.vy = V0[1, :]
-        self.vz = V0[2, :]
+        self.x = X0[0,:]
+        self.y = X0[1,:]
+        self.z = X0[2,:]
+        self.vx = V0[0,:]
+        self.vy = V0[1,:]
+        self.vz = V0[2,:]
 
     def driver(self):
+        assert 0, 'Needs to be verified.'
         # Set up the step sizes
         hall = np.zeros(self.npackets) + 1000.
 
@@ -376,10 +369,10 @@ class Output:
         tt0 = np.zeros((npack, self.inputs.options.nsteps))
 
         # Add initial values to the arrays
-        tt0[:, 0] = T
-        xx0[:, :, 0] = X
-        vv0[:, :, 0] = V
-        ff0[:, 0] = Frac
+        tt0[:,0] = T
+        xx0[:,:,0] = X
+        vv0[:,:,0] = V
+        ff0[:,0] = Frac
 
         #  step size and counters
         dt = self.inputs.options.endtime.value/(self.inputs.options.nsteps-1)
@@ -408,13 +401,13 @@ class Output:
             # Check for surface impacts
             tempR = np.linalg.norm(x1, axis=0)
             # satrad = np.ones_like(tempR)
-            hhh = (tempR - 1.) < 0
+            hit_surf = (tempR - 1.) < 0
 
-            if np.any(hhh):
+            if np.any(hit_surf):
                 if self.inputs.sticking_info.stickcoef == 1:
-                    f1[hhh] = 0.
+                    f1[hit_surf] = 0.
                 else:
-                    bouncepackets(self, t1, x1, v1, f1, hhh)
+                    bouncepackets(self, t1, x1, v1, f1, hit_surf)
 
             # Check for escape
             if not self.inputs.options.fullsystem:
@@ -428,15 +421,15 @@ class Output:
 
             # Put new values back into the original array
             T[moretogo] = t1
-            X[:, moretogo] = x1
-            V[:, moretogo] = v1
+            X[:,moretogo] = x1
+            V[:,moretogo] = v1
             Frac[moretogo] = f1
 
-            # Save the results for later
-            tt0[:, ct] = T
-            xx0[:, :, ct] = X
-            vv0[:, :, ct] = V
-            ff0[:, ct] = Frac
+            # Save the results of this step
+            tt0[:,ct] = T
+            xx0[:,:,ct] = X
+            vv0[:,:,ct] = V
+            ff0[:,ct] = Frac
 
             # Check to see what still needs to be done
             moretogo = Frac > 0
@@ -463,7 +456,7 @@ class Output:
 
         self.totalsource *= self.inputs.options.nsteps
         index = np.mgrid[0:npack, 0:self.inputs.options.nsteps]
-        self.index = index[0, :, :].reshape(allpacks)
+        self.index = index[0,:,:].reshape(allpacks)
 
         # Add units back in
         self.aplanet *= self.unit
@@ -481,7 +474,7 @@ class Output:
             assert 0, 'Filename not set up for anything but Mercury'
 
         # Come up with a path name
-        pathname = os.path.join(self.inputs.savepath,
+        pathname = os.path.join(self.inputs._savepath,
                                 self.planet.object,
                                 self.inputs.options.atom,
                                 self.inputs.spatialdist.type,
@@ -498,7 +491,7 @@ class Output:
 
     def save(self):
         # Add output into database
-        con = psycopg2.connect(database=self.inputs.database)
+        con = psycopg2.connect(database=self.inputs._database)
         con.autocommit = True
         cur = con.cursor()
 
@@ -513,6 +506,10 @@ class Output:
                        WHERE filename is Null''')
         assert cur.rowcount == 1, 'Outputs with NULL filename'
         self.idnum = cur.fetchone()[0]
+
+        # Get a filename for the new savefile
+        savefile = os.path.join(*self.determine_filename())
+        print('Saving output as {}'.format(savefile))
 
         # save the geometry
         geometry = self.inputs.geometry
@@ -532,7 +529,6 @@ class Output:
                      geometry.subsolarpoint[0].value,
                      geometry.subsolarpoint[1].value,
                      geometry.taa.value))
-        con.commit()
 
         # Save the sticking_info
         sticking_info = self.inputs.sticking_info
@@ -550,14 +546,12 @@ class Output:
                      sticking_info.emitfn,
                      sticking_info.accom_mapfile,
                      sticking_info.accom_factor))
-        con.commit()
 
         # Save the forces
         forces = self.inputs.forces
         cur.execute('''INSERT into forces
                        VALUES (%s, %s, %s)''',
                     (self.idnum, forces.gravity, forces.radpres))
-        con.commit()
 
         # Save the spatial distribution
         spatdist = self.inputs.spatialdist
@@ -580,7 +574,6 @@ class Output:
                      spatdist.mapfile,
                      lon[0], lon[1],
                      lat[0], lat[1]))
-        con.commit()
 
         # Save the speed distribution
         speeddist = self.inputs.speeddist
@@ -602,7 +595,6 @@ class Output:
                      speeddist.beta,
                      temperature,
                      delv))
-        con.commit()
 
         # save the angular distribution
         angdist = self.inputs.angulardist
@@ -627,7 +619,6 @@ class Output:
                     (self.idnum,
                      angdist.type,
                      n))
-        con.commit()
 
         # Save the options
         options = self.inputs.options
@@ -644,17 +635,10 @@ class Output:
                      options.motion,
                      options.streamlines,
                      options.nsteps))
-        con.commit()
-
-        # Get a filename for the new savefile
-    #    pathname, filename = self.determine_filename()
-        savefile = os.path.join(*self.determine_filename())
-        print('Saving output as {}'.format(savefile))
 
         cur.execute('''UPDATE outputfile
                        SET filename=%s
                        WHERE idnum=%s''', (savefile, self.idnum))
-        con.commit()
         con.close()
 
         # Remove frac = 0
@@ -706,25 +690,25 @@ class Output:
         if reform:
             index_ = list(set(output.index))
             n, m = len(index_), output.inputs.options.nsteps
-            x = np.ndarray((n, m))
-            y = np.ndarray((n, m))
-            z = np.ndarray((n, m))
-            vx = np.ndarray((n, m))
-            vy = np.ndarray((n, m))
-            vz = np.ndarray((n, m))
-            frac, index = np.ndarray((n, m)), np.ndarray((n, m))
-            time = np.ndarray((n, m))
+            x = np.ndarray((n,m))
+            y = np.ndarray((n,m))
+            z = np.ndarray((n,m))
+            vx = np.ndarray((n,m))
+            vy = np.ndarray((n,m))
+            vz = np.ndarray((n,m))
+            frac, index = np.ndarray((n,m)), np.ndarray((n,m))
+            time = np.ndarray((n,m))
             for i, ind in enumerate(index_):
                 q = output.index == ind
-                x[i, :sum(q)] = output.x[q]
-                y[i, :sum(q)] = output.y[q]
-                z[i, :sum(q)] = output.z[q]
-                vx[i, :sum(q)] = output.vx[q]
-                vy[i, :sum(q)] = output.vy[q]
-                vz[i, :sum(q)] = output.vz[q]
-                frac[i, :sum(q)] = output.frac[q]
-                index[i, :sum(q)] = output.index[q]
-                time[i, :sum(q)] = output.time[q]
+                x[i,:sum(q)] = output.x[q]
+                y[i,:sum(q)] = output.y[q]
+                z[i,:sum(q)] = output.z[q]
+                vx[i,:sum(q)] = output.vx[q]
+                vy[i,:sum(q)] = output.vy[q]
+                vz[i,:sum(q)] = output.vz[q]
+                frac[i,:sum(q)] = output.frac[q]
+                index[i,:sum(q)] = output.index[q]
+                time[i,:sum(q)] = output.time[q]
 
             output.x = x
             output.y = y

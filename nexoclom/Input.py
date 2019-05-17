@@ -25,16 +25,14 @@ Options
     Configure other model parameters
 """
 import os, os.path
-import numpy as np
 import psycopg2
 import pandas as pd
 from astropy.io import ascii
-import astropy.units as u
 from .produce_image import ModelImage
 from .modeldriver import modeldriver
-from .configure_model import configfile
 from .input_classes import (Geometry, StickingInfo, Forces,
                             SpatialDist, SpeedDist, AngularDist, Options)
+from .configure_model import configfile
 
 
 class Input():
@@ -62,10 +60,10 @@ class Input():
         * produce_image(format_, filenames=None)
         """
         # Read the configuration file
-        self.__savepath, self.__database = configfile()
+        self._savepath, self._database = configfile()
 
         # Read in the input file:
-        self.__inputfile = infile
+        self._inputfile = infile
         if os.path.isfile(infile):
             data = ascii.read(infile, delimiter='=', comment=';',
                               data_start=0, names=['Param', 'Value'])
@@ -126,18 +124,18 @@ class Input():
         '''
         Search the database for identical inputs
         '''
-        georesult = self.geometry.search(self.__database, startlist=None)
-        stickresult = self.sticking_info.search(self.__database,
+        georesult = self.geometry.search(self._database, startlist=None)
+        stickresult = self.sticking_info.search(self._database,
                                                 startlist=georesult)
-        forceresult = self.forces.search(self.__database,
+        forceresult = self.forces.search(self._database,
                                          startlist=stickresult)
-        spatresult = self.spatialdist.search(self.__database,
+        spatresult = self.spatialdist.search(self._database,
                                              startlist=forceresult)
-        spdresult = self.speeddist.search(self.__database,
+        spdresult = self.speeddist.search(self._database,
                                           startlist=spatresult)
-        angresult = self.angulardist.search(self.__database,
+        angresult = self.angulardist.search(self._database,
                                             startlist=spdresult)
-        finalresult = self.options.search(self.__database,
+        finalresult = self.options.search(self._database,
                                           startlist=angresult)
 
         if finalresult is None:
@@ -145,7 +143,7 @@ class Input():
         else:
             result_ = [str(s) for s in finalresult]
             resultstr = f"({', '.join(result_)})"
-            with psycopg2.connect(database=self.__database) as con:
+            with psycopg2.connect(database=self._database) as con:
                 result = pd.read_sql(
                     f'''SELECT filename, npackets, totalsource
                         FROM outputfile

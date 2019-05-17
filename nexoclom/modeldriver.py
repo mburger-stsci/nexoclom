@@ -78,15 +78,10 @@ def modeldriver(inputs, npackets, overwrite=False, compress=True):
     # Determine how many packets have already been run
     outputfiles, totalpackets, _ = inputs.findpackets()
     print(f'Found {len(outputfiles)} files with {totalpackets} packets')
-    if inputs.spatialdist.type == 'idlversion':
-        # Always overwrite if using an idl starting point
-        overwrite = True
-    else:
-        pass
 
     if overwrite and (totalpackets > 0):
         # delete files and remove from database
-        delete_files(outputfiles, inputs.database)
+        delete_files(outputfiles, inputs._database)
         totalpackets = 0
     else:
         pass
@@ -114,7 +109,6 @@ def modeldriver(inputs, npackets, overwrite=False, compress=True):
 
             # Create an output object
             output = Output(inputs, packs_per_it, compress=compress)
-            # load_idl_startpoints(output)
 
             # Run the packets
             if inputs.options.streamlines:
@@ -140,23 +134,3 @@ def modeldriver(inputs, npackets, overwrite=False, compress=True):
     else:
         dt_ = f'{dt_/3600} hr'
     print(f'Model run completed in {dt_}')
-
-
-def load_idl_startpoints(output):
-    from scipy.io import readsav
-    idl = readsav('output0.sav')
-    idlout = idl['output']
-
-    output.x0 = idlout['x0'][0]*output.unit
-    output.y0 = idlout['y0'][0]*output.unit
-    output.z0 = idlout['z0'][0]*output.unit
-    output.vx0 = idlout['vx0'][0]*output.unit/u.s
-    output.vy0 = idlout['vy0'][0]*output.unit/u.s
-    output.vz0 = idlout['vz0'][0]*output.unit/u.s
-
-    output.x = idlout['x0'][0]*output.unit
-    output.y = idlout['y0'][0]*output.unit
-    output.z = idlout['z0'][0]*output.unit
-    output.vx = idlout['vx0'][0]*output.unit/u.s
-    output.vy = idlout['vy0'][0]*output.unit/u.s
-    output.vz = idlout['vz0'][0]*output.unit/u.s

@@ -1,5 +1,4 @@
 '''Classes used by the Inputs class'''
-import os
 import numpy as np
 import pandas as pd
 import psycopg2
@@ -19,10 +18,12 @@ def isNone(x):
     else:
         return f'is NULL' if q is None else f"= {q}"
 
+
 def inRange(field, x, delta):
     return f'ABS({field} - {x}) <= {delta/2}'
 
 dtor = np.pi/180.
+
 
 class Geometry():
     def __init__(self, gparam):
@@ -84,7 +85,7 @@ class Geometry():
                 # No moons, so this isn't needed
                 self.phi = [0.*u.rad]
             else:
-                assert 0, ('Need to give either an observation time' +
+                assert 0, ('Need to give either an observation time'
                            'or orbital position.')
 
         # Subsolar longitude and latitude
@@ -133,11 +134,10 @@ class Geometry():
             taa = [self.taa-dtaa/2., self.taa+dtaa/2.]
             taa = [taa[0].value, taa[1].value]
             if taa[0] < 0.:
-                taabit = '(taa>={} or taa<{})'.format(2*np.pi+taa[0],
-                                                        taa[1])
+                taabit = '(taa>={} or taa<{})'.format(2*np.pi+taa[0], taa[1])
             elif taa[1] > 2*np.pi:
                 taabit = '(taa>={} or taa<{})'.format(taa[0],
-                                                       taa[1] % (2*np.pi))
+                                                      taa[1] % (2*np.pi))
             else:
                 taabit = inRange('taa', self.taa.value, dtaa.value)
 
@@ -172,7 +172,6 @@ class Geometry():
             return None
         else:
             return result.geo_idnum.to_list()
-
 ###############################################################
 
 
@@ -192,8 +191,8 @@ class StickingInfo():
 
     def __init__(self, sparam):
         self.stickcoef = (float(sparam['stickcoef'])
-                              if 'stickcoef' in sparam
-                              else 1.)
+                          if 'stickcoef' in sparam
+                          else 1.)
         if self.stickcoef > 1.:
             self.stickcoef = 1.
 
@@ -232,8 +231,12 @@ class StickingInfo():
             self.accom_mapfile = sparam['accom_mapfile']
         elif self.emitfn == 'maxwellian':
             ac = float(sparam['accom_factor'])
-            if ac < 0: ac = 0.
-            if ac > 1: ac = 1.
+            if ac < 0:
+                ac = 0.
+            elif ac > 1:
+                ac = 1.
+            else:
+                pass
             self.accom_factor = ac
         elif self.emitfn == 'elastic scattering':
             pass
@@ -357,7 +360,7 @@ class SpatialDist():
         if self.type == 'surface':
             self.exobase = (float(sparam['exobase'])
                             if 'exobase' in sparam
-                            else 1.) # Unit gets set later
+                            else 1.)  # Unit gets set later
             self.use_map = (bool(int(sparam['use_map']))
                             if 'use_map' in sparam
                             else False)
@@ -377,13 +380,13 @@ class SpatialDist():
         elif self.type == 'surfacespot':
             self.exobase = (float(sparam['exobase'])
                             if 'exobase' in sparam
-                            else 1.) # Unit gets set later
+                            else 1.)  # Unit gets set later
             lon = (float(sparam['longitude'])*u.rad
                    if 'longitude' in sparam else 0.*u.rad)
             lat = (float(sparam['latitude'])*u.rad
                    if 'latitude' in sparam else 0*u.rad)
             sigma = (float(sparam['sigma'])*u.rad
-                    if 'sigma' in sparam else 25*u.deg)
+                     if 'sigma' in sparam else 25*u.deg)
             if sigma < 0*u.deg:
                 sigma = 0*u.deg
             elif sigma > 90*u.deg:
@@ -416,7 +419,7 @@ class SpatialDist():
             print('spatialdist.latitude is None')
         else:
             print('spatialdist.latitude = ({:0.2f}, {:0.2f})'.
-              format(*self.latitude))
+                  format(*self.latitude))
         return ''
 
     def search(self, database='thesolarsystemmb', startlist=None):
@@ -497,7 +500,7 @@ class SpeedDist():
             self.vprob = float(sparam['vprob'])*u.km/u.s
             self.delv = float(sparam['delv'])*u.km/u.s
         else:
-            assert 0, 'SpeedDist.type = {} not available'.format(sdist)
+            assert 0, f'SpeedDist.type = {self.type} not available'
 
     def __str__(self):
         print('SpeedDist.type = {}'.format(self.type))

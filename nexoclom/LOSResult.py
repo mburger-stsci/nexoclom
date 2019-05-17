@@ -79,7 +79,7 @@ class LOSResult(ModelResult):
                 print('Model does not contain the complete orbit. '
                       'Cannot be saved.')
             else:
-                con = psycopg2.connect(database=self.inputs.database)
+                con = psycopg2.connect(database=self.inputs._database)
                 con.autocommit = True
                 cur = con.cursor()
 
@@ -135,7 +135,7 @@ class LOSResult(ModelResult):
                       'Cannot be saved.')
                 radiance, packets = None, None
             else:
-                con = psycopg2.connect(database=self.inputs.database)
+                con = psycopg2.connect(database=self.inputs._database)
                 con.autocommit = True
 
                 # Determine the id of the outputfile
