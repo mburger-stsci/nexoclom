@@ -349,8 +349,9 @@ class Output:
         # self.LossFrac = lf0
 
         # Add units back in
-        self.aplanet *= self.unit
+        self.aplanet *= u.au
         self.vrplanet *= self.unit/u.s
+        self.vrplanet = self.vrplanet.to(u.km/u.s)
         self.GM *= self.unit**3/u.s**2
 
     def stream_driver(self):
@@ -459,8 +460,9 @@ class Output:
         self.index = index[0,:,:].reshape(allpacks)
 
         # Add units back in
-        self.aplanet *= self.unit
+        self.aplanet *= u.au
         self.vrplanet *= self.unit/u.s
+        self.vrplanet = self.vrplanet.to(u.km/u.s)
         self.GM *= self.unit**3/u.s**2
 
     def determine_filename(self):

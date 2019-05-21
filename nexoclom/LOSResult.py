@@ -11,7 +11,8 @@ from .ModelResults import (ModelResult, read_format, results_loadfile,
 
 
 class LOSResult(ModelResult):
-    def __init__(self, inputs, data, quantity, dphi=3*u.deg, filenames=None):
+    def __init__(self, inputs, data, quantity, dphi=3*u.deg,
+                 filenames=None, overwrite=False):
 
         self.type = 'LineOfSight'
         self.species = inputs.options.atom
@@ -51,10 +52,12 @@ class LOSResult(ModelResult):
 
         for j,outfile in enumerate(self.filenames):
             # Search to see if it is already done
-            radiance_, packets_ = self.restore(data, outfile)
+            radiance_, packets_, idnum = self.restore(data, outfile)
 
-            if radiance_ is None:
-                radiance_, packets_ = self.create_model(data, outfile)
+            if (radiance_ is None) or (overwrite):
+                if (radiance_ is not None) and (overwrite):
+                    self.delete_model(idnum)
+                radiance_, packets_, = self.create_model(data, outfile)
                 print(f'Completed model {j+1} of {len(self.filenames)}')
             else:
                 print(f'Model {j+1} of {len(self.filenames)} '
@@ -64,6 +67,18 @@ class LOSResult(ModelResult):
             self.packets += packets_
 
         self.radiance = self.radiance * self.atoms_per_packet.value * u.R
+
+    def delete_model(self, idnum):
+        with psycopg2.connect(database=self.inputs._database) as con:
+            con.autocommit = True
+            cur = con.cursor()
+            cur.execute('''SELECT idnum, filename FROM uvvsmodels
+                           WHERE out_idnum = %s''', (idnum, ))
+            for mid, mfile in cur.fetchall():
+                cur.execute('''DELETE from uvvsmodels
+                               WHERE idnum = %s''', (mid, ))
+                if os.path.exists(mfile):
+                    os.remove(mfile)
 
     def save(self, data, fname, radiance, packets):
         # Determine if the model can be saved.
@@ -157,7 +172,7 @@ class LOSResult(ModelResult):
                     wave = 'wavelength is NULL'
 
                 result = pd.read_sql(
-                    f'''SELECT filename FROM uvvsmodels
+                    f'''SELECT idnum, filename FROM uvvsmodels
                         WHERE out_idnum={oid} and
                               quantity = '{self.quantity}' and
                               orbit = {orb} and
@@ -170,10 +185,11 @@ class LOSResult(ModelResult):
                     savefile = result.filename[0]
                     with open(savefile, 'rb') as f:
                         radiance, packets = pickle.load(f)
+                    idnum = result.idnum[0]
                 else:
-                    radiance, packets = None, None
+                    radiance, packets, idnum = None, None, None
 
-            return radiance, packets
+            return radiance, packets, idnum
 
     def create_model(self, data, outfile):
         # distance of s/c from planet

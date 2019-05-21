@@ -15,10 +15,11 @@ def configfile():
     configfile = os.path.join(os.environ['HOME'], '.nexoclom')
     if os.path.exists(configfile):
         config = {}
-        for line in open(configfile, 'r').readlines():
-            if '=' in line:
-                key, value = line.split('=')
-                config[key.strip()] = value.strip()
+        with open(configfile, 'r') as f:
+            for line in f:
+                if '=' in line:
+                    key, value = line.split('=')
+                    config[key.strip()] = value.strip()
     else:
         pass
 

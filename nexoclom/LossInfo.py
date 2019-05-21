@@ -16,7 +16,7 @@ class LossInfo():
             self.photo = np.abs(1./lifetime.value)
             self.reactions = 'Generic photo reaction.'
         else:
-            photo = PhotoRate(atom)
+            photo = PhotoRate(atom, aplanet)
             self.photo = photo.rate.value
             self.reactions = photo.reactions['reaction'].values
 
