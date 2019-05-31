@@ -78,9 +78,9 @@ def surface_distribution(inputs, npack, unit):
         elif SpatialDist.mapfile.endswith('.sav'):
             from scipy.io import readsav
             sourcemap_ = readsav(SpatialDist.mapfile)['sourcemap']
-            sourcemap = {'longitude':sourcemap_['longitude'][0],
-                         'latitude':sourcemap_['latitude'][0],
-                         'map':sourcemap_['map'][0]}
+            sourcemap = {'longitude':sourcemap_['longitude'][0]*u.rad,
+                         'latitude':sourcemap_['latitude'][0]*u.rad,
+                         'map':sourcemap_['map'][0].transpose()}
         else:
             assert 0, 'Mapfile is the wrong format.'
 

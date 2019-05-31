@@ -4,6 +4,7 @@ from .modeldriver import modeldriver
 from .LOSResult import LOSResult
 from .produce_image import ModelImage
 from .configure_model import configure_model
+from .IDLout import IDLout
 
 
 name = 'nexoclom'

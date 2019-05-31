@@ -125,22 +125,43 @@ class Input():
         Search the database for identical inputs
         '''
         georesult = self.geometry.search(self._database, startlist=None)
-        stickresult = self.sticking_info.search(self._database,
-                                                startlist=georesult)
-        forceresult = self.forces.search(self._database,
-                                         startlist=stickresult)
-        spatresult = self.spatialdist.search(self._database,
-                                             startlist=forceresult)
-        spdresult = self.speeddist.search(self._database,
-                                          startlist=spatresult)
-        angresult = self.angulardist.search(self._database,
-                                            startlist=spdresult)
-        finalresult = self.options.search(self._database,
-                                          startlist=angresult)
-
-        if finalresult is None:
-            return [], 0, 0
+        if georesult is not None:
+            stickresult = self.sticking_info.search(self._database,
+                                                    startlist=georesult)
         else:
+            return [], 0, 0
+
+        if stickresult is not None:
+            forceresult = self.forces.search(self._database,
+                                             startlist=stickresult)
+        else:
+            return [], 0, 0
+
+        if forceresult is not None:
+            spatresult = self.spatialdist.search(self._database,
+                                                 startlist=forceresult)
+        else:
+            return [], 0, 0
+
+        if spatresult is not None:
+            spdresult = self.speeddist.search(self._database,
+                                              startlist=spatresult)
+        else:
+            return [], 0, 0
+
+        if spdresult is not None:
+            angresult = self.angulardist.search(self._database,
+                                                startlist=spdresult)
+        else:
+            return [], 0, 0
+
+        if angresult is not None:
+            finalresult = self.options.search(self._database,
+                                              startlist=angresult)
+        else:
+            return [], 0, 0
+
+        if finalresult is not None:
             result_ = [str(s) for s in finalresult]
             resultstr = f"({', '.join(result_)})"
             with psycopg2.connect(database=self._database) as con:
@@ -150,8 +171,10 @@ class Input():
                         WHERE idnum in {resultstr}''', con)
             npackets = result.npackets.sum()
             totalsource = result.totalsource.sum()
-
+            
             return result.filename.to_list(), npackets, totalsource
+        else:
+            return [], 0, 0
 
     def run(self, npackets, overwrite=False, compress=True):
         modeldriver(self, npackets, overwrite, compress)
