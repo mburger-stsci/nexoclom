@@ -171,13 +171,14 @@ class Input():
                         WHERE idnum in {resultstr}''', con)
             npackets = result.npackets.sum()
             totalsource = result.totalsource.sum()
-            
+
             return result.filename.to_list(), npackets, totalsource
         else:
             return [], 0, 0
 
-    def run(self, npackets, overwrite=False, compress=True):
-        modeldriver(self, npackets, overwrite, compress)
+    def run(self, npackets, packs_per_it=None, overwrite=False, compress=True):
+        modeldriver(self, npackets, packs_per_it=packs_per_it,
+                    overwrite=overwrite, compress=compress)
 
     def produce_image(self, format_, filenames=None):
         return ModelImage(self, format_, filenames=filenames)

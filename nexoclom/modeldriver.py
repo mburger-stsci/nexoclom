@@ -59,7 +59,8 @@ def delete_files(filelist, database):
                     os.remove(mfile)
 
 
-def modeldriver(inputs, npackets, overwrite=False, compress=True):
+def modeldriver(inputs, npackets, packs_per_it=1e6, overwrite=False,
+                compress=True):
     '''
     Starting point for running the model
     INPUTS:
@@ -88,8 +89,11 @@ def modeldriver(inputs, npackets, overwrite=False, compress=True):
 
     npackets = int(npackets)
     ntodo = npackets - totalpackets
-    packs_per_it = 100000 if inputs.options.streamlines else int(1e6)
-    packs_per_it = min(ntodo, packs_per_it)
+    if packs_per_it is None:
+        packs_per_it = 100000 if inputs.options.streamlines else int(1e6)
+        packs_per_it = min(ntodo, packs_per_it)
+    else:
+        pass
 
     if ntodo > 0:
         # Check to make sure at_once is set properly
