@@ -59,7 +59,7 @@ def delete_files(filelist, database):
                     os.remove(mfile)
 
 
-def modeldriver(inputs, npackets, packs_per_it=1e6, overwrite=False,
+def modeldriver(inputs, npackets, packs_per_it=None, overwrite=False,
                 compress=True):
     '''
     Starting point for running the model
