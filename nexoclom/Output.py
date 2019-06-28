@@ -3,7 +3,6 @@ import os.path
 import numpy as np
 import pickle
 import astropy.units as u
-import psycopg2
 from solarsystemMB import planet_dist
 import mathMB
 from .satellite_initial_positions import satellite_initial_positions
@@ -13,7 +12,7 @@ from .rk5 import rk5
 from .bouncepackets import bouncepackets
 from .source_distribution import (surface_distribution, speed_distribution,
                                   angular_distribution, surface_spot)
-from mathMB import minmaxmean
+from .database_connect import database_connect
 
 
 class Output:
@@ -53,9 +52,7 @@ class Output:
         # Set up the radiation pressure
         if inputs.forces.radpres:
             radpres = RadPresConst(inputs.options.atom,
-                                   self.aplanet,
-                                   inputs._database,
-                                   inputs._port)
+                                   self.aplanet)
             radpres.velocity = radpres.velocity.to(self.unit/u.s).value
             radpres.accel = radpres.accel.to(self.unit/u.s**2).value
             self.radpres = radpres
@@ -494,9 +491,7 @@ class Output:
 
     def save(self):
         # Add output into database
-        con = psycopg2.connect(database=self.inputs._database,
-                               port=self.inputs._port)
-        con.autocommit = True
+        con = database_connect()
         cur = con.cursor()
 
         # Save filename and determine idnum

@@ -7,7 +7,7 @@ from solarsystemMB import SSObject
 from MESSENGERuvvs import MESSENGERdata
 from .ModelResults import (ModelResult, read_format, results_loadfile,
                            results_packet_weighting)
-from database_connect import database_connect
+from .database_connect import database_connect
 
 
 class LOSResult(ModelResult):

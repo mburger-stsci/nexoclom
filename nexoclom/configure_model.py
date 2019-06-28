@@ -11,9 +11,10 @@ def configfile():
     * database = name of the postgresql database to use
     """
     # Determne the savepath
+    cfile = os.path.join(os.environ['HOME'], '.nexoclom')
     savepath = None
-    if os.path.isfile(configfile):
-        for line in open(configfile, 'r').readlines():
+    if os.path.isfile(cfile):
+        for line in open(cfile, 'r').readlines():
             key, value = line.split('=')
             if key.strip() == 'savepath':
                 savepath = value.strip()
@@ -24,17 +25,18 @@ def configfile():
 
     if savepath is None:
         savepath = input('Where should outputs be saved: ')
-        with open(configfile, 'a') as f:
+        with open(cfile, 'a') as f:
             f.write(f'savepath = {savepath}\n')
 
         # Create save directory if necessary
         if not os.path.isdir(savepath):
             try:
-                os.makedir(savepath)
+                os.makedirs(savepath)
             except:
                 assert 0, f'Could not create directory {savepath}'
 
     # Create the database if necessary
+    database, port = database_connect(return_con=False)
     with database_connect(database='postgres') as con:
         cur = con.cursor()
         cur.execute('select datname from pg_database')
@@ -60,7 +62,7 @@ def set_up_output_tables():
     cur.execute('select table_name from information_schema.tables')
     tables = [r[0] for r in cur.fetchall()]
 
-    for n in nextables:
+    for tab in nextables:
         if tab in tables:
             cur.execute(f'''DROP table {tab}''')
         else:
