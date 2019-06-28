@@ -1,10 +1,10 @@
 '''Classes used by the Inputs class'''
 import numpy as np
 import pandas as pd
-import psycopg2
 from astropy.time import Time
 import astropy.units as u
 from solarsystemMB import SSObject
+from .database_connect import database_connect
 
 
 def isNone(x):
@@ -25,7 +25,7 @@ def inRange(field, x, delta):
 dtor = np.pi/180.
 
 
-class Geometry():
+class Geometry:
     def __init__(self, gparam):
         '''Geometry object: object to model
            Fields:
@@ -100,22 +100,22 @@ class Geometry():
         self.taa *= u.rad
 
     def __str__(self):
-        print('geometry.planet = {}'.format(self.planet.object))
-        print('geometry.StartPoint = {}'.format(self.startpoint))
+        result = f'geometry.planet = {self.planet.object}\n'
+        result += f'geometry.StartPoint = {self.startpoint}\n'
         oo = [o.object for o in self.objects]
         obs = ', '.join(oo)
-        print('geometry.objects = {}'.format(obs))
+        result += f'geometry.objects = {obs}'
         if self.time is not None:
-            print('geometry.starttime = {}'.format(self.time.iso))
+            result += f'geometry.starttime = {self.time.iso}\n'
         else:
-            print('geometry.startime not specified')
+            result += f'geometry.startime not specified\n'
         if len(self.phi) != 0:
-            print('geometry.phi XXX')
-        print('geometry.subsolarpoint = ({}, {})'.format(*self.subsolarpoint))
-        print('geometry.TAA = {}'.format(self.taa))
-        return ''
+            result += 'geometry.phi XXX\n'
+        result += 'geometry.subsolarpoint = ({}, {})\n'.format(*self.subsolarpoint)
+        result += 'geometry.TAA = {}\n'.format(self.taa)
+        return result
 
-    def search(self, database='thesolarsystemmb', startlist=None):
+    def search(self, startlist=None):
         # Make list of objects in planet system
         objs = [obj.object for obj in self.objects]
         objs.sort()
@@ -166,7 +166,7 @@ class Geometry():
             # query =
             assert 0, 'Not working yet.'
 
-        with psycopg2.connect(database=database) as con:
+        with database_connect() as con:
             result = pd.read_sql(query, con)
         if len(result) == 0:
             return None
@@ -175,7 +175,7 @@ class Geometry():
 ###############################################################
 
 
-class StickingInfo():
+class StickingInfo:
     '''
     stickcoef
     tsurf
@@ -268,7 +268,7 @@ class StickingInfo():
 
         return ''
 
-    def search(self, database='thesolarsystemmb', startlist=None):
+    def search(self, startlist=None):
         if startlist is None:
             startstr = ''
         else:
@@ -291,7 +291,7 @@ class StickingInfo():
                              accom_mapfile {self.accom_mapfile}
                              {startstr}'''
 
-        with psycopg2.connect(database=database) as con:
+        with database_connect() as con:
             result = pd.read_sql(query, con)
         if len(result) == 0:
             return None
@@ -299,7 +299,7 @@ class StickingInfo():
             return result.st_idnum.to_list()
 
 
-class Forces():
+class Forces:
     def __init__(self, fparam):
         '''
         gravity
@@ -317,7 +317,7 @@ class Forces():
         print('forces.radpres = {}'.format(self.radpres))
         return ''
 
-    def search(self, database='thesolarsystemmb', startlist=None):
+    def search(self, startlist=None):
         if startlist is None:
             startstr = ''
         else:
@@ -327,7 +327,7 @@ class Forces():
         query = f'''SELECT f_idnum FROM forces
                     WHERE gravity={self.gravity} and
                           radpres={self.radpres} {startstr}'''
-        with psycopg2.connect(database=database) as con:
+        with database_connect() as con:
             result = pd.read_sql(query, con)
 
         if len(result) == 0:
@@ -338,7 +338,7 @@ class Forces():
 ###############################################################
 
 
-class SpatialDist():
+class SpatialDist:
     def __init__(self, sparam):
         '''
         type
@@ -422,7 +422,7 @@ class SpatialDist():
                   format(*self.latitude))
         return ''
 
-    def search(self, database='thesolarsystemmb', startlist=None):
+    def search(self, startlist=None):
         if startlist is None:
             startstr = ''
         else:
@@ -453,7 +453,7 @@ class SpatialDist():
                          {lat0} and
                          {lat1} {startstr}'''
 
-        with psycopg2.connect(database=database) as con:
+        with database_connect() as con:
             result = pd.read_sql(query, con)
         if len(result) == 0:
             return None
@@ -462,7 +462,7 @@ class SpatialDist():
 ###############################################################
 
 
-class SpeedDist():
+class SpeedDist:
     '''
     type
     vprob
@@ -521,7 +521,7 @@ class SpeedDist():
 
         return ''
 
-    def search(self, database='thesolarsystemmb', startlist=None):
+    def search(self, startlist=None):
         if startlist is None:
             startstr = ''
         else:
@@ -550,7 +550,7 @@ class SpeedDist():
                           {Tstr} and
                           delv  {isNone(self.delv)} {startstr}'''
 
-        with psycopg2.connect(database=database) as con:
+        with database_connect() as con:
             result = pd.read_sql(query, con)
         if len(result) == 0:
             return None
@@ -558,7 +558,7 @@ class SpeedDist():
             return result.spd_idnum.to_list()
 
 
-class AngularDist():
+class AngularDist:
     '''
     type
     azimuth
@@ -628,7 +628,7 @@ class AngularDist():
 
         return ''
 
-    def search(self, database='thesolarsystemmb', startlist=None):
+    def search(self, startlist=None):
         if startlist is None:
             startstr = ''
         else:
@@ -655,7 +655,7 @@ class AngularDist():
                           {az0} and {az1} and
                           {alt0} and {alt1} and
                           n {n} {startstr}'''
-        with psycopg2.connect(database=database) as con:
+        with database_connect() as con:
             result = pd.read_sql(query, con)
 
         if len(result) == 0:
@@ -665,7 +665,7 @@ class AngularDist():
 ###############################################################
 
 
-class Options():
+class Options:
     '''
     endtime
     resolution
@@ -728,7 +728,7 @@ class Options():
 
         return ''
 
-    def search(self, database='thesolarsystemmb', startlist=None):
+    def search(self, startlist=None):
         if startlist is None:
             startstr = ''
         else:
@@ -752,7 +752,7 @@ class Options():
                           motion = {self.motion} and
                           streamlines = {self.streamlines} and
                           nsteps {nsteps} {startstr}'''
-        with psycopg2.connect(database=database) as con:
+        with database_connect() as con:
             result = pd.read_sql(query, con)
 
         if len(result) == 0:

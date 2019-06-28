@@ -1,7 +1,6 @@
 import os.path
 import numpy as np
 import numpy.matlib as npmat
-import psycopg2
 import pandas as pd
 import pickle
 import astropy.units as u
@@ -9,6 +8,7 @@ from solarsystemMB import SSObject
 from mathMB import rotation_matrix
 from .ModelResults import (ModelResult, read_format, results_loadfile,
                            results_packet_weighting)
+from .database_connect import database_connect
 
 quantities = ['column', 'intensity', 'density']
 
@@ -149,8 +149,7 @@ class ModelImage(ModelResult):
         self.image = self.image * self.atoms_per_packet
 
     def save(self, fname, image, packets):
-        con = psycopg2.connect(database=self.inputs._database)
-        con.autocommit = True
+        con = database_connect()
         cur = con.cursor()
 
         # Determine the id of the outputfile
@@ -194,10 +193,10 @@ class ModelImage(ModelResult):
         cur.execute(f'''UPDATE modelimages
                         SET filename=%s
                         WHERE idnum = %s''', (savefile, idnum))
+        con.close()
 
     def restore(self, fname):
-        con = psycopg2.connect(database=self.inputs._database)
-        con.autocommit = True
+        con = database_connect()
 
         # Determine the id of the outputfile
         idnum_ = pd.read_sql(f'''SELECT idnum
@@ -239,6 +238,8 @@ class ModelImage(ModelResult):
             image, packets = pickle.load(open(savefile, 'rb'))
         else:
             image, packets = None, None
+
+        con.close()
 
         return image, packets
 
@@ -284,7 +285,6 @@ class ModelImage(ModelResult):
                                   bins=(bx, bz))
 
         self.save(fname, image, packets)
-
         del output
 
         return image, packets

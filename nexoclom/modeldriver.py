@@ -5,12 +5,11 @@ import astropy.units as u
 from .Output import Output
 
 
-def delete_files(filelist, database):
+def delete_files(filelist):
     ''' Delete output files and remove them from the database '''
-    import psycopg2
+    from .database_connect import database_connect
 
-    with psycopg2.connect(host='localhost', database=database) as con:
-        con.autocommit = True
+    with database_connect() as con:
         cur = con.cursor()
 
         for f in filelist:
@@ -82,7 +81,7 @@ def modeldriver(inputs, npackets, packs_per_it=None, overwrite=False,
 
     if overwrite and (totalpackets > 0):
         # delete files and remove from database
-        delete_files(outputfiles, inputs._database)
+        delete_files(outputfiles)
         totalpackets = 0
     else:
         pass
@@ -93,7 +92,7 @@ def modeldriver(inputs, npackets, packs_per_it=None, overwrite=False,
         packs_per_it = 100000 if inputs.options.streamlines else int(1e6)
         packs_per_it = min(ntodo, packs_per_it)
     else:
-        pass
+        packs_per_it = int(packs_per_it)
 
     if ntodo > 0:
         # Check to make sure at_once is set properly

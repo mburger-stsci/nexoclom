@@ -1,13 +1,13 @@
 import os.path
 import numpy as np
 import pandas as pd
-import psycopg2
 import pickle
 import astropy.units as u
 from solarsystemMB import SSObject
 from MESSENGERuvvs import MESSENGERdata
 from .ModelResults import (ModelResult, read_format, results_loadfile,
                            results_packet_weighting)
+from database_connect import database_connect
 
 
 class LOSResult(ModelResult):
@@ -69,8 +69,7 @@ class LOSResult(ModelResult):
         self.radiance = self.radiance * self.atoms_per_packet.value * u.R
 
     def delete_model(self, idnum):
-        with psycopg2.connect(database=self.inputs._database) as con:
-            con.autocommit = True
+        with database_connect() as con:
             cur = con.cursor()
             cur.execute('''SELECT idnum, filename FROM uvvsmodels
                            WHERE out_idnum = %s''', (idnum, ))
@@ -94,8 +93,7 @@ class LOSResult(ModelResult):
                 print('Model does not contain the complete orbit. '
                       'Cannot be saved.')
             else:
-                con = psycopg2.connect(database=self.inputs._database)
-                con.autocommit = True
+                con = database_connect()
                 cur = con.cursor()
 
                 # Determine the id of the outputfile
@@ -133,6 +131,7 @@ class LOSResult(ModelResult):
                 cur.execute(f'''UPDATE uvvsmodels
                                 SET filename=%s
                                 WHERE idnum=%s''', (savefile, idnum))
+                con.close()
 
     def restore(self, data, fname):
         # Determine if the model can be restored.
@@ -150,7 +149,7 @@ class LOSResult(ModelResult):
                       'Cannot be saved.')
                 radiance, packets = None, None
             else:
-                con = psycopg2.connect(database=self.inputs._database)
+                con = database_connect()
                 con.autocommit = True
 
                 # Determine the id of the outputfile

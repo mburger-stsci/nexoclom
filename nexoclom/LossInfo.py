@@ -4,8 +4,8 @@ import astropy.units as u
 import astropy.units.astrophys as ua
 from atomicdataMB import PhotoRate
 
-class LossInfo():
-    def __init__(self, atom, lifetime, aplanet, database):
+class LossInfo:
+    def __init__(self, atom, lifetime, aplanet):
         # Initialization
         self.photo = 0.
         self.eimp = 0.

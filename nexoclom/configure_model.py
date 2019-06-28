@@ -1,5 +1,5 @@
 import os, os.path
-import psycopg2
+from .database_connect import database_connect
 
 
 def configfile():
@@ -10,43 +10,19 @@ def configfile():
     * datapath = path where MESSENGER data is kept
     * database = name of the postgresql database to use
     """
-
-    # Read in current config file if it exists
-    configfile = os.path.join(os.environ['HOME'], '.nexoclom')
-    if os.path.exists(configfile):
-        config = {}
-        with open(configfile, 'r') as f:
-            for line in f:
-                if '=' in line:
-                    key, value = line.split('=')
-                    config[key.strip()] = value.strip()
+    # Determne the savepath
+    savepath = None
+    if os.path.isfile(configfile):
+        for line in open(configfile, 'r').readlines():
+            key, value = line.split('=')
+            if key.strip() == 'savepath':
+                savepath = value.strip()
+            else:
+                pass
     else:
         pass
 
-    database = 'thesolarsystemmb'
-    # if 'database' in config:
-    #     database = config['database']
-    #     database = 'thesolarsystemmb'
-    # else:
-    #     database = 'thesolarsystemmb'
-    #     with open(configfile, 'a') as f:
-    #         f.write(f'database = {database}\n')
-    #
-    with psycopg2.connect(host='localhost', database='postgres') as con:
-        con.autocommit = True
-        cur = con.cursor()
-        cur.execute('select datname from pg_database')
-        dbs = [r[0] for r in cur.fetchall()]
-
-        if database not in dbs:
-            print(f'Creating database {database}')
-            cur.execute(f'create database {database}')
-        else:
-            pass
-
-    if 'savepath' in config:
-        savepath = config['savepath']
-    else:
+    if savepath is None:
         savepath = input('Where should outputs be saved: ')
         with open(configfile, 'a') as f:
             f.write(f'savepath = {savepath}\n')
@@ -58,22 +34,34 @@ def configfile():
             except:
                 assert 0, f'Could not create directory {savepath}'
 
-    return savepath, database
+    # Create the database if necessary
+    with database_connect(database='postgres') as con:
+        cur = con.cursor()
+        cur.execute('select datname from pg_database')
+        dbs = [r[0] for r in cur.fetchall()]
+
+        if database not in dbs:
+            print(f'Creating database {database}')
+            cur.execute(f'create database {database}')
+        else:
+            pass
+
+    return savepath
 
 
-def set_up_output_tables(con):
+def set_up_output_tables():
+    con = database_connect()
     cur = con.cursor()
 
     # drop tables if necessary
     nextables = ['outputfile', 'geometry', 'sticking_info', 'forces',
                  'spatialdist', 'speeddist', 'angulardist', 'options',
                  'modelimages', 'uvvsmodels']
-    cur = con.cursor()
     cur.execute('select table_name from information_schema.tables')
     tables = [r[0] for r in cur.fetchall()]
 
     for n in nextables:
-        if n in tables:
+        if tab in tables:
             cur.execute(f'''DROP table {tab}''')
         else:
             pass
@@ -198,33 +186,32 @@ def set_up_output_tables(con):
                        wavelength text,
                        filename text)''')
     print('Created uvvsmodels table')
+    con.close()
 
 
 def configure_model(force=False):
     """Ensure the database and configuration file are set up for nexoclom."""
+    # Get database name and port
+    database, port = database_connect(return_con=False)
 
     # Verify database is running
     status = os.popen('pg_ctl status').read()
     if 'no server running' in status:
-        os.system('pg_ctl -D $HOME/.postgres/main/ -l '
-                  '$HOME/.postgres/logfile start')
+        os.system(f'pg_ctl -D $HOME/.postgres/main/ -p {port}'
+                  '-l $HOME/.postgres/logfile start')
     else:
         pass
-
-    _, database = configfile()
 
     # Determine if it is necessary to create the database tables
     nextables = ['outputfile', 'geometry', 'sticking_info', 'forces',
                  'spatialdist', 'speeddist', 'angulardist', 'options',
                  'modelimages', 'uvvsmodels']
 
-    with psycopg2.connect(database=database) as con:
-        con.autocommit = True
+    with database_connect() as con:
         cur = con.cursor()
         cur.execute('select table_name from information_schema.tables')
         tables = [r[0] for r in cur.fetchall()]
-
         there = [m in tables for m in nextables]
 
-        if (False in there) or (force):
-            set_up_output_tables(con)
+    if (False in there) or (force):
+        set_up_output_tables()

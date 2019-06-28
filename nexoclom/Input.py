@@ -25,7 +25,6 @@ Options
     Configure other model parameters
 """
 import os, os.path
-import psycopg2
 import pandas as pd
 from astropy.io import ascii
 from .produce_image import ModelImage
@@ -33,6 +32,7 @@ from .modeldriver import modeldriver
 from .input_classes import (Geometry, StickingInfo, Forces,
                             SpatialDist, SpeedDist, AngularDist, Options)
 from .configure_model import configfile
+from .database_connect import database_connect
 
 
 class Input():
@@ -60,7 +60,7 @@ class Input():
         * produce_image(format_, filenames=None)
         """
         # Read the configuration file
-        self._savepath, self._database = configfile()
+        self._savepath = configfile()
 
         # Read in the input file:
         self._inputfile = infile
@@ -111,60 +111,54 @@ class Input():
         self.options = Options(oparam, self.geometry.planet)
 
     def __str__(self):
-        print(self.geometry)
-        print(self.sticking_info)
-        print(self.forces)
-        print(self.spatialdist)
-        print(self.speeddist)
-        print(self.angulardist)
-        print(self.options)
-        return ''
+        result = (self.geometry.__str__() + '\n' +
+                  self.sticking_info.__str__() + '\n' +
+                  self.forces.__str__() + '\n' +
+                  self.spatialdist.__str__() + '\n' +
+                  self.speeddist.__str__() + '\n' +
+                  self.angulardist.__str__() + '\n' +
+                  self.options.__str__())
+        return result
 
     def findpackets(self):
         '''
         Search the database for identical inputs
         '''
-        georesult = self.geometry.search(self._database, startlist=None)
+        georesult = self.geometry.search(startlist=None)
         if georesult is not None:
-            stickresult = self.sticking_info.search(self._database,
-                                                    startlist=georesult)
+            stickresult = self.sticking_info.search(startlist=georesult)
         else:
             return [], 0, 0
 
         if stickresult is not None:
-            forceresult = self.forces.search(self._database,
-                                             startlist=stickresult)
+            forceresult = self.forces.search(startlist=stickresult)
         else:
             return [], 0, 0
 
         if forceresult is not None:
-            spatresult = self.spatialdist.search(self._database,
-                                                 startlist=forceresult)
+            spatresult = self.spatialdist.search(startlist=forceresult)
         else:
             return [], 0, 0
 
         if spatresult is not None:
-            spdresult = self.speeddist.search(self._database,
-                                              startlist=spatresult)
+            spdresult = self.speeddist.search(startlist=spatresult)
         else:
             return [], 0, 0
 
         if spdresult is not None:
-            angresult = self.angulardist.search(self._database,
-                                                startlist=spdresult)
+            angresult = self.angulardist.search(startlist=spdresult)
         else:
             return [], 0, 0
 
         if angresult is not None:
-            finalresult = self.options.search(self._database,
-                                              startlist=angresult)
+            finalresult = self.options.search(startlist=angresult)
         else:
             return [], 0, 0
 
         if finalresult is not None:
             result_ = [str(s) for s in finalresult]
             resultstr = f"({', '.join(result_)})"
-            with psycopg2.connect(database=self._database) as con:
+            with database_connect() as con:
                 result = pd.read_sql(
                     f'''SELECT filename, npackets, totalsource
                         FROM outputfile

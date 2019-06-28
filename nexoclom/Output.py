@@ -46,15 +46,16 @@ class Output:
         if inputs.options.lifetime.value <= 0:
             self.loss_info = LossInfo(inputs.options.atom,
                                       inputs.options.lifetime,
-                                      self.aplanet,
-                                      inputs._database)
+                                      self.aplanet)
         else:
             self.loss_info = None
 
         # Set up the radiation pressure
         if inputs.forces.radpres:
-            radpres = RadPresConst(inputs.options.atom, self.aplanet,
-                                   inputs._database)
+            radpres = RadPresConst(inputs.options.atom,
+                                   self.aplanet,
+                                   inputs._database,
+                                   inputs._port)
             radpres.velocity = radpres.velocity.to(self.unit/u.s).value
             radpres.accel = radpres.accel.to(self.unit/u.s**2).value
             self.radpres = radpres
@@ -493,7 +494,8 @@ class Output:
 
     def save(self):
         # Add output into database
-        con = psycopg2.connect(database=self.inputs._database)
+        con = psycopg2.connect(database=self.inputs._database,
+                               port=self.inputs._port)
         con.autocommit = True
         cur = con.cursor()
 
