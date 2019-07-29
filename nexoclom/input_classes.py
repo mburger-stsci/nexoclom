@@ -112,7 +112,7 @@ class Geometry:
         if len(self.phi) != 0:
             result += 'geometry.phi XXX\n'
         result += 'geometry.subsolarpoint = ({}, {})\n'.format(*self.subsolarpoint)
-        result += 'geometry.TAA = {}\n'.format(self.taa)
+        result += f'geometry.TAA = {self.taa}\n'
         return result
 
     def search(self, startlist=None):
@@ -244,29 +244,26 @@ class StickingInfo:
             pass
 
     def __str__(self):
-        print('sticking_info.stickcoef = {}'.format(self.stickcoef))
+        result = f'sticking_info.stickcoef = {self.stickcoef}\n'
         if self.stickfn is not None:
-            print('sticking_info.stickfn = {}'.format(self.stickfn))
+            result += f'sticking_info.stickfn = {self.stickfn}\n'
         if self.tsurf is not None:
-            print('sticking_info.tsurf = {}'.format(self.tsurf))
+            result += f'sticking_info.tsurf = {self.tsurf}\n'
         if self.stick_mapfile is not None:
-            print('sticking_info.stick_mapfile = {}'.
-                  format(self.stick_mapfile))
+            result += f'sticking_info.stick_mapfile = {self.stick_mapfile}\n'
         if self.epsilon is not None:
-            print('sticking_info.epsilon = {}'.format(self.epsilon))
+            result += f'sticking_info.epsilon = {self.epsilon}\n'
         if self.n is not None:
-            print('sticking_info.n = {}'.format(self.n))
+            result += f'sticking_info.n = {self.n}\n'
         if self.tmin is not None:
-            print('sticking_info.tmin = {}'.format(self.tmin))
+            result += f'sticking_info.tmin = {self.tmin}\n'
         if self.emitfn is not None:
-            print('sticking_info.emitfn = {}'.format(self.emitfn))
+            result += f'sticking_info.emitfn = {self.emitfn}\n'
         if self.accom_mapfile is not None:
-            print('sticking_info.accom_mapfile = {}'.
-                  format(self.accom_mapfile))
+            result += f'sticking_info.accom_mapfile = {self.accom_mapfile}\n'
         if self.accom_factor is not None:
-            print('sticking_info.accom_factor = {}'.format(self.accom_factor))
-
-        return ''
+            result += f'sticking_info.accom_factor = {self.accom_factor}\n'
+        return result
 
     def search(self, startlist=None):
         if startlist is None:
@@ -313,9 +310,9 @@ class Forces:
                         else False)
 
     def __str__(self):
-        print('forces.gravity = {}'.format(self.gravity))
-        print('forces.radpres = {}'.format(self.radpres))
-        return ''
+        result = f'forces.gravity = {self.gravity}\n'
+        result += f'forces.radpres = {self.radpres}\n'
+        return result
 
     def search(self, startlist=None):
         if startlist is None:
@@ -390,12 +387,13 @@ class SpatialDist:
             if sigma < 0*u.deg:
                 sigma = 0*u.deg
             elif sigma > 90*u.deg:
-                sigma - 90*u.deg
+                sigma = 90*u.deg
             else:
                 pass
 
             self.longitude = (lon, sigma.to(u.rad))
             self.latitude = (lat, sigma.to(u.rad))
+            # self.sigma = sigma
         elif self.type== 'idlversion':
             if 'idlinputfile' in sparam:
                 self.mapfile = sparam['idlinputfile']
@@ -406,21 +404,15 @@ class SpatialDist:
             assert 0, f'{self.type} distribution not defined yet.'
 
     def __str__(self):
-        print('spatialdist.type = {}'.format(self.type))
-        print('spatialdist.exobase = {}'.format(self.exobase))
-        print('spatialdist.use_map = {}'.format(self.use_map))
-        print('spatialdist.mapfile = {}'.format(self.mapfile))
-        if self.longitude is None:
-            print('spatialdist.longitude is None')
-        else:
-            print('spatialdist.longitude = ({:0.2f}, {:0.2f})'.
-                  format(*self.longitude))
-        if self.latitude is None:
-            print('spatialdist.latitude is None')
-        else:
-            print('spatialdist.latitude = ({:0.2f}, {:0.2f})'.
-                  format(*self.latitude))
-        return ''
+        result = f'spatialdist.type = {self.type}\n'
+        result += f'spatialdist.exobase = {self.exobase}\n'
+        result += f'spatialdist.use_map = {self.use_map}\n'
+        result += f'spatialdist.mapfile = {self.mapfile}\n'
+        if self.longitude is not None:
+            result += 'spatialdist.longitude = ({:0.2f}, {:0.2f})\n'.format(*self.longitude)
+        if self.latitude is not None:
+            result += 'spatialdist.latitude = ({:0.2f}, {:0.2f})\n'.format(*self.latitude)
+        return result
 
     def search(self, startlist=None):
         if startlist is None:
@@ -503,23 +495,23 @@ class SpeedDist:
             assert 0, f'SpeedDist.type = {self.type} not available'
 
     def __str__(self):
-        print('SpeedDist.type = {}'.format(self.type))
+        result = f'SpeedDist.type = {self.type}\n'
         if self.vprob is not None:
-            print('SpeedDist.vprob = {}'.format(self.vprob))
+            result += f'SpeedDist.vprob = {self.vprob}\n'
         if self.sigma is not None:
-            print('SpeedDist.sigma = {}'.format(self.sigma))
+            result += f'SpeedDist.sigma = {self.sigma}\n'
         if self.U is not None:
-            print('SpeedDist.U = {}'.format(self.U))
+            result += f'SpeedDist.U = {self.U}\n'
         if self.alpha is not None:
-            print('SpeedDist.alpha = {}'.format(self.alpha))
+            result += f'SpeedDist.alpha = {self.alpha}\n'
         if self.beta is not None:
-            print('SpeedDist.beta = {}'.format(self.beta))
+            result += f'SpeedDist.beta = {self.beta}\n'
         if self.temperature is not None:
-            print('SpeedDist.temperature = {}'.format(self.temperature))
+            result += f'SpeedDist.temperature = {self.temperature}\n'
         if self.delv is not None:
-            print('SpeedDist.delv = {}'.format(self.delv))
+            result += f'SpeedDist.delv = {self.delv}\n'
 
-        return ''
+        return result
 
     def search(self, startlist=None):
         if startlist is None:
@@ -616,17 +608,15 @@ class AngularDist:
             self.n = float(aparam['n']) if 'n' in aparam else 1.
 
     def __str__(self):
-        print('AngularDist.type = {}'.format(self.type))
+        result = f'AngularDist.type = {self.type}\n'
         if self.altitude is not None:
-            print('AngularDist.altitude = ({:0.2f}, {:0.2f})'.
-                  format(*self.altitude))
+            result += 'AngularDist.altitude = ({:0.2f}, {:0.2f})\n'.format(*self.altitude)
         if self.azimuth is not None:
-            print('AngularDist.azimuth = ({:0.2f}, {:0.2f})'.
-                  format(*self.azimuth))
+            result += 'AngularDist.azimuth = ({:0.2f}, {:0.2f})\n'.format(*self.azimuth)
         if self.n is not None:
-            print('AngularDist.n = {}'.format(self.n))
+            result += f'AngularDist.n = {self.n}\n'
 
-        return ''
+        return result
 
     def search(self, startlist=None):
         if startlist is None:
@@ -713,20 +703,20 @@ class Options:
                                if 'resolution' in oparam else 1e-3)
 
     def __str__(self):
-        print('options.endtime = {}'.format(self.endtime))
-        print('options.resolution = {}'.format(self.resolution))
-        print('options.at_once = {}'.format(self.at_once))
-        print('options.atom = {}'.format(self.atom))
-        print('options.motion = {}'.format(self.motion))
-        print('options.lifetime = {}'.format(self.lifetime))
-        print('options.fullsystem = {}'.format(self.fullsystem))
+        result = f'options.endtime = {self.endtime}\n'
+        result += f'options.resolution = {self.resolution}\n'
+        result+= f'options.at_once = {self.at_once}\n'
+        result+= f'options.atom = {self.atom}\n'
+        result+= f'options.motion = {self.motion}\n'
+        result+= f'options.lifetime = {self.lifetime}\n'
+        result+= f'options.fullsystem = {self.fullsystem}\n'
         if self.outeredge is not None:
-            print('options.outeredge = {}'.format(self.outeredge))
-        print('options.streamlines = {}'.format(self.streamlines))
+            result+= f'options.outeredge = {self.outeredge}\n'
+        result+= f'options.streamlines = {self.streamlines}\n'
         if self.nsteps is not None:
-            print('options.nsteps = {}'.format(self.nsteps))
+            result+= f'options.nsteps = {self.nsteps}'
 
-        return ''
+        return result
 
     def search(self, startlist=None):
         if startlist is None:

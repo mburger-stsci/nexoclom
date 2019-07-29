@@ -7,19 +7,13 @@ import mathMB
 from atomicdataMB import atomicmass
 
 
-def gaussiandist(velocity, vprob, sigma):
-    f_v = np.exp(-(velocity-vprob)**2/2./sigma**2)
-    f_v /= np.max(f_v)
-    return f_v
-
-
 def sputdist(velocity, U, alpha, beta, atom):
     matom = atomicmass(atom)
     v_b = np.sqrt(2*U/matom)
     v_b = v_b.to(u.km/u.s)
     f_v = velocity**(2*beta+1) / (velocity**2 + v_b**2)**alpha
     f_v /= np.max(f_v)
-    return f_v
+    return f_v.value
 
 
 def MaxwellianDist(velocity, temperature, atom):
@@ -27,7 +21,7 @@ def MaxwellianDist(velocity, temperature, atom):
     vth2 = vth2.to(u.km**2/u.s**2)
     f_v = velocity**3 * np.exp(-velocity**2/vth2)
     f_v /= np.max(f_v)
-    return f_v
+    return f_v.value
 
 
 def xyz_from_lonlat(lon, lat, isplan, unit, exobase):
@@ -234,7 +228,7 @@ def speed_distribution(inputs, npackets):
         f_v = sputdist(velocity, SpeedDist.U, SpeedDist.alpha,
                        SpeedDist.beta, inputs.options.atom)
 
-        v0 = (mathMB.random_deviates_1d(velocity.value, f_v.value, npackets) *
+        v0 = (mathMB.random_deviates_1d(velocity, f_v.value, npackets) *
               velocity.unit)
     elif SpeedDist.type == 'maxwellian':
         if SpeedDist.temperature != 0:
@@ -245,7 +239,7 @@ def speed_distribution(inputs, npackets):
             velocity = np.linspace(0.1*u.km/u.s, v_th*5, 5000)
             f_v = MaxwellianDist(velocity, SpeedDist.temperature,
                                  inputs.options.atom)
-            v0 = (mathMB.random_deviates_1d(velocity.value, f_v.value, npackets) *
+            v0 = (mathMB.random_deviates_1d(velocity.value, f_v, npackets) *
                   velocity.unit)
         else:
             # Use a surface temperature map
@@ -340,20 +334,3 @@ def angular_distribution(inputs, X0, vv):
     V0 = np.array([vx0, vy0, vz0])
 
     return V0
-
-
-if __name__ == '__main__':
-    velocity = np.linspace(.1, 50, 5000) * u.km/u.s
-
-    f_v = gaussiandist(velocity, 2*u.km/u.s, 0.5*u.km/u.s)
-#    f_v = sputdist(velocity, 2.*u.eV, 2., 1., 'Na')
-#    f_v = MaxwellianDist(velocity, 1000.*u.K, 'Na')
-    plt.plot(velocity, f_v)
-    plt.minorticks_on()
-    plt.ylim((1e-10,10))
-    plt.xlim((0,20))
-    plt.yscale('log')
-    plt.xlabel('Velocity (km s$^{-1}$)')
-    plt.ylabel('Relative f$_v$')
-    plt.title('Speed Distribution Function')
-    plt.show()

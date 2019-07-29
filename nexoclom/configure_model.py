@@ -1,5 +1,7 @@
 import os, os.path
 from .database_connect import database_connect
+import sys
+import types
 
 
 def configfile():
@@ -193,27 +195,28 @@ def set_up_output_tables():
 
 def configure_model(force=False):
     """Ensure the database and configuration file are set up for nexoclom."""
-    # Get database name and port
-    database, port = database_connect(return_con=False)
+    if isinstance(sys.modules['psycopg2'], types.ModuleType):
+        # Get database name and port
+        database, port = database_connect(return_con=False)
 
-    # Verify database is running
-    status = os.popen('pg_ctl status').read()
-    if 'no server running' in status:
-        os.system(f'pg_ctl -D $HOME/.postgres/main/ -p {port}'
-                  '-l $HOME/.postgres/logfile start')
-    else:
-        pass
+        # Verify database is running
+        status = os.popen('pg_ctl status').read()
+        if 'no server running' in status:
+            os.system(f'pg_ctl start -D $HOME/.postgres/main'
+                      f'-l $HOME/.postgres/logfile -o "-p {port}"')
+        else:
+            pass
 
-    # Determine if it is necessary to create the database tables
-    nextables = ['outputfile', 'geometry', 'sticking_info', 'forces',
-                 'spatialdist', 'speeddist', 'angulardist', 'options',
-                 'modelimages', 'uvvsmodels']
+        # Determine if it is necessary to create the database tables
+        nextables = ['outputfile', 'geometry', 'sticking_info', 'forces',
+                     'spatialdist', 'speeddist', 'angulardist', 'options',
+                     'modelimages', 'uvvsmodels']
 
-    with database_connect() as con:
-        cur = con.cursor()
-        cur.execute('select table_name from information_schema.tables')
-        tables = [r[0] for r in cur.fetchall()]
-        there = [m in tables for m in nextables]
+        with database_connect() as con:
+            cur = con.cursor()
+            cur.execute('select table_name from information_schema.tables')
+            tables = [r[0] for r in cur.fetchall()]
+            there = [m in tables for m in nextables]
 
-    if (False in there) or (force):
-        set_up_output_tables()
+        if (False in there) or (force):
+            set_up_output_tables()

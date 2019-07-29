@@ -24,15 +24,18 @@ AngularDist
 Options
     Configure other model parameters
 """
-import os, os.path
+import os
+import os.path
+
 import pandas as pd
 from astropy.io import ascii
-from .produce_image import ModelImage
-from .modeldriver import modeldriver
-from .input_classes import (Geometry, StickingInfo, Forces,
-                            SpatialDist, SpeedDist, AngularDist, Options)
+
 from .configure_model import configfile
 from .database_connect import database_connect
+from .input_classes import (Geometry, StickingInfo, Forces, SpatialDist,
+                            SpeedDist, AngularDist, Options)
+from .modeldriver import modeldriver
+from .produce_image import ModelImage
 
 
 class Input():
@@ -109,6 +112,9 @@ class Input():
         oparam = {b:c for a,b,c in zip(section, param, values)
                   if a == 'options'}
         self.options = Options(oparam, self.geometry.planet)
+        
+    def __repr__(self):
+        return self.__str__()
 
     def __str__(self):
         result = (self.geometry.__str__() + '\n' +
@@ -118,12 +124,11 @@ class Input():
                   self.speeddist.__str__() + '\n' +
                   self.angulardist.__str__() + '\n' +
                   self.options.__str__())
+        
         return result
 
     def findpackets(self):
-        '''
-        Search the database for identical inputs
-        '''
+        """ Search the database for identical inputs """
         georesult = self.geometry.search(startlist=None)
         if georesult is not None:
             stickresult = self.sticking_info.search(startlist=georesult)

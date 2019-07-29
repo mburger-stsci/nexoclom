@@ -22,6 +22,16 @@ import stsci_rtd_theme
 def setup(app):
     app.add_stylesheet("stsci.css")
 
+# MagicMock takes care of packages that can't be imported on ReadTheDocs
+from unittest.mock import MagicMock
+class Mock(MagicMock):
+    @classmethod
+    def __getattr__(cls, name):
+        return MagicMock()
+
+MOCK_MODULES = ['psycopg2']
+sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
+
 
 from distutils.version import LooseVersion
 try:
@@ -104,7 +114,7 @@ source_suffix = '.rst'
 # source_encoding = 'utf-8-sig'
 
 # The master toctree document.
-master_doc = 'index'
+master_doc = 'nexoclom/index'
 
 # A list of warning types to suppress arbitrary warning messages. We mean to
 # override directives in astropy_helpers.sphinx.ext.autodoc_enhancements,

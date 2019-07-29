@@ -155,11 +155,6 @@ class Output:
         else:
             pass
 
-        if V0 is None:
-            V0 = V0_
-        else:
-            pass
-
         self.x0 = X0[0,:]
         self.y0 = X0[1,:]
         self.z0 = X0[2,:]

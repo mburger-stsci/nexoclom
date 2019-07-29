@@ -147,7 +147,7 @@ class LOSResult(ModelResult):
             if len(mdata) != len(data):
                 print('Model does not contain the complete orbit. '
                       'Cannot be saved.')
-                radiance, packets = None, None
+                radiance, packets, idnum = None, None, None
             else:
                 con = database_connect()
                 con.autocommit = True
@@ -231,13 +231,14 @@ class LOSResult(ModelResult):
         radiance, packets = np.zeros(len(data)), np.zeros(len(data))
 
         for i,row in data.iterrows():
+            j = i - min(data.index)
             # This removes the packets that aren't close to the los
-            mask = ((output.x >= xx_min[i]) &
-                    (output.x <= xx_max[i]) &
-                    (output.y >= yy_min[i]) &
-                    (output.y <= yy_max[i]) &
-                    (output.z >= zz_min[i]) &
-                    (output.z <= zz_max[i]))
+            mask = ((output.x >= xx_min[j]) &
+                    (output.x <= xx_max[j]) &
+                    (output.y >= yy_min[j]) &
+                    (output.y <= yy_max[j]) &
+                    (output.z >= zz_min[j]) &
+                    (output.z <= zz_max[j]))
             x_, y_, z_, w_, rvsun_ = (output.x[mask], output.y[mask],
                                       output.z[mask], weight[mask],
                                       radvel_sun[mask])
@@ -275,8 +276,8 @@ class LOSResult(ModelResult):
                     out_of_shadow = (rhohit > 1) | (yhit < 0)
                     wtemp *= out_of_shadow
 
-                    radiance[i] = np.sum(wtemp)
-                    packets[i] = np.sum(inview)
+                    radiance[j] = np.sum(wtemp)
+                    packets[j] = np.sum(inview)
 
         del output
         self.save(data, outfile, radiance, packets)
