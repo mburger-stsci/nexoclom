@@ -10,8 +10,7 @@ from .IDLout import IDLout
 name = 'nexoclom'
 __author__ = 'Matthew Burger'
 __email__ = 'mburger@stsci.edu'
-__version__ = '1.2.2'
-database = 'thesolarsystemmb'
+__version__ = '1.2.3'
 
 
 configure_model(force=False)

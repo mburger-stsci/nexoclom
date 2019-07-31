@@ -1,12 +1,24 @@
+"""Controls the Monte Carlo runs."""
 import os
+import sys
 import numpy as np
 from astropy.time import Time
-import astropy.units as u
 from .Output import Output
 
 
 def delete_files(filelist):
-    ''' Delete output files and remove them from the database '''
+    """Delete output files and remove them from the database.
+    
+    **Parameters**
+    
+    filelist
+        List of files to remove. This can be found with Inputs.findpackets()
+        
+    **Returns**
+    
+    No outputs.
+    
+    """
     from .database_connect import database_connect
 
     with database_connect() as con:
@@ -61,11 +73,32 @@ def delete_files(filelist):
 def modeldriver(inputs, npackets, packs_per_it=None, overwrite=False,
                 compress=True):
     '''
-    Starting point for running the model
-    INPUTS:
-        inputs: Input object
-        npackets: Total number of packets to run for this simulation
-        overwrite: If True, delete existing files for this set of inputs
+    Controls how the model is run and how many iterations are completed.
+    Generally invoked as `Inputs.run()`.
+    
+    **Parameters**
+    
+        inputs
+            Input object
+            
+        npackets
+            Total number of packets to run for this simulation.
+            
+        packs_per_it
+            Number of packets to run in each iteration. Default = None mean
+            to use the default for the integration mode.
+        
+        overwrite
+            If True, delete existing files for this set of inputs.
+            Default=False
+            
+        compress
+            If True, removes packets with frac=0 from the saved result. This
+            decreases the size of the output files, but information is lost.
+            
+    **Returns**
+    
+    No outputs.
     '''
 
     t0_ = Time.now()

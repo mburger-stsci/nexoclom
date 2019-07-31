@@ -1,6 +1,11 @@
+.. _modeldriver_:
+
+***********
 modeldriver
-===========
+***********
 
-.. currentmodule:: nexoclom
+.. moduleauthor:: Matthew Burger <mburger@stsci.edu>
 
-.. autofunction:: modeldriver
+.. automodule:: nexoclom.modeldriver
+  :members:
+

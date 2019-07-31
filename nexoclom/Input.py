@@ -26,10 +26,7 @@ Options
 """
 import os
 import os.path
-
 import pandas as pd
-from astropy.io import ascii
-
 from .configure_model import configfile
 from .database_connect import database_connect
 from .input_classes import (Geometry, StickingInfo, Forces, SpatialDist,
@@ -38,80 +35,83 @@ from .modeldriver import modeldriver
 from .produce_image import ModelImage
 
 
-class Input():
+class Input:
     def __init__(self, infile):
         """Read the input options from a file.
 
         **Parameters**
+        
         infile
-            Plain text file containing model input parameters.
+            Plain text file containing model input parameters. See
+            :doc:`inputfiles` for a description of the input file format.
 
         **Class Attributes**
 
         * geometry
+        
         * sticking_info
+        
         * forces
+        
         * spatialdist
+        
         * speeddist
+        
         * angulardist
+        
         * options
-
+        
         **Class Methods**
 
         * findpackets()
-        * run(npackets, overwrite=False, compress=True)
-        * produce_image(format_, filenames=None)
+        
+        * run(npackets, packs_per_it=None, overwrite=False, compress=True)
+        
+        * produce_image(format, filenames=None)
+        
         """
         # Read the configuration file
         self._savepath = configfile()
 
         # Read in the input file:
         self._inputfile = infile
+        params = []
         if os.path.isfile(infile):
-            data = ascii.read(infile, delimiter='=', comment=';',
-                              data_start=0, names=['Param', 'Value'])
+            # Remove everything in the line after a comment character
+            for line in open(infile, 'r'):
+                if ';' in line:
+                    line = line[:line.find(';')]
+                elif '#' in line:
+                    line = line[:line.find('#')]
+                else:
+                    pass
+                    
+                if line.count('=') == 1:
+                    param_, val_ = line.split('=')
+                    if param_.count('.') == 1:
+                        sec_, par_ = param_.split('.')
+                        params.append((sec_.casefold().strip(),
+                                       par_.casefold().strip(),
+                                       val_.casefold().strip()))
+                    else:
+                        pass
+                else:
+                    pass
         else:
-            assert 0, 'Input file {} does not exist.'.format(infile)
+            raise FileNotFoundError(infile)
+            
+        def extract_param(tag):
+            return {b:c for (a,b,c) in params if a == tag}
 
-        section = [d.split('.')[0].casefold() for d in data['Param']]
-        param = [d.split('.')[1].casefold() for d in data['Param']]
-        values = [v.split(';')[0].strip().casefold()
-                  if ';' in v else v.casefold() for v in data['Value']]
-
-        # Extract the geometry parameters
-        gparam = {b:c for (a,b,c) in zip(section, param, values)
-                  if a == 'geometry'}
-        self.geometry = Geometry(gparam)
-
-        # Extract the sticking information
-        sparam = {b:c for a,b,c in zip(section, param, values)
-                  if a == 'sticking_info'}
-        self.sticking_info = StickingInfo(sparam)
-
-        # Extract the forces
-        fparam = {b:c for a,b,c in zip(section, param, values)
-                  if a == 'forces'}
-        self.forces = Forces(fparam)
-
-        # Extract the spatial distribution
-        sparam = {b:c for a,b,c in zip(section, param, values)
-                  if a == 'spatialdist'}
-        self.spatialdist = SpatialDist(sparam)
-
-        # Extract the speed distribution
-        sparam = {b:c for a,b,c in zip(section, param, values)
-                  if a == 'speeddist'}
-        self.speeddist = SpeedDist(sparam)
-
-        # Extract the angular distribution
-        aparam = {b:c for a,b,c in zip(section, param, values)
-                  if a == 'angulardist'}
-        self.angulardist = AngularDist(aparam, self.spatialdist)
-
-        # Extract the options
-        oparam = {b:c for a,b,c in zip(section, param, values)
-                  if a == 'options'}
-        self.options = Options(oparam, self.geometry.planet)
+        print(extract_param('geometry'))
+        self.geometry = Geometry(extract_param('geometry'))
+        self.sticking_info = StickingInfo(extract_param('sticking_info'))
+        self.forces = Forces(extract_param('forces'))
+        self.spatialdist = SpatialDist(extract_param('spatialdist'))
+        self.speeddist = SpeedDist(extract_param('speeddist'))
+        self.angulardist = AngularDist(extract_param('angulardist'),
+                                       self.spatialdist)
+        self.options = Options(extract_param('options'), self.geometry.planet)
         
     def __repr__(self):
         return self.__str__()
@@ -128,7 +128,21 @@ class Input():
         return result
 
     def findpackets(self):
-        """ Search the database for identical inputs """
+        """ Search the database for previous model runs with the same inputs.
+        See :doc:`searchtolerances` for tolerances used in searches.
+        
+        **Parameters**
+        
+        No parameters.
+        
+        **Returns**
+        
+        * A list of filenames corresponding to the inputs.
+        
+        * Number of packets contained in those saved outputs.
+        
+        * Total modeled source rate.
+        """
         georesult = self.geometry.search(startlist=None)
         if georesult is not None:
             stickresult = self.sticking_info.search(startlist=georesult)
@@ -176,8 +190,9 @@ class Input():
             return [], 0, 0
 
     def run(self, npackets, packs_per_it=None, overwrite=False, compress=True):
+        
         modeldriver(self, npackets, packs_per_it=packs_per_it,
                     overwrite=overwrite, compress=compress)
 
-    def produce_image(self, format_, filenames=None):
-        return ModelImage(self, format_, filenames=filenames)
+    def produce_image(self, format, filenames=None):
+        return ModelImage(self, format, filenames=filenames)

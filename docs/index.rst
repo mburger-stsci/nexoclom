@@ -10,6 +10,6 @@ Monte Carlo model of neutral clouds and exospheres
   nexoclom/Input
   nexoclom/LOSResult
   nexoclom/Output
-  nexoclom/configfile
+  nexoclom/configure_model
   nexoclom/modeldriver
   nexoclom/outline

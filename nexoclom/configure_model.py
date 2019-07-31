@@ -1,3 +1,4 @@
+"""Create and read configuration file, create necessary database tables."""
 import os, os.path
 from .database_connect import database_connect
 import sys
@@ -5,12 +6,19 @@ import types
 
 
 def configfile():
-    """Configure external resources used in the model
+    """Configure external resources used in the model.
 
-    Paths are saved in $HOME/.nexoclom
-    * savepath = path where output files are saved
-    * datapath = path where MESSENGER data is kept
-    * database = name of the postgresql database to use
+    The following parameters can be saved in the file `$HOME/.nexoclom`.
+    
+    * savepath = <path where output files are saved>
+    
+    * datapath = <path where MESSENGER data is kept>
+    
+    * database = <name of the postgresql database to use> (*optional*)
+    
+    * port = <port for postgreSQL server to use> (*optional*)
+    
+    If savepath and datapath are not present, user is prompted to enter them.
     """
     # Determne the savepath
     cfile = os.path.join(os.environ['HOME'], '.nexoclom')
@@ -54,6 +62,32 @@ def configfile():
 
 
 def set_up_output_tables():
+    """Create the database tables used by nexoclom to save output.
+    
+    Tables created:
+    
+    * outputfile
+    
+    * geometry
+    
+    * sticking_info
+    
+    * forces
+    
+    * spatialdist
+    
+    * speeddist
+    
+    * angulardist
+    
+    * options
+    
+    * modelimages
+    
+    * uvvsmodels
+    
+    """
+    
     con = database_connect()
     cur = con.cursor()
 
@@ -146,7 +180,7 @@ def set_up_output_tables():
                        n float)''')
     print('Created angulardist table')
 
-    ## Skipping perturbvel and plasma_info for now
+    # Skipping perturbvel and plasma_info for now
 
     # create table options
     cur.execute('''CREATE TABLE options (
@@ -194,7 +228,17 @@ def set_up_output_tables():
 
 
 def configure_model(force=False):
-    """Ensure the database and configuration file are set up for nexoclom."""
+    """Ensure the database and configuration file are set up for nexoclom.
+    
+    **Parameters**
+    force
+        If True, drops the existing database tables and remakes them.
+        Default = False
+        
+    **Returns**
+    
+    No output.
+    """
     if isinstance(sys.modules['psycopg2'], types.ModuleType):
         # Get database name and port
         database, port = database_connect(return_con=False)
