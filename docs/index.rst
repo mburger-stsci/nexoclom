@@ -13,3 +13,14 @@ Monte Carlo model of neutral clouds and exospheres
   nexoclom/configure_model
   nexoclom/modeldriver
   nexoclom/outline
+
+Input Files
+-----------
+
+The inputs for a model run are defined in an plain text file with lines in the
+form: ::
+
+    category.parameter = setting
+
+A description of everything that can go into an input file is at
+:doc:`nexoclom/inputfiles`.

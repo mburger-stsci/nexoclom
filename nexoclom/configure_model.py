@@ -61,142 +61,33 @@ def configfile():
     return savepath
 
 
-def set_up_output_tables():
-    """Create the database tables used by nexoclom to save output.
-    
-    Tables created:
-    
-    * outputfile
-    
-    * geometry
-    
-    * sticking_info
-    
-    * forces
-    
-    * spatialdist
-    
-    * speeddist
-    
-    * angulardist
-    
-    * options
-    
-    * modelimages
-    
-    * uvvsmodels
-    
-    """
-    
-    con = database_connect()
-    cur = con.cursor()
-
-    # drop tables if necessary
-    nextables = ['outputfile', 'geometry', 'sticking_info', 'forces',
-                 'spatialdist', 'speeddist', 'angulardist', 'options',
-                 'modelimages', 'uvvsmodels']
-    cur.execute('select table_name from information_schema.tables')
+def verify_output_tables():
+    """Create the database tables used by nexoclom to save output."""
+    with database_connect() as con:
+        cur = con.cursor()
+        cur.execute('select table_name from information_schema.tables')
     tables = [r[0] for r in cur.fetchall()]
-
-    for tab in nextables:
-        if tab in tables:
-            cur.execute(f'''DROP table {tab}''')
-        else:
-            pass
-
-    # create outputfile table
-    cur.execute('''CREATE TABLE outputfile (
-                       idnum SERIAL PRIMARY KEY,
-                       filename text UNIQUE,
-                       npackets bigint,
-                       totalsource float,
-                       creationtime timestamp NOT NULL)''')
-    print('Created outputfile table')
-
-    # create geometry table
-    cur.execute('''CREATE TABLE geometry (
-                       geo_idnum bigint PRIMARY KEY,
-                       planet SSObject,
-                       StartPoint SSObject,
-                       objects SSObject ARRAY,
-                       starttime timestamp,
-                       phi real ARRAY,
-                       subsolarpt point,
-                       TAA float)''')
-    print('Created geometry table')
-
-    # Create sticking_info table
-    cur.execute('''CREATE TABLE sticking_info (
-                       st_idnum bigint PRIMARY KEY,
-                       stickcoef float,
-                       tsurf float,
-                       stickfn text,
-                       stick_mapfile text,
-                       epsilon float,
-                       n float,
-                       tmin float,
-                       emitfn text,
-                       accom_mapfile text,
-                       accom_factor float)''')
-    print('Created sticking_info table')
-
-    # create forces table
-    cur.execute('''CREATE TABLE forces (
-                       f_idnum bigint PRIMARY KEY,
-                       gravity boolean,
-                       radpres boolean)''')
-    print('Created forces table')
-
-    # create spatialdist table
-    cur.execute('''CREATE TABLE spatialdist (
-                       spat_idnum bigint PRIMARY KEY,
-                       type text,
-                       exobase float,
-                       use_map boolean,
-                       mapfile text,
-                       longitude float[2],
-                       latitude float[2])''')
-    print('Created spatialdist table')
-
-    # create table speeddist
-    cur.execute('''CREATE TABLE speeddist (
-                       spd_idnum bigint PRIMARY KEY,
-                       type text,
-                       vprob float,
-                       sigma float,
-                       U float,
-                       alpha float,
-                       beta float,
-                       temperature float,
-                       delv float)''')
-    print('Created speeddist table')
-
-    # create table angulardist
-    cur.execute('''CREATE TABLE angulardist (
-                       ang_idnum bigint PRIMARY KEY,
-                       type text,
-                       azimuth float[2],
-                       altitude float[2],
-                       n float)''')
-    print('Created angulardist table')
-
-    # Skipping perturbvel and plasma_info for now
-
-    # create table options
-    cur.execute('''CREATE TABLE options (
-                       opt_idnum bigint PRIMARY KEY,
-                       endtime float,
-                       resolution float,
-                       at_once boolean,
-                       atom text,
-                       lifetime float,
-                       fullsystem boolean,
-                       outeredge float,
-                       motion boolean,
-                       streamlines boolean,
-                       nsteps int)''')
-    print('Created options table')
-
+    
+    with open(os.path.join(os.path.dirname(__file__),
+                           'data',
+                           'schema.sql'), 'r') as sqlfile:
+        line = sqlfile.readline()
+        while line:
+            if 'TABLE' in line:
+                table_to_test = line[len('CREATE TABLE '):-3]
+                if table_to_test in tables:
+                    # Need to verify schema
+                    pass
+                else:
+                    query = line
+                    nextline = sqlfile.readline()
+                    while nextline.strip():
+                        query += nextline
+                        nextline = sqlfile.readline()
+                    print(query)
+                    cur.execute(query)
+                line = sqlfile.readline()
+                
     # Create table for model images
     cur.execute('''CREATE TABLE modelimages (
                        idnum SERIAL PRIMARY KEY,
@@ -231,6 +122,7 @@ def configure_model(force=False):
     """Ensure the database and configuration file are set up for nexoclom.
     
     **Parameters**
+    
     force
         If True, drops the existing database tables and remakes them.
         Default = False
@@ -250,17 +142,28 @@ def configure_model(force=False):
                       f'-l $HOME/.postgres/logfile -o "-p {port}"')
         else:
             pass
-
-        # Determine if it is necessary to create the database tables
-        nextables = ['outputfile', 'geometry', 'sticking_info', 'forces',
-                     'spatialdist', 'speeddist', 'angulardist', 'options',
-                     'modelimages', 'uvvsmodels']
+        
+        if 'test' in database:
+            with database_connect('postgres') as con:
+                cur = con.cursor()
+                cur.execute(f'drop database {database}')
+                cur.execute(f'create database {database}')
 
         with database_connect() as con:
+            # Check whether SSObject has been created
             cur = con.cursor()
-            cur.execute('select table_name from information_schema.tables')
-            tables = [r[0] for r in cur.fetchall()]
-            there = [m in tables for m in nextables]
+            query = """
+                    SELECT exists
+                    (select 1 from pg_type where typname = 'ssobject');
+                    """
+            cur.execute(query)
+            result = cur.fetchall()
 
-        if (False in there) or (force):
-            set_up_output_tables()
+        if not result[0][0]:
+            from solarsystemMB import create_SSObject
+            create_SSObject()
+
+        else:
+            pass
+        
+        verify_output_tables()

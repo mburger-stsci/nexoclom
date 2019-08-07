@@ -1,10 +1,17 @@
-'''Classes used by the Inputs class'''
+"""Classes used by the Inputs class"""
+import os.path
 import numpy as np
 import pandas as pd
 from astropy.time import Time
 import astropy.units as u
 from solarsystemMB import SSObject
 from .database_connect import database_connect
+
+class InputError(Exception):
+    """Raised when a required parameter is not included in the inputfile."""
+    def __init__(self, expression, message):
+        self.expression = expression
+        self.message = message
 
 
 def isNone(x):
@@ -27,32 +34,36 @@ dtor = np.pi/180.
 
 class Geometry:
     def __init__(self, gparam):
-        '''Geometry object: object to model
-           Fields:
-               planet
-               StartPoint
-               objects
-               starttime
-               phi
-               subsolarpt = (subsolarlong, subsolarlat)
-               TAA'''
-
-        # Choose the planet
+        """Define a Geometry object.
+        
+        See :doc:`inputfiles#Geometry` for more information.
+        """
+        # Planet
         if 'planet' in gparam:
             planet = gparam['planet'].title()
             self.planet = SSObject(planet)
         else:
-            assert 0, 'Planet not defined.'
+            raise InputError('Geometry.__init__',
+                             'Planet not defined in inputfile.')
 
+        # All possible objects
         objlist = [self.planet.object]
         if self.planet.moons is not None:
             objlist.extend([m.object for m in self.planet.moons])
+        else:
+            pass
 
         # Choose the starting point
         self.startpoint = (gparam['startpoint'].title()
                            if 'startpoint' in gparam
                            else self.planet.object)
-        assert self.startpoint in objlist, 'Not a valid starting point'
+        if self.startpoint not in objlist:
+            print(f'{self.startpoint} is not a valid starting point.')
+            olist = '\n\t'.join(objlist)
+            print(f'Valid choices are:\n\t{olist}')
+            raise ValueError
+        else:
+            pass
 
         # Choose which objects to include
         # This is given as a list of names
@@ -61,59 +72,61 @@ class Geometry:
             inc = set(i.strip().title()
                       for i in gparam['objects'].split(','))
         else:
-            inc = set((self.planet.object, self.startpoint))
+            inc = {self.planet.object, self.startpoint}
 
         for i in inc:
-            assert i in objlist, 'Invalid object included: {}'.format(i)
+            raise InputError('Geometry.__init__',
+                             f'Invalid object {i} in geometry.include')
         self.objects = set(SSObject(o) for o in inc)
 
-        # Check to see if a starting time is given
-        if 'time' in gparam:
+        # Different objects are created for geometry_with_starttime and
+        # geometry_without_starttime
+        if 'starttime' in gparam:
+            self.type = 'geometry with starttime'
             try:
-                self.time = Time(gparam['time'].upper())
+                self.time = Time(gparam['starttime'].upper())
             except:
-                assert 0, 'Time is not given in a valid format'
-
-            assert 0, 'Need to figure out how to calculate orbital positions'
+                raise InputError('Geometry.__init__',
+                         f'Invalid starttime format: {gparam["starttime"]}')
         else:
-            # Initial positions are given
-            self.time = None
-            if 'phi' in gparam:
-                phi = tuple(float(p)*u.rad for p in gparam['phi'].split(','))
-                assert 0, 'Need to figure out best way to do this'
-            elif len(self.objects) == 1:
-                # No moons, so this isn't needed
-                self.phi = [0.*u.rad]
+            self.type = 'geometry without starttime'
+            if len(planet) == 1:
+                self.phi = None
+            elif 'phi' in gparam:
+                phi_ = gparam['phi'].split(',')
+                phi = tuple(float(p)*u.rad for p in phi_)
+                nmoons = len(self.objects - {self.planet})
+                if len(phi) == nmoons:
+                    self.phi = phi
+                else:
+                    raise InputError('Geometry.__init__',
+                          'The wrong number of orbital positions was given.')
             else:
-                assert 0, ('Need to give either an observation time'
-                           'or orbital position.')
+                raise InputError('Geometry.__init__',
+                                 'geometry.phi was not specified.')
 
-        # Subsolar longitude and latitude
-        subslong = (float(gparam['subsolarlong'])*u.rad if
-                    'subsolarlong' in gparam else 0.*u.rad)
-        subslat= (float(gparam['subsolarlat'])*u.rad if
-                  'subsolarlat' in gparam else 0.*u.rad)
-        self.subsolarpoint = (subslong, subslat)
+            # Subsolar longitude and latitude
+            if 'subsolarpoint' in gparam:
+                subs = gparam['subsolarpoint'].split(',')
+                try:
+                    self.subsolarpoint = (float(subs[0])*u.rad,
+                                          float(subs[1])*u.rad)
+                except:
+                    raise InputError('Geometry.__init__',
+                         'The format for geometry.subsolarpoint is wrong.')
+            else:
+                self.subsolarpoint = (0*u.rad, 0*u.rad)
 
-        # True Anomaly Angle
-        self.taa = float(gparam['taa']) if 'taa' in gparam else 0.
-        self.taa *= u.rad
+            # True Anomaly Angle
+            self.taa = (float(gparam['taa'])*u.rad
+                        if 'taa' in gparam
+                        else 0.*u.rad)
 
     def __str__(self):
-        result = f'geometry.planet = {self.planet.object}\n'
-        result += f'geometry.StartPoint = {self.startpoint}\n'
-        oo = [o.object for o in self.objects]
-        obs = ', '.join(oo)
-        result += f'geometry.objects = {obs}'
-        if self.time is not None:
-            result += f'geometry.starttime = {self.time.iso}\n'
-        else:
-            result += f'geometry.startime not specified\n'
-        if len(self.phi) != 0:
-            result += 'geometry.phi XXX\n'
-        result += 'geometry.subsolarpoint = ({}, {})\n'.format(*self.subsolarpoint)
-        result += f'geometry.TAA = {self.taa}\n'
-        return result
+        result = ''
+        for key,value in self.__dict__.items():
+            result += (f'geometry.{key} = {value}\n')
+        return result.strip()
 
     def search(self, startlist=None):
         # Make list of objects in planet system
@@ -175,95 +188,61 @@ class Geometry:
 ###############################################################
 
 
-class StickingInfo:
-    '''
-    stickcoef
-    tsurf
-    stickfn
-    stick_mapfile
-    epsilon
-    n
-    tmin
-    emitfn
-    accom_mapfile
-    accom_factor
-    '''
-
+class SurfaceInteraction:
     def __init__(self, sparam):
-        self.stickcoef = (float(sparam['stickcoef'])
-                          if 'stickcoef' in sparam
-                          else 1.)
-        if self.stickcoef > 1.:
-            self.stickcoef = 1.
+        """Define a SurfaceInteraction object.
 
-        # Defaults
-        self.tsurf = None
-        self.stickfn = sparam['stickfn'] if 'stickfn' in sparam else None
-        self.stick_mapfile = None
-        self.epsilon = None
-        self.n = None
-        self.tmin = None
-        self.emitfn = sparam['emitfn'] if 'emitfn' in sparam else None
-        self.accom_mapfile = None
-        self.accom_factor = None
-
-        # Set the stick function parameters
-        if self.stickcoef == 1:
-            # Complete sticking
-            self.stickfn = 'complete'
-        elif self.stickcoef > 0.:
-            # Cosnstant stick function
-            self.stickfn = 'constant'
-        elif (self.stickcoef == -1) and (self.stickfn == 'use_map'):
-            self.stick_mapfile = sparam['stick_mapfile']
-        elif (self.stickcoef == -1) and (self.stickfn == 'linear'):
-            self.epsilon = float(sparam['epsilon'])
-            self.n = float(sparam['n']) if 'n' in sparam else 1.
-            self.tmin = float(sparam['tmin'])*u.K
-        elif (self.stickcoef == -1) and (self.stickfn == 'cossza'):
-            self.n = float(sparam['n']) if 'n' in sparam else 1.
-            self.tmin = float(sparam['tmin'])*u.K
-        else:
-            assert 0, 'sticking_info.stickfn not given or invalid.'
-
-        # set the re-emission function parameters
-        if self.emitfn == 'use_map':
-            self.accom_mapfile = sparam['accom_mapfile']
-        elif self.emitfn == 'maxwellian':
-            ac = float(sparam['accom_factor'])
-            if ac < 0:
-                ac = 0.
-            elif ac > 1:
-                ac = 1.
+        See :doc:`inputfiles#SurfaceInteraction` for more information.
+        """
+        sticktype = (sparam['sticktype'].lower()
+                     if 'sticktype' in sparam
+                     else None)
+        if sticktype == 'temperature dependent':
+            self.sticktype = sticktype
+            
+            if 'accomfactor' in sparam:
+                self.accomfactor = sparam['accomfactor']
+            else:
+                raise InputError('SurfaceInteraction.__init__',
+                                 'surface_interaction.accomfactor not given.')
+        elif sticktype == 'surface map':
+            self.sticktype = sticktype
+            if 'stick_mapfile' in sparam:
+                self.stick_mapfile = sparam['stick_mapfile']
+            else:
+                raise InputError('SurfaceInteraction.__init__',
+                                 'surface_interaction.stick_mapfile not given.')
+            
+            if not os.path.exists(self.stick_mapfile):
+                raise InputError('SurfaceInteraction.__init__',
+                                 f'File Not Found: {self.stick_mapfile}')
             else:
                 pass
-            self.accom_factor = ac
-        elif self.emitfn == 'elastic scattering':
-            pass
+            
+            if 'accomfactor' in sparam:
+                self.accomfactor = sparam['accomfactor']
+            else:
+                raise InputError('SurfaceInteraction.__init__',
+                                 'surface_interaction.accomfactor not given.')
+        elif 'stickcoef' in sparam:
+            # Constant sticking
+            self.sticktype = 'constant'
+            self.stickcoef = sparam['stickcoef']
+            if self.stickcoef < 0:
+                self.stickcoef = 0
+            elif self.stickcoef > 1:
+                self.stickcoef = 1
+            else:
+                pass
         else:
-            pass
-
+            self.sticktype = 'constant'
+            self.stickcoef = 1.
+        
     def __str__(self):
-        result = f'sticking_info.stickcoef = {self.stickcoef}\n'
-        if self.stickfn is not None:
-            result += f'sticking_info.stickfn = {self.stickfn}\n'
-        if self.tsurf is not None:
-            result += f'sticking_info.tsurf = {self.tsurf}\n'
-        if self.stick_mapfile is not None:
-            result += f'sticking_info.stick_mapfile = {self.stick_mapfile}\n'
-        if self.epsilon is not None:
-            result += f'sticking_info.epsilon = {self.epsilon}\n'
-        if self.n is not None:
-            result += f'sticking_info.n = {self.n}\n'
-        if self.tmin is not None:
-            result += f'sticking_info.tmin = {self.tmin}\n'
-        if self.emitfn is not None:
-            result += f'sticking_info.emitfn = {self.emitfn}\n'
-        if self.accom_mapfile is not None:
-            result += f'sticking_info.accom_mapfile = {self.accom_mapfile}\n'
-        if self.accom_factor is not None:
-            result += f'sticking_info.accom_factor = {self.accom_factor}\n'
-        return result
+        result = ''
+        for key,value in self.__dict__.items():
+            result += (f'surface_interaction.{key} = {value}\n')
+        return result.strip()
 
     def search(self, startlist=None):
         if startlist is None:
@@ -298,21 +277,23 @@ class StickingInfo:
 
 class Forces:
     def __init__(self, fparam):
-        '''
-        gravity
-        radpres
-        '''
-        self.gravity = (bool(int(float(fparam['gravity'])))
+        """Define a Forces object.
+
+        See :doc:`inputfiles#Forces` for more information.
+        """
+    
+        self.gravity = (eval(fparam['gravity'])
                         if 'gravity' in fparam
-                        else False)
-        self.radpres = (bool(int(float(fparam['radpres'])))
+                        else True)
+        self.radpres = (eval(fparam['radpres'])
                         if 'radpres' in fparam
-                        else False)
+                        else True)
 
     def __str__(self):
-        result = f'forces.gravity = {self.gravity}\n'
-        result += f'forces.radpres = {self.radpres}\n'
-        return result
+        result = ''
+        for key,value in self.__dict__.items():
+            result += (f'forces.{key} = {value}\n')
+        return result.strip()
 
     def search(self, startlist=None):
         if startlist is None:
@@ -332,87 +313,102 @@ class Forces:
         else:
             return result.f_idnum.to_list()
 
-###############################################################
-
-
 class SpatialDist:
     def __init__(self, sparam):
-        '''
-        type
-        exobase
-        use_map
-        mapfile
-        lonrange
-        latrange
-        '''
+        """Define a SpatialDist object.
 
-        # Set defaults
-        self.type = sparam['type']
-        self.exobase = 0.
-        self.use_map = False
-        self.mapfile = None
-        self.longitude = None
-        self.latitude = None
-
-        if self.type == 'surface':
+        See :doc:`inputfiles#SpatialDist` for more information.
+        """
+        if 'type' in sparam:
+            self.type = sparam['type']
+        else:
+            raise InputError('SpatialDist.__init__',
+                             'spatial_dist.type not given')
+        
+        if self.type == 'uniform':
             self.exobase = (float(sparam['exobase'])
                             if 'exobase' in sparam
                             else 1.)  # Unit gets set later
-            self.use_map = (bool(int(sparam['use_map']))
-                            if 'use_map' in sparam
-                            else False)
-            if self.use_map:
+            if 'longitude' in sparam:
+                lon0, lon1 = (float(l.strip())
+                              for l in sparam['longitude'].split(','))
+                lon0 = max(lon0, 0.)
+                lon0 = min(lon0, 2*np.pi)
+                lon1 = max(lon1, 0.)
+                lon1 = min(lon1, 2*np.pi)
+                self.longitude = (lon0*u.rad, lon1*u.rad)
+            else:
+                self.longitude = (0.*u.rad, 2*np.pi*u.rad)
+                
+            if 'latitude' in sparam:
+                lat0, lat1 = (float(l.strip())*u.rad
+                              for l in sparam['latitude'].split(','))
+                lat0 = max(lat0, -np.pi/2)
+                lat0 = min(lat0, np.pi/2)
+                lat1 = max(lat1, -np.pi/2)
+                lat1 = min(lat1, np.pi/2)
+                if lat0 > lat1:
+                    raise InputError('SpatialDist.__init__',
+                         'spatial_dist.latitude[0] > spatial_dist.latitude[1]')
+                self.latitude = (lat0*u.rad, lat1*u.rad)
+            else:
+                self.latitude = (-np.pi/2*u.rad, np.pi/2*u.rad)
+        elif self.type == 'surface map':
+            self.exobase = (float(sparam['exobase'])
+                            if 'exobase' in sparam
+                            else 1.)  # Unit gets set later
+            
+            if 'mapfile' in sparam:
                 self.mapfile = sparam['mapfile']
-
-            long0 = (float(sparam['longitude0'])*u.rad
-                if 'longitude0' in sparam else 0.*u.rad)
-            long1 = (float(sparam['longitude1'])*u.rad
-                if 'longitude1' in sparam else 2*np.pi*u.rad)
-            lat0 = (float(sparam['latitude0'])*u.rad
-                if 'latitude0' in sparam else -np.pi/2.*u.rad)
-            lat1 = (float(sparam['latitude1'])*u.rad
-                if 'latitude1' in sparam else np.pi/2.*u.rad)
-            self.longitude = (long0, long1)
-            self.latitude = (lat0, lat1)
-        elif self.type == 'surfacespot':
-            self.exobase = (float(sparam['exobase'])
-                            if 'exobase' in sparam
-                            else 1.)  # Unit gets set later
-            lon = (float(sparam['longitude'])*u.rad
-                   if 'longitude' in sparam else 0.*u.rad)
-            lat = (float(sparam['latitude'])*u.rad
-                   if 'latitude' in sparam else 0*u.rad)
-            sigma = (float(sparam['sigma'])*u.rad
-                     if 'sigma' in sparam else 25*u.deg)
-            if sigma < 0*u.deg:
-                sigma = 0*u.deg
-            elif sigma > 90*u.deg:
-                sigma = 90*u.deg
+            else:
+                raise InputError('SpatialDist.__init__',
+                                 'spatial_dist.mapfile not given.')
+            
+            if not os.path.exists(self.mapfile):
+                raise InputError('SpatialDist.__init__',
+                                 f'File Not Found: {self.mapfile}')
             else:
                 pass
-
-            self.longitude = (lon, sigma.to(u.rad))
-            self.latitude = (lat, sigma.to(u.rad))
-            # self.sigma = sigma
-        elif self.type== 'idlversion':
-            if 'idlinputfile' in sparam:
-                self.mapfile = sparam['idlinputfile']
+            
+            if 'coordsystem' in sparam:
+                coordsystems = {'solar-fixed', 'planet-fixed', 'moon-fixed'}
+                if sparam['coordsystem'] in coordsystems:
+                    self.coordsystem = sparam['coordsystem']
+                else:
+                    raise InputError('SpatialDist.__init__',
+                     f'{sparam["coordsystem"]} not a valid coordinat system.')
             else:
-                assert 0, 'Must specify idlinputfile'
+                self.coordsystem = 'default'
+        elif self.type == 'surface spot':
+            self.exobase = (float(sparam['exobase'])
+                            if 'exobase' in sparam
+                            else 1.)  # Unit gets set later
+            if 'longitude' in sparam:
+                self.longitude = float(sparam['longitude'])*u.rad
+            else:
+                raise InputError('SpatialDist.__init__',
+                                 'spatial_dist.longitude not given.')
+            
+            if 'latitude' in sparam:
+                self.latitude = float(sparam['latitude'])*u.rad
+            else:
+                raise InputError('SpatialDist.__init__',
+                                 'spatial_dist.latitude not given.')
 
+            if 'sigma' in sparam:
+                self.sigma = float(sparam['sigma'])*u.rad
+            else:
+                raise InputError('SpatialDist.__init__',
+                                 'spatial_dist.sigma not given.')
         else:
-            assert 0, f'{self.type} distribution not defined yet.'
+            raise InputError('SpatialDist.__init__',
+                             f'spatial_dist.type = {self.type} not defined.')
 
     def __str__(self):
-        result = f'spatialdist.type = {self.type}\n'
-        result += f'spatialdist.exobase = {self.exobase}\n'
-        result += f'spatialdist.use_map = {self.use_map}\n'
-        result += f'spatialdist.mapfile = {self.mapfile}\n'
-        if self.longitude is not None:
-            result += 'spatialdist.longitude = ({:0.2f}, {:0.2f})\n'.format(*self.longitude)
-        if self.latitude is not None:
-            result += 'spatialdist.latitude = ({:0.2f}, {:0.2f})\n'.format(*self.latitude)
-        return result
+        result = ''
+        for key,value in self.__dict__.items():
+            result += (f'spatial_dist.{key} = {value}\n')
+        return result.strip()
 
     def search(self, startlist=None):
         if startlist is None:
@@ -455,63 +451,68 @@ class SpatialDist:
 
 
 class SpeedDist:
-    '''
-    type
-    vprob
-    sigma
-    U
-    alpha
-    beta
-    temperature
-    delv
-    '''
+    """Define a SpeedDist object.
 
-
+    See :doc:`inputfiles#SpeedDist` for more information.
+    """
+    
     def __init__(self, sparam):
         self.type = sparam['type']
 
-        # Defaults
-        self.vprob = None
-        self.sigma = None
-        self.U = None
-        self.alpha = None
-        self.beta = None
-        self.temperature = None
-        self.delv = None
-
         if self.type == 'gaussian':
-            self.vprob = float(sparam['vprob'])*u.km/u.s
-            self.sigma = float(sparam['sigma'])*u.km/u.s
+            if 'vprob' in sparam:
+                self.vprob = float(sparam['vprob'])*u.km/u.s
+            else:
+                raise InputError('SpatialDist.__init__',
+                                 'speed_dist.vprob not given.')
+            if 'sigma' in sparam:
+                self.sigma = float(sparam['sigma'])*u.km/u.s
+            else:
+                raise InputError('SpatialDist.__init__',
+                                 'speed_dist.sigma not given.')
         elif self.type == 'sputtering':
-            self.U = float(sparam['u'])*u.eV
-            self.alpha = float(sparam['alpha'])
-            self.beta = float(sparam['beta'])
+            if 'alpha' in sparam:
+                self.alpha = float(sparam['alpha'])
+            else:
+                raise InputError('SpatialDist.__init__',
+                                 'speed_dist.alpha not given.')
+            if 'beta' in sparam:
+                self.beta = float(sparam['beta'])
+            else:
+                raise InputError('SpatialDist.__init__',
+                                 'speed_dist.beta not given.')
+            if 'u' in sparam:
+                self.U = float(sparam['u'])*u.eV
+            else:
+                raise InputError('SpatialDist.__init__',
+                                 'speed_dist.U not given.')
         elif self.type == 'maxwellian':
-            self.temperature = float(sparam['temperature'])*u.K
+            if 'temperature' in sparam:
+                self.alpha = float(sparam['temperature'])*u.K
+            else:
+                raise InputError('SpatialDist.__init__',
+                                 'speed_dist.temperature not given.')
         elif self.type == 'flat':
-            self.vprob = float(sparam['vprob'])*u.km/u.s
-            self.delv = float(sparam['delv'])*u.km/u.s
+            if 'vprob' in sparam:
+                self.alpha = float(sparam['vprob'])*u.km/u.s
+            else:
+                raise InputError('SpatialDist.__init__',
+                                 'speed_dist.vprob not given.')
+            
+            if 'delv' in sparam:
+                self.alpha = float(sparam['delv'])*u.km/u.s
+            else:
+                raise InputError('SpatialDist.__init__',
+                                 'speed_dist.delv not given.')
+
         else:
             assert 0, f'SpeedDist.type = {self.type} not available'
 
     def __str__(self):
-        result = f'SpeedDist.type = {self.type}\n'
-        if self.vprob is not None:
-            result += f'SpeedDist.vprob = {self.vprob}\n'
-        if self.sigma is not None:
-            result += f'SpeedDist.sigma = {self.sigma}\n'
-        if self.U is not None:
-            result += f'SpeedDist.U = {self.U}\n'
-        if self.alpha is not None:
-            result += f'SpeedDist.alpha = {self.alpha}\n'
-        if self.beta is not None:
-            result += f'SpeedDist.beta = {self.beta}\n'
-        if self.temperature is not None:
-            result += f'SpeedDist.temperature = {self.temperature}\n'
-        if self.delv is not None:
-            result += f'SpeedDist.delv = {self.delv}\n'
-
-        return result
+        result = ''
+        for key,value in self.__dict__.items():
+            result += (f'speed_dist{key} = {value}\n')
+        return result.strip()
 
     def search(self, startlist=None):
         if startlist is None:
@@ -551,72 +552,53 @@ class SpeedDist:
 
 
 class AngularDist:
-    '''
-    type
-    azimuth
-    altitude
-    n
-    '''
+    def __init__(self, aparam):
+        """Define a AngularDist object.
 
-    def __init__(self, aparam, spatialdist):
-        self.type = aparam['type'] if 'type' in aparam else None
-        self.azimuth = None
-        self.altitude = None
-        self.n = None
+        See :doc:`inputfiles#AngularDist` for more information.
+        """
+        if 'type' in aparam:
+            self.type = aparam['type']
+            if self.type == 'radial':
+                pass
+            elif self.type == 'isotropic':
+                if 'azimuth' in aparam:
+                    az0, az1 = (float(l.strip())
+                                for l in aparam['azimuth'].split(','))
+                    az0 = max(az0, 0.)
+                    az0 = min(az0, 2*np.pi)
+                    az1 = max(az1, 0.)
+                    az1 = min(az1, 2*np.pi)
+                    self.aziumth = (az0*u.rad, az1*u.rad)
+                else:
+                    self.azimuth = (0*u.rad, 2*np.pi*u.rad)
 
-        if self.type is None:
-            pass
-        elif self.type == 'radial':
-            pass
-        elif self.type == 'isotropic':
-            if 'azimuth' in aparam:
-                self.azimuth = tuple(float(a)*u.rad
-                    for a in aparam['azimuth'].split(','))
-                assert len(self.azimuth) == 2, (
-                    'AngularDist.azimuth must have two values.')
+                if 'altitude' in aparam:
+                    alt0, alt1 = (float(l.strip())*u.rad
+                                  for l in aparam['altitude'].split(','))
+                    alt0 = max(alt0, -np.pi/2)
+                    alt0 = min(alt0, np.pi/2)
+                    alt1 = max(alt1, -np.pi/2)
+                    alt1 = min(alt1, np.pi/2)
+                    if alt0 > alt1:
+                        raise InputError('AngularDist.__init__',
+                         'angular_dist.altitude[0] > angular_dist.altitude[1]')
+                    self.altitude = (alt0*u.rad, alt1*u.rad)
+                else:
+                    self.altitude = (-np.pi/2*u.rad, np.pi/2*u.rad)
             else:
-                self.azimuth = (0*u.rad, 2*np.pi*u.rad)
-
-            if 'altitude' in aparam:
-                self.altitude = tuple(float(a)*u.rad
-                    for a in aparam['altitude'].split(','))
-                assert len(self.altitude) ==2, (
-                    'AngularDist.altitude must have two values.')
-            else:
-                altmin = (0.*u.rad if 'surface' in spatialdist.type
-                          else -np.pi/2.*u.rad)
-                self.altitude = (altmin, np.pi/2.*u.rad)
-        elif self.type == 'costheta':
-            if 'azimuth' in aparam:
-                self.azimuth = tuple(float(a)*u.rad
-                    for a in aparam['azimuth'].split(','))
-                assert len(self.azimuth) == 2, (
-                    'AngularDist.azimuth must have two values.')
-            else:
-                self.azimuth = (0*u.rad, 2*np.pi*u.rad)
-
-            if 'altitude' in aparam:
-                self.altitude = tuple(float(a)*u.rad
-                    for a in aparam['altitude'].split(','))
-                assert len(self.altitude) ==2, (
-                    'AngularDist.altitude must have two values.')
-            else:
-                altmin = (0.*u.rad if 'surface' in spatialdist.type
-                          else -np.pi/2.*u.rad)
-                self.altitude = (altmin, np.pi/2.*u.rad)
-
-            self.n = float(aparam['n']) if 'n' in aparam else 1.
+                raise InputError('AngularDist.__init__',
+                             f'angular_dist.type = {self.type} not defined.')
+        else:
+            self.type = 'isotropic'
+            self.azimuth = (0*u.rad, 2*np.pi*u.rad)
+            self.altitude = (-np.pi/2*u.rad, np.pi/2*u.rad)
 
     def __str__(self):
-        result = f'AngularDist.type = {self.type}\n'
-        if self.altitude is not None:
-            result += 'AngularDist.altitude = ({:0.2f}, {:0.2f})\n'.format(*self.altitude)
-        if self.azimuth is not None:
-            result += 'AngularDist.azimuth = ({:0.2f}, {:0.2f})\n'.format(*self.azimuth)
-        if self.n is not None:
-            result += f'AngularDist.n = {self.n}\n'
-
-        return result
+        result = ''
+        for key,value in self.__dict__.items():
+            result += (f'angular_dist.{key} = {value}\n')
+        return result.strip()
 
     def search(self, startlist=None):
         if startlist is None:
@@ -656,67 +638,46 @@ class AngularDist:
 
 
 class Options:
-    '''
-    endtime
-    resolution
-    at_once
-    atom
-    lifetime
-    fullsystem
-    outeredge
-    motion
-    streamlines
-    nsteps
-    '''
+    def __init__(self, oparam):
+        """Define a Options object.
 
-    def __init__(self, oparam, planet):
-        self.endtime = float(oparam['endtime'])*u.s
-        self.at_once = (bool(int(oparam['at_once'])) if 'at_once'
-                        in oparam else False)
-        self.atom = oparam['atom'].title()
-        self.motion = (bool(int(oparam['motion'])) if 'motion'
-                       in oparam else True)
+        See :doc:`inputfiles#Options` for more information.
+        """
+        if 'endtime' in oparam:
+            self.endtime = float(oparam['endtime'])*u.s
+        else:
+            raise InputError('Options.__init__',
+                             'options.endtime not specified.')
+
+        if 'species' in oparam:
+            self.species = oparam['species']
+        else:
+            raise InputError('Options.__init__',
+                             'options.species not specified.')
+
         self.lifetime = (float(oparam['lifetime'])*u.s
-                         if 'lifetime' in oparam else 0.*u.s)
+                         if 'lifetime' in oparam
+                         else 0.*u.s)
+        
+        self.outeredge = (float(oparam['outer_edge'])
+                          if 'outeredge' in oparam
+                          else 1e30)
+                          
+        self.step_size = (float(oparam['step_size'])
+                          if 'step_size' in oparam
+                          else 0.)
 
-        if 'fullsystem' in oparam:
-            self.fullsystem = bool(int(oparam['fullsystem']))
-        else:
-            self.fullsystem = False if planet == 'Mercury' else True
-
-        if not(self.fullsystem):
-            self.outeredge = (float(oparam['outeredge'])
-                              if 'outeredge' in oparam else 20.)
-            # Units added later
-        else:
-            self.outeredge = None
-
-        self.streamlines = (bool(int(oparam['streamlines']))
-                            if 'streamlines' in oparam else False)
-        if self.streamlines:
-            self.nsteps = (int(oparam['nsteps'])
-                           if 'nsteps' in oparam else 1000)
-            self.resolution = None
-        else:
-            self.nsteps = None
+        if self.step_size == 0:
             self.resolution = (float(oparam['resolution'])
-                               if 'resolution' in oparam else 1e-3)
+                               if 'resolution' in oparam else 1e-4)
+        else:
+            self.resolution = None
 
     def __str__(self):
-        result = f'options.endtime = {self.endtime}\n'
-        result += f'options.resolution = {self.resolution}\n'
-        result+= f'options.at_once = {self.at_once}\n'
-        result+= f'options.atom = {self.atom}\n'
-        result+= f'options.motion = {self.motion}\n'
-        result+= f'options.lifetime = {self.lifetime}\n'
-        result+= f'options.fullsystem = {self.fullsystem}\n'
-        if self.outeredge is not None:
-            result+= f'options.outeredge = {self.outeredge}\n'
-        result+= f'options.streamlines = {self.streamlines}\n'
-        if self.nsteps is not None:
-            result+= f'options.nsteps = {self.nsteps}'
-
-        return result
+        result = ''
+        for key,value in self.__dict__.items():
+            result += (f'options.{key} = {value}\n')
+        return result.strip()
 
     def search(self, startlist=None):
         if startlist is None:

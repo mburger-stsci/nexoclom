@@ -6,7 +6,7 @@ options.
 Geometry
     Defines the Solar System geometry for the Input.
 
-StickingInfo
+SurfaceInteraction
     Defines the surface interactions.
 
 Forces
@@ -29,7 +29,7 @@ import os.path
 import pandas as pd
 from .configure_model import configfile
 from .database_connect import database_connect
-from .input_classes import (Geometry, StickingInfo, Forces, SpatialDist,
+from .input_classes import (Geometry, SurfaceInteraction, Forces, SpatialDist,
                             SpeedDist, AngularDist, Options)
 from .modeldriver import modeldriver
 from .produce_image import ModelImage
@@ -49,7 +49,7 @@ class Input:
 
         * geometry
         
-        * sticking_info
+        * surface_interaction
         
         * forces
         
@@ -103,22 +103,35 @@ class Input:
         def extract_param(tag):
             return {b:c for (a,b,c) in params if a == tag}
 
-        print(extract_param('geometry'))
-        self.geometry = Geometry(extract_param('geometry'))
-        self.sticking_info = StickingInfo(extract_param('sticking_info'))
+        if extract_param('geometry'):
+            self.geometry = Geometry(extract_param('geometry'))
+        else:
+            assert 0, 'Need to define default action.'
+            
+        self.surface_interaction = SurfaceInteraction(extract_param(
+            'surface_interaction'))
+        
         self.forces = Forces(extract_param('forces'))
-        self.spatialdist = SpatialDist(extract_param('spatialdist'))
-        self.speeddist = SpeedDist(extract_param('speeddist'))
-        self.angulardist = AngularDist(extract_param('angulardist'),
-                                       self.spatialdist)
-        self.options = Options(extract_param('options'), self.geometry.planet)
+        
+        self.spatialdist = SpatialDist(extract_param('spatial_dist'))
+        if self.spatialdist.coordsystem == 'default':
+            if self.geometry.startpoint == self.geometry.planet.object:
+                self.spatialdist.coordsystem = 'solar-fixed'
+            else:
+                self.spatialdist.coordsystem = 'planet-fixed'
+        else:
+            pass
+        
+        self.speeddist = SpeedDist(extract_param('speed_dist'))
+        self.angulardist = AngularDist(extract_param('angular_dist'))
+        self.options = Options(extract_param('options'))
         
     def __repr__(self):
         return self.__str__()
 
     def __str__(self):
         result = (self.geometry.__str__() + '\n' +
-                  self.sticking_info.__str__() + '\n' +
+                  self.surface_interaction.__str__() + '\n' +
                   self.forces.__str__() + '\n' +
                   self.spatialdist.__str__() + '\n' +
                   self.speeddist.__str__() + '\n' +
@@ -145,12 +158,12 @@ class Input:
         """
         georesult = self.geometry.search(startlist=None)
         if georesult is not None:
-            stickresult = self.sticking_info.search(startlist=georesult)
+            surfintresult = self.surface_interaction.search(startlist=georesult)
         else:
             return [], 0, 0
 
-        if stickresult is not None:
-            forceresult = self.forces.search(startlist=stickresult)
+        if surfintresult is not None:
+            forceresult = self.forces.search(startlist=surfintresult)
         else:
             return [], 0, 0
 

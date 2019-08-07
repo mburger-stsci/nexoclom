@@ -26,6 +26,9 @@ class Output:
     def __init__(self, inputs, npackets, compress=True):
         self.inputs = inputs
         self.planet = inputs.geometry.planet
+        
+        # Not implemented yet.
+        assert self.geometry.type != 'geometry with time'
 
         # Keep track of whether output is compressed
         self.compress = compress
