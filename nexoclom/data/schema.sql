@@ -24,20 +24,20 @@ CREATE TABLE surface_int_constant (
     stickcoef DOUBLE PRECISION NOT NULL,
     accomfactor DOUBLE PRECISION,
     check (stickcoef >= 0 and stickcoef <= 1),
-    check (accomfactor >= 0 and accomfactor <= 1) 
+    check (accomfactor >= 0 and accomfactor <= 1)
 );
 
 CREATE TABLE surface_int_map (
     idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     mapfile TEXT NOT NULL,
     accomfactor DOUBLE PRECISION NOT NULL,
-    check (accomfactor >= 0 and accomfactor <= 1) 
+    check (accomfactor >= 0 and accomfactor <= 1)
 );
 
 CREATE TABLE surface_int_tempdependent (
     idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     accomfactor DOUBLE PRECISION NOT NULL,
-    check (accomfactor >= 0 and accomfactor <= 1) 
+    check (accomfactor >= 0 and accomfactor <= 1)
 );
 
 CREATE TABLE forces (
@@ -81,7 +81,7 @@ CREATE TABLE speeddist_gaussian (
 CREATE TABLE speeddist_maxwellian (
     idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     temperature DOUBLE PRECISION NOT NULL,
-    check (temperature > 0)
+    check (temperature >= 0)
 );
 
 CREATE TABLE speeddist_sputtering (
@@ -139,3 +139,17 @@ CREATE TABLE outputfile (
     check (totalsource > 0)
 );
 
+CREATE TABLE modelimages (
+    idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    out_idnum INT NOT NULL,
+    quantity TEXT NOT NULL,
+    origin TEXT NOT NULL,
+    dims FLOAT[2] NOT NULL,
+    center FLOAT[2] NOT NULL,
+    width FLOAT[2] NOT NULL,
+    subobslongitude FLOAT NOT NULL,
+    subobslatitude FLOAT NOT NULL,
+    mechanism TEXT NOT NULL,
+    wavelength TEXT NOT NULL,
+    filename TEXT NOT NULL)
+DONE

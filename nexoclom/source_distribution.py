@@ -1,4 +1,3 @@
-import os, os.path
 import numpy as np
 import pickle
 import astropy.units as u
@@ -7,24 +6,24 @@ import mathMB
 from atomicdataMB import atomicmass
 
 
-def sputdist(velocity, U, alpha, beta, atom):
-    matom = atomicmass(atom)
-    v_b = np.sqrt(2*U/matom)
+def sputdist(velocity, U, alpha, beta, species):
+    mspecies = atomicmass(species)
+    v_b = np.sqrt(2*U/mspecies)
     v_b = v_b.to(u.km/u.s)
     f_v = velocity**(2*beta+1) / (velocity**2 + v_b**2)**alpha
     f_v /= np.max(f_v)
     return f_v.value
 
 
-def MaxwellianDist(velocity, temperature, atom):
-    vth2 = 2*temperature*const.k_B/atomicmass(atom)
+def MaxwellianDist(velocity, temperature, species):
+    vth2 = 2*temperature*const.k_B/atomicmass(species)
     vth2 = vth2.to(u.km**2/u.s**2)
     f_v = velocity**3 * np.exp(-velocity**2/vth2)
     f_v /= np.max(f_v)
     return f_v.value
 
 
-def xyz_from_lonlat(lon, lat, isplan, unit, exobase):
+def xyz_from_lonlat(lon, lat, isplan, exobase):
     if isplan:
         # Starting at a planet
         # 0 deg longitude = subsolar pt. = (0, -1, 0)
@@ -42,270 +41,166 @@ def xyz_from_lonlat(lon, lat, isplan, unit, exobase):
         y0 = -exobase * np.cos(lon) * np.cos(lat)
         z0 = exobase * np.sin(lat)
 
-    X0 = np.array([x0, y0, z0])*unit
+    X0 = np.array([x0, y0, z0])
 
     # Error checking
     assert np.all(np.isfinite(X0)), 'Non-Finite values of X0'
     return X0
 
 
-def surface_distribution(inputs, npack, unit):
-    '''
-    Distribution packets on a sphere with radius r = SpatialDist.exobase
+def surface_distribution(outputs):
+    """ Distribute packets on a sphere with radius r = SpatialDist.exobase
 
     Returns (x0, y0, z0, lon0, lat0)
     for satellites, assumes satellite is at phi=0
+    """
 
-    Testing notes:
-    1) Basic function with lon = [0,360], lat = [-90,90]
-    2) Spatial map given
-    3) Longitude, latitude range
-    3) Longitude, latitude range, lon1 > lon0
-    '''
-
-    SpatialDist = inputs.spatialdist
-    if SpatialDist.use_map:
+    spatialdist = outputs.inputs.spatialdist
+    npack = outputs.npackets
+    
+    if spatialdist.type == 'uniform':
+        # Choose the latitude: f(lat) = cos(lat)
+        lat0 = spatialdist.latitude
+        if lat0[0] == lat0[1]:
+            lat = np.zeros(npack)+lat0[0]
+        else:
+            ll = (np.sin(lat0[0]), np.sin(lat0[1]))
+            sinlat = ll[0] + (ll[1]-ll[0]) * outputs.randgen.random(npack)
+            lat = np.arcsin(sinlat)
+    
+        # Choose the longitude: f(lon) = 1/(lonmax-lonmin)
+        lon0 = spatialdist.longitude
+        if lon0[0] > lon0[1]:
+            lon0 = [lon0[0], lon0[1]+2*np.pi*u.rad]
+        lon = ((lon0[0] + (lon0[1]-lon0[0]) * outputs.randgen.random(npack)) %
+               (2*np.pi*u.rad))
+    elif spatialdist.type == 'surface map':
         # Choose lon, lat based on predetermined map
-        if SpatialDist.mapfile.endswith('.pkl'):
-            with open(SpatialDist.mapfile, 'rb') as mapfile:
+        if spatialdist.mapfile.endswith('.pkl'):
+            with open(spatialdist.mapfile, 'rb') as mapfile:
                 sourcemap = pickle.load(mapfile)
-        elif SpatialDist.mapfile.endswith('.sav'):
+        elif spatialdist.mapfile.endswith('.sav'):
             from scipy.io import readsav
-            sourcemap_ = readsav(SpatialDist.mapfile)['sourcemap']
+            sourcemap_ = readsav(spatialdist.mapfile)['sourcemap']
             sourcemap = {'longitude':sourcemap_['longitude'][0]*u.rad,
                          'latitude':sourcemap_['latitude'][0]*u.rad,
                          'map':sourcemap_['map'][0].transpose()}
         else:
             assert 0, 'Mapfile is the wrong format.'
-
+    
         lon, lat = mathMB.random_deviates_2d(sourcemap['map'],
-                                           sourcemap['longitude'],
-                                           np.sin(sourcemap['latitude']),
-                                           npack)
+                                             sourcemap['longitude'],
+                                             np.sin(sourcemap['latitude']),
+                                             npack)
+        lat = np.arcsin(lat)
+    elif spatialdist.type == 'surface spot':
+        lon0 = spatialdist.longitude
+        lat0 = spatialdist.latitude
+        sigma0 = spatialdist.sigma
+    
+        spot0 = (np.sin(lon0)*np.cos(lat0),
+                 -np.cos(lon0)*np.cos(lat0),
+                 np.sin(lat0))
+        longitude = np.linspace(0, 2*np.pi, 361)*u.rad
+        latitude = np.linspace(-np.pi/2, np.pi/2, 181)*u.rad
+    
+        ptsx = np.outer(np.sin(longitude), np.cos(latitude))
+        ptsy = -np.outer(np.cos(longitude), np.cos(latitude))
+        ptsz = -np.outer(np.ones_like(longitude), np.sin(latitude))
+    
+        cosphi = ptsx*spot0[0]+ptsy*spot0[1]+ptsz*spot0[2]
+        cosphi[cosphi > 1] = 1
+        cosphi[cosphi < -1] = -1
+        phi = np.arccos(cosphi)
+        sourcemap = np.exp(-phi/sigma0)
+    
+        lon, lat = mathMB.random_deviates_2d(sourcemap, longitude,
+                                             np.sin(latitude), npack)
         lat = np.arcsin(lat)
     else:
-        # Choose the latitude: f(lat) = cos(lat)
-        lat0 = SpatialDist.latitude
-        if lat0[0] == lat0[1]:
-            lat = np.zeros(npack)+lat0[0]
+        assert 0, "Can't get here"
+
+    X_ = xyz_from_lonlat(lon, lat,
+                         outputs.inputs.geometry.planet.type == 'Planet',
+                         spatialdist.exobase)
+    outputs.X0['x'] = X_[0,:]
+    outputs.X0['y'] = X_[1,:]
+    outputs.X0['z'] = X_[2,:]
+    outputs.X0['longitude'] = lon
+    outputs.X0['latitude'] = lat
+
+
+def speed_distribution(outputs):
+    speeddist = outputs.inputs.speeddist
+    npackets = outputs.npackets
+
+    if speeddist.type.lower() == 'gaussian':
+        if speeddist.sigma == 0.:
+            v0 = np.zeros(npackets)*u.km/u.s + speeddist.vprob
         else:
-            ll = (np.sin(lat0[0]), np.sin(lat0[1]))
-            sinlat = ll[0] + (ll[1]-ll[0]) * np.random.rand(npack)
-            lat = np.arcsin(sinlat)
-
-        # Choose the longitude: f(lon) = 1/(lonmax-lonmin)
-        lon0 = SpatialDist.longitude
-        if lon0[0] > lon0[1]:
-            lon0 = [lon0[0], lon0[1]+2*np.pi*u.rad]
-        lon = ((lon0[0] + (lon0[1]-lon0[0]) * np.random.rand(npack)) %
-                (2*np.pi*u.rad))
-
-    X0 = xyz_from_lonlat(lon, lat, inputs.geometry.planet.type == 'Planet',
-                         unit, SpatialDist.exobase)
-    return X0, lon, lat
-
-def surface_spot(inputs, npackets, unit):
-    '''Create a spot that drops off exponentially from (lon0, lat0)'''
-
-    lon0, sigma = inputs.spatialdist.longitude
-    lat0, _ = inputs.spatialdist.latitude
-
-    spot0 = (np.sin(lon0)*np.cos(lat0),
-             -np.cos(lon0)*np.cos(lat0),
-             np.sin(lat0))
-    longitude = np.linspace(0, 2*np.pi, 361)*u.rad
-    latitude = np.linspace(-np.pi/2, np.pi/2, 181)*u.rad
-
-    ptsx = np.outer(np.sin(longitude), np.cos(latitude))
-    ptsy = -np.outer(np.cos(longitude), np.cos(latitude))
-    ptsz = -np.outer(np.ones_like(longitude), np.sin(latitude))
-
-    cosphi = ptsx*spot0[0] + ptsy*spot0[1] + ptsz*spot0[2]
-    cosphi[cosphi > 1] = 1
-    cosphi[cosphi < -1] = -1
-    phi = np.arccos(cosphi)
-    sourcemap = np.exp(-phi/sigma)
-
-    lon, lat = mathMB.random_deviates_2d(sourcemap, longitude,
-                                         np.sin(latitude), npackets)
-    lat = np.arcsin(lat)
-
-    X0 = xyz_from_lonlat(lon, lat, inputs.geometry.planet.type == 'Planet',
-                         unit, inputs.spatialdist.exobase)
-
-    return X0, lon, lat
-
-
-def idlversion(inputs, unit):
-    from scipy.io import readsav
-
-    # Determine IDL files
-    path, _ = os.path.split(__file__)
-    rfile = os.path.join(path, 'data', 'modeloutput_search_routines.sav')
-    vfile = os.path.join(path, 'data', 'modeloutput_search_variables.sav')
-
-    with open('make_file_list.pro', 'w') as f:
-        #profname = f.name
-        #tempdir, _ = os.path.split(f.name)
-        #filelistfile = os.path.join(tempdir, 'filelist.dat')
-        filelistfile = 'filelist.dat'
-        f.write(f'''
-pro make_file_list
-
-restore, '{vfile}'
-defsysv, '!model', modelvar
-filelist = modeloutput_search('{inputs.spatialdist.mapfile}')
-openw, 1, '{filelistfile}'
-for i=0,n_elements(filelist)-1 do printf, 1, filelist[i]
-close, 1
-
-end''')
-
-    # Search for the IDL files
-    cmd = (f'/Applications/exelis/idl/bin/idl '
-           f'''-e "restore, '{rfile}' & make_file_list" ''')
-    os.system(cmd)
-
-    # Load the initial values
-    x0 = None
-    idloutputfiles = open('filelist.dat', 'r').readlines()
-    print(f'{len(idloutputfiles)} IDL sav files found')
-    for savfile in idloutputfiles:
-        idl = readsav(savfile.strip())
-        idlout = idl['output']
-
-        index = sorted(list(set(idlout['index'][0])))
-        x_ = [idlout['x0'][0][idlout['index'][0] == i][0] for i in index]
-        y_ = [idlout['y0'][0][idlout['index'][0] == i][0] for i in index]
-        z_ = [idlout['z0'][0][idlout['index'][0] == i][0] for i in index]
-        vx_ = [idlout['vx0'][0][idlout['index'][0] == i][0] for i in index]
-        vy_ = [idlout['vy0'][0][idlout['index'][0] == i][0] for i in index]
-        vz_ = [idlout['vz0'][0][idlout['index'][0] == i][0] for i in index]
-#        f_ = [idlout['f0'][0][idlout['index'][0] == i][0] for i in index]
-        f_ = np.ones_like(x_)
-
-        if x0 is None:
-            x0 = np.array(x_)
-            y0 = np.array(y_)
-            z0 = np.array(z_)
-            vx0 = np.array(vx_)
-            vy0 = np.array(vy_)
-            vz0 = np.array(vz_)
-            f = np.array(f_)
-        else:
-            x0 = np.append(x0, np.array(x_))
-            y0 = np.append(y0, np.array(y_))
-            z0 = np.append(z0, np.array(z_))
-            vx0 = np.append(vx0, np.array(vx_))
-            vy0 = np.append(vy0, np.array(vy_))
-            vz0 = np.append(vz0, np.array(vz_))
-            f = np.append(f, np.array(f_))
-
-    X = [x0, y0, z0]*unit
-    V = [vx0, vy0, vz0]*unit/u.s
-    F = f
-
-    return X, V, F
-
-def speed_distribution(inputs, npackets):
-    SpeedDist = inputs.speeddist
-
-    if inputs.spatialdist.type == 'idlversion':
-        return None
-    else:
-        pass
-
-    if SpeedDist.type.lower() == 'gaussian':
-        if SpeedDist.sigma == 0.:
-            v0 = np.zeros(npackets)*u.km/u.s + SpeedDist.vprob
-        else:
-            v0 = np.random.normal(SpeedDist.vprob.value,
-                                  SpeedDist.sigma.value,
-                                  npackets)
-            v0 *= SpeedDist.vprob.unit
-    elif SpeedDist.type == 'sputtering':
+            v0 = outputs.randgen.random(speeddist.vprob.value,
+                                        speeddist.sigma.value,
+                                        npackets)
+            v0 *= speeddist.vprob.unit
+    elif speeddist.type == 'sputtering':
         velocity = np.linspace(.1, 50, 5000)*u.km/u.s
-        f_v = sputdist(velocity, SpeedDist.U, SpeedDist.alpha,
-                       SpeedDist.beta, inputs.options.atom)
+        f_v = sputdist(velocity, speeddist.U, speeddist.alpha,
+                       speeddist.beta, outputs.inputs.options.species)
 
         v0 = (mathMB.random_deviates_1d(velocity, f_v.value, npackets) *
               velocity.unit)
-    elif SpeedDist.type == 'maxwellian':
-        if SpeedDist.temperature != 0:
+    elif speeddist.type == 'maxwellian':
+        if speeddist.temperature != 0*u.K:
             # Use a constant temperature
-            amass = atomicmass(inputs.options.atom)
-            v_th = np.sqrt(2*SpeedDist.temperature*const.k_B/amass)
+            amass = atomicmass(outputs.inputs.options.species)
+            v_th = np.sqrt(2*speeddist.temperature*const.k_B/amass)
             v_th = v_th.to(u.km/u.s)
             velocity = np.linspace(0.1*u.km/u.s, v_th*5, 5000)
-            f_v = MaxwellianDist(velocity, SpeedDist.temperature,
-                                 inputs.options.atom)
+            f_v = MaxwellianDist(velocity, speeddist.temperature,
+                                 outputs.inputs.options.species)
             v0 = (mathMB.random_deviates_1d(velocity.value, f_v, npackets) *
                   velocity.unit)
         else:
             # Use a surface temperature map
             # Need to write this
             assert 0, 'Not implemented yet'
-    elif SpeedDist.type == 'flat':
-        v0 = (np.random.rand(npackets)*2*SpeedDist.delv +
-               SpeedDist.vprob - SpeedDist.delv)
+    elif speeddist.type == 'flat':
+        v0 = (outputs.randgen.random(npackets)*2*speeddist.delv +
+              speeddist.vprob - speeddist.delv)
     else:
         # Need to add more distributions
         assert 0, 'Distribtuion does not exist'
+        
+    v0 = v0.to(outputs.unit/u.s)
+    outputs.X0['v'] = v0.value
 
     assert np.all(np.isfinite(v0)), 'Infinite values for v0'
 
     return v0
 
 
-def angular_distribution(inputs, X0, vv):
-    if inputs.spatialdist.type == 'idlversion':
-        return None
-    else:
-        pass
+def angular_distribution(outputs):
+    npackets = outputs.npackets
 
-    npackets = len(vv)
+    angulardist = outputs.inputs.angulardist
 
-    AngularDist = inputs.angulardist
-
-    if AngularDist.type == 'none':
-        pass
-    elif AngularDist.type == 'radial':
-        alt = np.zeros(npackets) + np.pi/2. # All packets going directly up
+    if angulardist.type == 'none':
+        return
+    elif angulardist.type == 'radial':
+        # All packets going radially outward
+        alt = np.zeros(npackets) + np.pi/2.
         az = np.zeros(npackets)
-    elif AngularDist.type == 'isotropic':
+    elif angulardist.type == 'isotropic':
         # Choose the altitude -- f(alt) = cos(alt)
-        alt0 = AngularDist.altitude
+        alt0 = angulardist.altitude
         aa = (np.sin(alt0[0]), np.sin(alt0[1]))
-        sinalt = np.random.rand(npackets) * (aa[1] - aa[0]) + aa[0]
+        sinalt = outputs.randgen.random(npackets) * (aa[1] - aa[0]) + aa[0]
         alt = np.arcsin(sinalt)
 
         # Choose the azimuth -- f(az) = 1/(azmax-azmin)
-        az0, az1 = AngularDist.azimuth
+        az0, az1 = angulardist.azimuth
         m = (az0, az1) if az0 < az1 else (az1, az0+2*np.pi)
-        az = (m[0] + (m[1]-m[0])*np.random.rand(npackets)) % (2*np.pi*u.rad)
-    elif AngularDist.type == 'costheta':
-        # Choose the altitude -- f(alt) = cos(alt)
-        alt0 = AngularDist.altitude
-        aa = (np.sin(alt0[0]), np.sin(alt0[1]))
-        sinalt = np.random.rand(npackets) * (aa[1] - aa[0]) + aa[0]
-        alt = np.arcsin(sinalt)
-
-        # Choose the azimuth -- f(az) = 1/(azmax-azmin)
-        az0, az1 = AngularDist.azimuth
-        m = (az0, az1) if az0 < az1 else (az1, az0+2*np.pi)
-        az = (m[0] + (m[1]-m[0])*np.random.rand(npackets)) % (2*np.pi*u.rad)
-
-        # alt0 = AngularDist.altitude
-        # aa = (np.sin(alt0[0]).value, np.sin(alt0[1]).value)
-        # sinalt = np.linspace(aa[0], aa[1], 1001)
-        # f_sinalt = sinalt**AngularDist.n
-        # salt = mathMB.random_deviates_1d(sinalt, f_sinalt, npackets)
-        # alt = np.arcsin(salt)
-        #
-        # # Choose the azimuth -- f(az) = 1/(azmax-azmin)
-        # az0, az1 = AngularDist.azimuth
-        # m = (az0, az1) if az0 < az1 else (az1, az0+2*np.pi)
-        # az = (m[0] + (m[1]-m[0])*np.random.rand(npackets)) % (2*np.pi*u.rad)
+        az = m[0] + (m[1]-m[0])*outputs.randgen.random(npackets)
     else:
         assert 0, 'Angular Distribution not defined.'
 
@@ -314,11 +209,11 @@ def angular_distribution(inputs, X0, vv):
     v_tan0 = np.cos(alt) * np.cos(az)   # Component along latitude (points E)
     v_tan1 = np.cos(alt) * np.sin(az)   # Component along longitude (points N)
 
-    #######
     # Now rotate to proper surface point
     # v_ren = M # v_xyz => v_xyz = invert(M) # v_ren
-    rr = np.sqrt(X0[0,:]**2 + X0[1,:]**2 + X0[2,:]**2)
-    x0, y0, z0 = X0[0,:]/rr, X0[1,:]/rr, X0[2,:]/rr
+    X0 = outputs.X0
+    rr = np.sqrt(X0.x**2 + X0.y**2 + X0.z**2)
+    x0, y0, z0 = X0.x/rr, X0.y/rr, X0.z/rr
 
     rad = np.array([x0, y0, z0])
     east = np.array([y0, -x0, np.zeros_like(z0)])
@@ -328,9 +223,6 @@ def angular_distribution(inputs, X0, vv):
     north /= np.linalg.norm(north, axis=0)
 
     v0 = v_tan0*north + v_tan1*east + v_rad*rad
-    vx0 = v0[0,:] * vv
-    vy0 = v0[1,:] * vv
-    vz0 = v0[2,:] * vv
-    V0 = np.array([vx0, vy0, vz0])
-
-    return V0
+    outputs.X0['vx'] = v0[0,:] * outputs.X0.v
+    outputs.X0['vy'] = v0[1,:] * outputs.X0.v
+    outputs.X0['vz'] = v0[2,:] * outputs.X0.v

@@ -1,0 +1,32 @@
+geometry.planet = Mercury
+geometry.objects = Mercury
+geometry.taa = 1.2884563838062777
+
+sticking_info.stickcoef = 1
+#sticking_info.emitfn = elastic scattering
+
+forces.gravity = 1
+forces.radpres = 1
+
+SpatialDist.type = surface
+SpatialDist.use_map = 0
+
+SpeedDist.type = sputtering
+SpeedDist.alpha = 3
+SpeedDist.beta = 1.
+SpeedDist.U = 2.
+
+AngularDist.type = isotropic
+
+PerturbVel.type = none
+
+options.lifetime = 0.
+options.endtime = 36000
+options.atom = Na
+options.fullsystem = 0
+options.outeredge = 15
+options.trackloss = 1
+options.at_once = 1
+options.streamlines = 1
+options.nsteps = 1201
+options.resolution = 1e-3

@@ -97,23 +97,23 @@ If no values are provided, 100% sticking is assumed.
 Constant Sticking Coefficient
 -----------------------------
 
-surface_interaction.stickcoef [Optional]
+surfaceinteraction.stickcoef [Optional]
     Sticking coefficient to be used uniformly across the body's surface.
-    For complete surface sticking, set `surface_interaction.stickcoef = 1.`.
+    For complete surface sticking, set `surfaceinteraction.stickcoef = 1.`.
     For no sticking (100% of packets are reemitted from the surface, set
-    `surface_interaction.stickcoef = 0`. Default = 1.
+    `surfaceinteraction.stickcoef = 0`. Default = 1.
 
-surface_interaction.accomfactor [Required if stickcoef < 1]
+surfaceinteraction.accomfactor [Required if stickcoef < 1]
     Surface accommodation factor. 1 = Fully accommodated to local surface
     temperature. 0 = Elastic reemission.
 
 Temperature Dependent Sticking Coefficient
 ------------------------------------------
 
-surface_interaction.sticktype [Required]
-    Set `surface_interaction.sticktype = temperature dependent`.
+surfaceinteraction.sticktype [Required]
+    Set `surfaceinteraction.sticktype = temperature dependent`.
 
-surface_interactions.accomfactor [Required]
+surfaceinteractions.accomfactor [Required]
     Surface accommodation factor. 1 = Fully accommodated to local surface
     temperature. 0 = Elastic reemission.
 
@@ -123,14 +123,14 @@ determined.
 Sticking Coefficient from a Surface Map
 ---------------------------------------
 
-surface_interaction.type [Required]
-    Set `surface_interaction.sticktype = from map`.
+surfaceinteraction.type [Required]
+    Set `surfaceinteraction.sticktype = from map`.
 
-surface_interaction.sticking_mapfile [Required]
+surfaceinteraction.sticking_mapfile [Required]
     Path to the file containing a map of the sticking coeficient. The format
     for the map has not been determined.
 
-surface_interactions.accomfactor [Required]
+surfaceinteractions.accomfactor [Required]
     Surface accommodation factor. 1 = Fully accommodated to local surface
     temperature. 0 = Elastic reemission.
 
@@ -152,7 +152,7 @@ SpatialDist
 
 The SpatialDist class specifies the initial spatial distribution of packets
 in the system. Currently, three spatial distribution types are defined, all of
-which place packets over the surface (or exobase) of *geometry.starting_point*.
+which place packets over the surface (or exobase) of *geometry.StartingPoint*.
 More distributions may defined upon request.
 
 **Coordinate Systems**
@@ -184,19 +184,19 @@ Uniform Surface
 Distribute packets randomly across a region of the surface or exobase with
 a uniform probability distribution.
 
-spatial_dist.type [Required]
-    Set `spatial_dist.type = uniform`.
+spatialdist.type [Required]
+    Set `spatialdist.type = uniform`.
 
-spatial_dist.longitude [Optional]
+spatialdist.longitude [Optional]
     Longitude range on the surface to place packets in radians given as
     *long0, long1* where :math:`0 \leq long0,long1 \leq 2\pi`. If *long0* >
     *long1*, the region wraps around. Default = 0, 2π.
 
-spatial_dist.latitude [Optional]
+spatialdist.latitude [Optional]
     Latitude range on the surface to place packets in radians given as
     *lat0, lat1* where :math:`-\pi/2 \leq lat0 \leq lat1 \leq \pi/2`.
 
-spatial_dist.exobase [Optional]
+spatialdist.exobase [Optional]
     Location of the exobase in units of the starting point's radius.
     Default = 1.
 
@@ -204,8 +204,8 @@ To eject all packets from a single point, set *long0 = long1* and
 *lat0 = lat1*; i.e., to eject all packets from the sub-solar point of a planet,
 set: ::
 
-    spatial_dist.longitude = 3.14159,3.14159
-    spatial_dist.latitude = 0,0
+    spatialdist.longitude = 3.14159,3.14159
+    spatialdist.latitude = 0,0
 
 Spatial Distribution from a Surface Map
 ---------------------------------------
@@ -213,19 +213,19 @@ Spatial Distribution from a Surface Map
 Distribute packets according to a probability distribution given by a
 pre-defined surface map.
 
-spatial_dist.type [Required]
-    Set `spatial_dist.type = surface map`.
+spatialdist.type [Required]
+    Set `spatialdist.type = surface map`.
 
-spatial_dist.mapfile [Required]
+spatialdist.mapfile [Required]
     Path to the file containing the surface map.
 
-spatial_dist.coordsystem [Optional]
+spatialdist.coordsystem [Optional]
     Coordinate system for the map. Options are solar-fixed, planet-fixed,
     or moon-fixed. Default = solar-fixed for planets and planet-fixed for
     moons. For a surface composition map that rotates with the planet, use
     planet-fixed.
 
-spatial_dist.exobase [Optional]
+spatialdist.exobase [Optional]
     Location of the exobase in units of the starting point's radius.
     Default = 1.
 
@@ -235,19 +235,19 @@ Surface-Spot Spatial Distribution
 Distribute packets with a spatial distribution that drops off exponentially
 from a central point.
 
-spatial_dist.type [Required]
-    Set `spatial_dist.type = surface spot`.
+spatialdist.type [Required]
+    Set `spatialdist.type = surface spot`.
 
-spatial_dist.longitude [Required]
+spatialdist.longitude [Required]
     Longitude of the source center in radians.
 
-spatial_dist.latitude [Required]
+spatialdist.latitude [Required]
     Latitude of the soruce center in radians.
 
-spatial_dist.sigma [Required]
+spatialdist.sigma [Required]
     Angular e-folding width of the source in radians.
 
-spatial_dist.exobase [Optional]
+spatialdist.exobase [Optional]
     Location of the exobase in units of the starting point's radius.
     Default = 1.
 
@@ -266,13 +266,13 @@ Packets speeds are chosen from a normal distribution. See
 <https://docs.scipy.org/doc/numpy-1.16.0/reference/generated/numpy.random.normal.html#numpy.random.normal>`_
 for more information on the implementation.
 
-speed_dist.type [Required]
-    Set `speed_dist.type = gaussian`
+speeddist.type [Required]
+    Set `speeddist.type = gaussian`
 
-speed_dist.vprob [Required]
+speeddist.vprob [Required]
     Mean speed of the distribution in km/s.
 
-speed_dist.sigma [Required]
+speeddist.sigma [Required]
     Standard deviation of the distribution in km/s.
 
 Maxwellian Distribution
@@ -285,14 +285,15 @@ Packet speeds are chosen from a Maxwellian distribution given by:
 
     \begin{eqnarray*}
     f(v) & \propto & v^3 \exp(-v^2/v_{th}^2) \\
-    v_{th}^2 & = & 2 k_B/m
+    v_{th}^2 & = & 2Tk_B/m
     \end{eqnarray*}
 
-speed_dist.type [Required]
-    Set `speed_dist.type = maxwellian`
+speeddist.type [Required]
+    Set `speeddist.type = maxwellian`
 
-speed_dist.temperature [Required]
-    Temperature of the distribution in K
+speeddist.temperature [Required]
+    Temperature of the distribution in K. Set `speeddist.temperature = 0` to
+    use a pre-defined surface temperature map (Not implemented yet).
 
 Sputtering Distribution
 -----------------------
@@ -307,32 +308,32 @@ Packet speeds are chosen from a sputtering distribution in the form:
     v_b & = & \left(\frac{2U}{m} \right)^{1/2}
     \end{eqnarray*}
 
-speed_dist.type [Required]
-    Set `speed_dist.type = sputtering`
+speeddist.type [Required]
+    Set `speeddist.type = sputtering`
 
-speed_dist.alpha [Required]
+speeddist.alpha [Required]
     :math:`\alpha` parameter.
 
-speed_dist.beta [Required]
+speeddist.beta [Required]
     :math:`\beta` parameter.
 
-speed_dist.U [Required]
+speeddist.U [Required]
     Surface binding energy in eV.
 
 Flat Distribution
 -----------------
 
 Packet speeds are uniformly distributed between *vprob - delv/2* and
-*vrpob + delv/2*. Setting `speed_dist.delv = 0` gives a monoenergetic
+*vrpob + delv/2*. Setting `speeddist.delv = 0` gives a monoenergetic
 distribution.
 
-speed_dist.type [Required]
-    Set `speed_dist.type = flat`
+speeddist.type [Required]
+    Set `speeddist.type = flat`
 
-speed_dist.vprob [Required]
+speeddist.vprob [Required]
     Mean speed of the distribution in km/s.
 
-speed_dist.delv [Required]
+speeddist.delv [Required]
     Full width of the distribution in km/s.
 
 AngularDist
@@ -348,26 +349,26 @@ Radial Distribution
 
 Packets are ejected radially from the surface.
 
-angular_dist.type [Required]
-    Set `angular_dist.type = radial`.
+angulardist.type [Required]
+    Set `angulardist.type = radial`.
 
 Isotropic Distribution
 ----------------------
 
 Packets are ejected isotropically into the outward facing hemisphere (if the
 packets are starting from the surface) or the full hemisphere.
-`angular_dist.type` is not given, an isotropic distribution is assumed and
+`angulardist.type` is not given, an isotropic distribution is assumed and
 all other options are ignored (i.e., altitude and azimuth can not be specified).
 
-angular_dist.type [Optional]
-    Set `angular_dist.type = isotropic`.
+angulardist.type [Optional]
+    Set `angulardist.type = isotropic`.
 
-angular_dist.altitude [Optional]
+angulardist.altitude [Optional]
     Used to limit the altitude range of the distribution. Given as a
     comma-separated list of *altmin, altmax* in radians measured from the
     surface tangent to the surface normal.
 
-angular_dist.azimuth [Optional]
+angulardist.azimuth [Optional]
     Used to limit the azimuth range of the distribution. Given as a
     comma-separated list of *az0, az1* in radians. This should be measured with
     azimuth = 0 rad pointing to north, but I'm not sure if it actually works.

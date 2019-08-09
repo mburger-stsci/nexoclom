@@ -26,13 +26,17 @@ Options
 """
 import os
 import os.path
+import sys
 import pandas as pd
+import logging
+from astropy.time import Time
+from .Output import Output
 from .configure_model import configfile
 from .database_connect import database_connect
 from .input_classes import (Geometry, SurfaceInteraction, Forces, SpatialDist,
                             SpeedDist, AngularDist, Options)
-from .modeldriver import modeldriver
 from .produce_image import ModelImage
+from .delete_files import delete_files
 
 
 class Input:
@@ -108,22 +112,23 @@ class Input:
         else:
             assert 0, 'Need to define default action.'
             
-        self.surface_interaction = SurfaceInteraction(extract_param(
-            'surface_interaction'))
+        self.surfaceinteraction = SurfaceInteraction(extract_param(
+            'surfaceinteraction'))
         
         self.forces = Forces(extract_param('forces'))
         
-        self.spatialdist = SpatialDist(extract_param('spatial_dist'))
-        if self.spatialdist.coordsystem == 'default':
-            if self.geometry.startpoint == self.geometry.planet.object:
-                self.spatialdist.coordsystem = 'solar-fixed'
+        self.spatialdist = SpatialDist(extract_param('spatialdist'))
+        if self.spatialdist.type == 'surface map':
+            if self.spatialdist.coordsystem == 'default':
+                if self.geometry.startpoint == self.geometry.planet.object:
+                    self.spatialdist.coordsystem = 'solar-fixed'
+                else:
+                    self.spatialdist.coordsystem = 'planet-fixed'
             else:
-                self.spatialdist.coordsystem = 'planet-fixed'
-        else:
-            pass
+                pass
         
-        self.speeddist = SpeedDist(extract_param('speed_dist'))
-        self.angulardist = AngularDist(extract_param('angular_dist'))
+        self.speeddist = SpeedDist(extract_param('speeddist'))
+        self.angulardist = AngularDist(extract_param('angulardist'))
         self.options = Options(extract_param('options'))
         
     def __repr__(self):
@@ -131,7 +136,7 @@ class Input:
 
     def __str__(self):
         result = (self.geometry.__str__() + '\n' +
-                  self.surface_interaction.__str__() + '\n' +
+                  self.surfaceinteraction.__str__() + '\n' +
                   self.forces.__str__() + '\n' +
                   self.spatialdist.__str__() + '\n' +
                   self.speeddist.__str__() + '\n' +
@@ -158,7 +163,7 @@ class Input:
         """
         georesult = self.geometry.search(startlist=None)
         if georesult is not None:
-            surfintresult = self.surface_interaction.search(startlist=georesult)
+            surfintresult = self.surfaceinteraction.search(startlist=georesult)
         else:
             return [], 0, 0
 
@@ -203,9 +208,108 @@ class Input:
             return [], 0, 0
 
     def run(self, npackets, packs_per_it=None, overwrite=False, compress=True):
+        """Run the nexoclom model with the current inputs.
         
-        modeldriver(self, npackets, packs_per_it=packs_per_it,
-                    overwrite=overwrite, compress=compress)
+        **Parameters**
+        
+        npackets
+            Number of packets to simulate
+        
+        packs_per_it
+            Maximum number of packets to run at one time. Default = 1e5 in
+            constant step-size mode; 1e6 in adaptive step-size mode.
+        
+        overwrite
+            Erase any files matching the current inputs that exist.
+            Default = False
+            
+        compress
+            Remove packets with frac=0 from the outputs to reduce file size.
+            Default = True
+            
+        **Outputs**
+        
+        Nothing is returned, but model runs are saved and cataloged.
+        """
+        # Configure the logger
+        # Note: The logfile name will be changed to match the outputfile name
+        #       and stored in the Output object.
+        logger = logging.getLogger()
+        logger.setLevel(logging.INFO)
+        log_file_handler = logging.FileHandler('log.out', 'w')
+        logger.addHandler(log_file_handler)
+        out_handler = logging.StreamHandler(sys.stdout)
+        logger.addHandler(out_handler)
+        fmt = logging.Formatter('%(levelname)s: %(msg)s')
+        log_file_handler.setFormatter(fmt)
+        out_handler.setFormatter(fmt)
 
-    def produce_image(self, format, filenames=None):
-        return ModelImage(self, format, filenames=filenames)
+        t0_ = Time.now()
+        logger.info(f'Starting at {t0_}')
+        
+        if len(self.geometry.planet) != 1:
+            logger.error('Gravity and impact check not working for '
+                          'planets with moons.')
+            sys.exit()
+            
+        # Determine how many packets have already been run
+        # outputfiles, totalpackets, _ = self.findpackets()
+        # logger.info(f'Found {len(outputfiles)} files with {totalpackets} '
+        #              'packets.')
+        #
+        # if (overwrite) and (totalpackets > 0):
+        #     # delete files and remove from database
+        #     delete_files(outputfiles)
+        #     totalpackets = 0
+        # else:
+        #     pass
+        totalpackets = 0
+        
+        npackets = int(npackets)
+        ntodo = npackets - totalpackets
+        
+        if ntodo > 0:
+            if packs_per_it is None:
+                packs_per_it = (100000
+                                if self.options.step_size > 0
+                                else int(1e6))
+            else:
+                pass
+            packs_per_it = min(ntodo, packs_per_it)
+            
+            # Determine how many iterations are needed
+            nits = ntodo//packs_per_it + 1
+            
+            logger.info('Running Model')
+            logger.info(f'Will complete {nits} iterations of {packs_per_it} '
+                         'packets.')
+            
+            for _ in range(nits):
+                tit0_ = Time.now()
+                logger.info(f'Starting iteration #{_+1} of {nits}')
+                
+                # Create an output object
+                Output(self, packs_per_it, compress=compress,
+                       logger=logger)
+                # Just run and save the model when output is created
+                # No reason to explicitly call run
+                
+                tit1_ = Time.now()
+                logger.info(f'Completed iteration #{_+1} in '
+                            f'{(tit1_ - tit0_).sec} seconds.')
+        else:
+            pass
+
+        t2_ = Time.now()
+        dt_ = (t2_-t0_).sec
+        if dt_ < 60:
+            dt_ = f'{dt_} sec'
+        elif dt_ < 3600:
+            dt_ = f'{dt_/60} min'
+        else:
+            dt_ = f'{dt_/3600} hr'
+        logger.info(f'Model run completed in {dt_} at {t2_}.')
+        out_handler.close()
+        
+    def produce_image(self, format_, filenames=None):
+        return ModelImage(self, format_, filenames=filenames)

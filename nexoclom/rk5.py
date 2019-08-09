@@ -20,13 +20,22 @@ a61, a62, a63, a64, a65 = (9017./3168., -355./33., 46732./5247.,
                            49./176., -5103./18656.)
 a71, a72, a73, a74, a75, a76 = b1, b2, b3, b4, b5, b6
 
-def rk5(t1, x1, v1, f1, h, output):
+def rk5(output, X0):
     ''' Perform a single rk5 step '''
+    t1 = X0.time.values
+    x1 = X0[['x', 'y', 'z']].values.transpose()
+    v1 = X0[['vx', 'vy', 'vz']].values.transpose()
+    f1 = X0.frac.values
+    
     f1 = np.log(f1)
+    X0.frac = X0.frac.apply(np.log)
+    
+    assert np.all(f1 == X0.frac)
 
     # Step 1: Determine initial acceleration and ionization rate
-    a1, i1 = State(t1, x1, v1, output)
+    a1, i1 = State(t1, x1, v1, X0, output)
 
+    assert 0
     # Step 2
     t2 = t1 - c2*h
     x2 = x1 + h*a21*v1

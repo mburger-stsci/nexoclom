@@ -19,5 +19,22 @@ To Test:
     (f.3) Radiation pressure on
     (f.4) Radiation pressure off
     
+"""
+import os.path
+try:
+    from ..Input import Input
+except:
+    from nexoclom import Input
+
+def test_Input():
+    inputs = Input(os.path.join(os.path.dirname(__file__),
+                                'inputfiles',
+                                'Ca.isotropic.maxwellian.50000.input'))
+    inputs.run(1e5)
+
+    print(inputs)
+    assert True
     
     
+if __name__ == '__main__':
+    test_Input()

@@ -1,0 +1,26 @@
+geometry.planet = Mercury
+geometry.taa =  0
+
+sticking_info.stickcoef = 1.
+
+forces.gravity = 1.
+forces.radpres = 1.
+
+SpatialDist.type = surface
+SpatialDist.use_map = 0
+
+SpeedDist.type = maxwellian
+SpeedDist.Temperature = 50000.
+
+AngularDist.type = costheta
+
+PerturbVel.type = none
+
+options.endtime = 10800.0
+options.atom = Ca
+options.fullsystem = 0
+options.outeredge = 15
+options.trackloss = 1
+options.at_once = 1
+options.streamlines = 1
+options.nsteps = 360

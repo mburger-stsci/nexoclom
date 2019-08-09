@@ -1,7 +1,10 @@
 import os
 import os.path
+import sys
+import pandas as pd
 import numpy as np
 import pickle
+import logging
 import astropy.units as u
 from solarsystemMB import planet_dist
 import mathMB
@@ -11,24 +14,88 @@ from .LossInfo import LossInfo
 from .rk5 import rk5
 from .bouncepackets import bouncepackets
 from .source_distribution import (surface_distribution, speed_distribution,
-                                  angular_distribution, surface_spot)
+                                  angular_distribution)
 from .database_connect import database_connect
 
 
 class Output:
-    '''Keep track of packets initial and final positions
-    x0, y0, z0, f0, vx0, vy0, vz0
-    phi0, lat0, lon0
-    time, x, y, z, vx, vy, vz
-    index, npackets, totalsource
-    '''
+    def __init__(self, inputs, npackets, compress=True, logger=None):
+        """Determine and store packet trajectories.
+        
+        **Parameters**
+        
+        inputs
+            An Input object with the run parameters.
+            
+        npackets
+            Number of packets to run.
+        
+        compress
+            Remove packets with frac=0 from the outputs to reduce file size.
+            Default = True
+            
+        **Class Attributes**
+        
+        x0, y0, z0
+        
+        f0
+        
+        vx0, vy0, vz0
+        
+        phi0, lat0, lon0
+        
+        time, x, y, z, vx, vy, vz
+        index, npackets, totalsource
+        
+        inputs
+            The inputs used for the simulation
+            
+        logfile
+            Path to file with output log
+            
+        compress
+            Whether output is compressed.
+        
+        unit
+            Basic length unit used. Equal to radius of central planet.
+        
+        GM
+            GM_planet in units of R_planet/s**2
+            
+        aplanet
+            Distance of planet from the Sun in AU
+         
+        vrplanet
+            Radial velocity of planet relative to the Sun in R_planet/s
+        
+        radpres
+            Radiation pressure object containing acceleration as funtion
+            of velocity in units of R_planet/s**2 and R_planet/s
+            
+        
+            
+        
+        """
+        if logger is None:
+            logger = logging.getLogger()
+            logger.setLevel(logging.INFO)
+            out_handler = logging.StreamHandler(sys.stdout)
+            logger.addHandler(out_handler)
+            fmt = logging.Formatter('%(levelname)s: %(msg)s')
+            out_handler.setFormatter(fmt)
+        else:
+            pass
+        self.logger = logger
 
-    def __init__(self, inputs, npackets, compress=True):
         self.inputs = inputs
         self.planet = inputs.geometry.planet
         
+        # initialize the random generator
+        self.randgen = np.random.default_rng()
+        
         # Not implemented yet.
-        assert self.geometry.type != 'geometry with time'
+        assert self.inputs.geometry.type != 'geometry with time', ('Initialization '
+            'with time stamp not implemented yet.')
 
         # Keep track of whether output is compressed
         self.compress = compress
@@ -46,7 +113,7 @@ class Output:
 
         # Find the default reactions and datasets
         if inputs.options.lifetime.value <= 0:
-            self.loss_info = LossInfo(inputs.options.atom,
+            self.loss_info = LossInfo(inputs.options.species,
                                       inputs.options.lifetime,
                                       self.aplanet)
         else:
@@ -54,7 +121,7 @@ class Output:
 
         # Set up the radiation pressure
         if inputs.forces.radpres:
-            radpres = RadPresConst(inputs.options.atom,
+            radpres = RadPresConst(inputs.options.species,
                                    self.aplanet)
             radpres.velocity = radpres.velocity.to(self.unit/u.s).value
             radpres.accel = radpres.accel.to(self.unit/u.s**2).value
@@ -67,21 +134,20 @@ class Output:
         #     stick = sticking_setup(inputs)
 
         # Define the time that packets will run
-        if inputs.options.at_once:
+        if inputs.options.step_size > 0:
             time = np.ones(npackets) * inputs.options.endtime
         else:
-            time = np.random.rand(npackets) * inputs.options.endtime
+            time = self.randgen.random(npackets) * inputs.options.endtime
 
-        self.time0 = time.copy()
-        self.time = time.copy()
+        self.X0 = pd.DataFrame()
+        self.X0['time'] = time
 
         # Define the fractional content
-        self.f0 = np.ones(npackets)
-        self.frac = np.ones(npackets)
+        self.X0['frac'] = np.ones(npackets)
 
         self.npackets = npackets
-        self.totalsource = np.sum(self.f0)
-        self.LossFrac = np.zeros(npackets)
+        self.totalsource = self.X0['frac'].sum()
+        self.X0['lossfrac'] = np.zeros(npackets)
 
         # Determine initial satellite positions if necessary
         if self.planet.moons is not None:
@@ -89,8 +155,32 @@ class Output:
         else:
             pass
 
-        # Determine initial source distribution
-        self.source_distribution()
+        # Determine starting location for each packet
+        if self.inputs.spatialdist.type in ('uniform', 'surface_map',
+                                            'surface_spot'):
+            surface_distribution(self)
+        else:
+            assert 0, 'Not a valid spatial distribution type'
+        
+        # Determine inital speed for each packet
+        speed_distribution(self)
+        
+        # Choose direction for each packet
+        angular_distribution(self)
+
+        # Rotate everything to proper position for running the model
+        if (self.inputs.geometry.planet.object != self.inputs.geometry.startpoint):
+            assert 0, 'Not set up yet'
+        else:
+            pass
+        
+        # Integrate the packets forward
+        if self.inputs.options.step_size == 0:
+            self.X = self.X0.copy()
+            self.variable_step_size_driver()
+        else:
+            self.constant_step_size_driver()
+
 
     def __str__(self):
         print('Contents of output:')
@@ -120,63 +210,8 @@ class Output:
         if 'index' in self.__dict__.keys():
             self.index = self.index[keys]
 
-    def source_distribution(self):
-        # Determine spatial distribution
-        if self.inputs.spatialdist.type == 'surface':
-            X0, lon, lat = surface_distribution(self.inputs,
-                                                self.npackets,
-                                                self.unit)
-        elif self.inputs.spatialdist.type == 'surfacespot':
-            X0, lon, lat = surface_spot(self.inputs,
-                                        self.npackets,
-                                        self.unit)
-        else:
-            assert 0, 'Spatial Distribution {} not supported.'.format(
-                self.inputs.spatialdist.type)
-
-        # Choose a speed for each packet
-        v0 = speed_distribution(self.inputs, self.npackets)
-        if v0 is not None:
-            v0 = v0.to(self.unit/u.s)
-
-            # Choose direction for each packet
-            V0 = angular_distribution(self.inputs, X0.value, v0.value)
-            if V0 is not None:
-                V0 *= self.unit/u.s
-            else:
-                pass
-        else:
-            V0 = None
-
-        # Perturbation function
-        # Not installed yet
-
-        # Rotate everything to proper position for running the model
-        if (self.inputs.geometry.planet.object !=
-                self.inputs.geometry.startpoint):
-            assert 0, 'Not set up yet'
-        else:
-            pass
-
-        self.x0 = X0[0,:]
-        self.y0 = X0[1,:]
-        self.z0 = X0[2,:]
-        self.vx0 = V0[0,:]
-        self.vy0 = V0[1,:]
-        self.vz0 = V0[2,:]
-
-        self.x = X0[0,:]
-        self.y = X0[1,:]
-        self.z = X0[2,:]
-        self.vx = V0[0,:]
-        self.vy = V0[1,:]
-        self.vz = V0[2,:]
-
-    def driver(self):
-        assert 0, 'Needs to be verified.'
+    def variable_step_size_driver(self):
         # Set up the step sizes
-        hall = np.zeros(self.npackets) + 1000.
-
         count = 0  # Number of steps taken
         eps = 1e-10  # impact check delta
 
@@ -200,36 +235,29 @@ class Output:
         # time of "image taken"
         #########################################################
 
-        T = self.time.value
-        X = np.array([self.x, self.y, self.z])
-        V = np.array([self.vx, self.vy, self.vz])
-        Frac = self.frac
-        LossFrac = self.LossFrac
-
-        numb = []
-        moretogo = (T > rest) & (Frac > 0.)
+        # initial step size
+        self.X['h'] = np.zeros(self.npackets) + 1000.
+        
+        moretogo = (self.X['time'] > rest) & (self.X['frac'] > 0.)
         while moretogo.any():
             # Save old values
             # This is used for determining if anything hits the rings
-            oldT = T[moretogo].copy()
-            oldX = X[:, moretogo].copy()
-            oldV = V[:, moretogo].copy()
-            oldFrac = Frac[moretogo].copy()
 
-            T0 = T[moretogo]
-            X0 = X[:, moretogo]
-            V0 = V[:, moretogo]
-            F0 = Frac[moretogo]
-            Loss0 = LossFrac[moretogo]
-
-            h = hall[moretogo]
-            assert np.all(h >= 0), '\n\tNegative values of h'
+            Xtodo = self.X[moretogo]
+            Xold = Xtodo.copy()
+            
+            if np.any(Xtodo['h'] == 0):
+                self.logger.error('Negative values of h '
+                                  'in variable_step_size_dirver')
+                assert 0, '\n\tNegative values of h'
+            else:
+                pass
 
             # Adjust stepsize to be no more than time remaining
-            h = (T0 >= h)*h + (T0 < h)*T0
+            Xtodo.h = np.minimum(Xtodo.time, Xtodo.h)
 
             # Run the rk5 step
-            t1, x1, v1, f1, delx, delv, delf = rk5(T0, X0, V0, F0, h, self)
+            X1 = rk5(self, Xtodo)
 
             # Do the error check
             # scale = a_tol + |y|*r_tol
@@ -474,7 +502,7 @@ class Output:
         # Come up with a path name
         pathname = os.path.join(self.inputs._savepath,
                                 self.planet.object,
-                                self.inputs.options.atom,
+                                self.inputs.options.species,
                                 self.inputs.spatialdist.type,
                                 self.inputs.speeddist.type,
                                 taastr)
@@ -625,7 +653,7 @@ class Output:
                      options.endtime.value,
                      options.resolution,
                      options.at_once,
-                     options.atom,
+                     options.species,
                      options.lifetime.value,
                      options.fullsystem,
                      options.outeredge,

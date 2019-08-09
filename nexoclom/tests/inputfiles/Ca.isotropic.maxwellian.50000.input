@@ -1,0 +1,12 @@
+geometry.planet = Mercury
+
+SpatialDist.type = uniform
+
+SpeedDist.type = maxwellian
+SpeedDist.Temperature = 50000.
+
+AngularDist.type = isotropic
+
+options.endtime = 10800.0
+options.species = Ca
+options.outer_edge = 15

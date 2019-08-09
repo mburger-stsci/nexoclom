@@ -1,0 +1,8 @@
+INFO: Starting at 2019-08-08 16:05:26.662351
+INFO: Running Model
+INFO: Will complete 2 iterations of 100000 packets.
+INFO: Starting iteration #1 of 2
+INFO: Completed iteration #1 in 0.00014900000273598835 seconds.
+INFO: Starting iteration #2 of 2
+INFO: Completed iteration #2 in 0.0001540000031496902 seconds.
+INFO: Model run completed in 0.0022760000060628727 sec at 2019-08-08 16:05:26.664627.

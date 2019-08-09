@@ -1,5 +1,6 @@
 """Create and read configuration file, create necessary database tables."""
-import os, os.path
+import os
+import os.path
 from .database_connect import database_connect
 import sys
 import types
@@ -71,8 +72,10 @@ def verify_output_tables():
     with open(os.path.join(os.path.dirname(__file__),
                            'data',
                            'schema.sql'), 'r') as sqlfile:
-        line = sqlfile.readline()
-        while line:
+        done = False
+        while not done:
+            line = sqlfile.readline()
+            nextline = ''
             if 'TABLE' in line:
                 table_to_test = line[len('CREATE TABLE '):-3]
                 if table_to_test in tables:
@@ -81,52 +84,21 @@ def verify_output_tables():
                 else:
                     query = line
                     nextline = sqlfile.readline()
-                    while nextline.strip():
+                    while (nextline.strip()) and ('DONE' not in nextline):
                         query += nextline
                         nextline = sqlfile.readline()
                     print(query)
                     cur.execute(query)
-                line = sqlfile.readline()
-                
-    # Create table for model images
-    cur.execute('''CREATE TABLE modelimages (
-                       idnum SERIAL PRIMARY KEY,
-                       out_idnum bigint,
-                       quantity text,
-                       origin text,
-                       dims float[2],
-                       center float[2],
-                       width float[2],
-                       subobslongitude float,
-                       subobslatitude float,
-                       mechanism text,
-                       wavelength text,
-                       filename text)''')
-    print('Created modelimages table')
-
-    # # Create table for MESSENGER comparison
-    cur.execute('''CREATE TABLE uvvsmodels (
-                       idnum SERIAL PRIMARY KEY,
-                       out_idnum bigint,
-                       quantity text,
-                       orbit int,
-                       dphi float,
-                       mechanism text,
-                       wavelength text,
-                       filename text)''')
-    print('Created uvvsmodels table')
-    con.close()
+            done = ('DONE' in nextline) or ('DONE' in line)
 
 
-def configure_model(force=False):
+def configure_model():
     """Ensure the database and configuration file are set up for nexoclom.
     
     **Parameters**
     
-    force
-        If True, drops the existing database tables and remakes them.
-        Default = False
-        
+    No parameters.
+    
     **Returns**
     
     No output.
@@ -143,12 +115,6 @@ def configure_model(force=False):
         else:
             pass
         
-        if 'test' in database:
-            with database_connect('postgres') as con:
-                cur = con.cursor()
-                cur.execute(f'drop database {database}')
-                cur.execute(f'create database {database}')
-
         with database_connect() as con:
             # Check whether SSObject has been created
             cur = con.cursor()

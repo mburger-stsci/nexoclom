@@ -25,7 +25,8 @@ TOL = 1e-5
 
 
 def test_maxwellian_dist():
-    idl = readsav(os.path.join(os.path.dirname(__file__), 'maxdist.sav'))
+    idl = readsav(os.path.join(os.path.dirname(__file__), 'data',
+                               'maxdist.sav'))
     vv =  idl['vv']*u.km/u.s
     temperature = [t*u.K for t in idl['temp']]
     atom = [str(a)[2:-1] for a in idl['atom']]
@@ -37,25 +38,13 @@ def test_maxwellian_dist():
             f_idl_ /= np.max(f_idl_)
             f_py = MaxwellianDist(vv, t, a)
 
-            # xr = vv[f_py > 1e-5]
-            # xr = (np.min(xr.value), np.max(xr.value))
-            # plt.output_file(os.path.join(os.environ['HOME'],
-            # #                             'test_maxwellian_dist.html'))
-            # p = plt.figure(title=f'Maxwellian Distribution Test', #, atom={a}, temperature={t}',
-            #                y_axis_type='log',
-            #                x_axis_label='Velocity (km/s)',
-            #                y_axis_label='f(v)',
-            #                x_range=xr, y_range=(1e-5, 2))
-            # p.line(vv.value, f_py, legend='Python', line_color='red', line_width=3)
-            # p.line(vv.value, f_idl_, legend='IDL', line_color='blue', line_width=3)
-            # plt.show(p)
-
             print(np.max(np.abs(f_idl_-f_py)))
             assert np.all(np.abs(f_idl_-f_py) < TOL), (
                 f'atom={a}, temperature={t}')
 
 def test_sputdist():
-    idl = readsav(os.path.join(os.path.dirname(__file__), 'sputdist.sav'))
+    idl = readsav(os.path.join(os.path.dirname(__file__), 'data',
+                               'sputdist.sav'))
     vv =  idl['vv']*u.km/u.s
     atom = [str(a)[2:-1] for a in idl['atom']]
     alpha = [a for a in idl['alpha']]
@@ -70,19 +59,6 @@ def test_sputdist():
                     f_idl_ = np.array(f_idl[l,k,j,i,:], dtype=float)
                     f_idl_ /= np.max(f_idl_)
                     f_py = sputdist(vv, u_, al, b, a)
-
-                    # xr = vv[f_py > 1e-5]
-                    # xr = (np.min(xr.value), np.max(xr.value))
-                    # plt.output_file(os.path.join(os.environ['HOME'],
-                    # #                             'test_maxwellian_dist.html'))
-                    # p = plt.figure(title=f'Maxwellian Distribution Test', #, atom={a}, temperature={t}',
-                    #                y_axis_type='log',
-                    #                x_axis_label='Velocity (km/s)',
-                    #                y_axis_label='f(v)',
-                    #                x_range=xr, y_range=(1e-5, 2))
-                    # p.line(vv.value, f_py, legend='Python', line_color='red', line_width=3)
-                    # p.line(vv.value, f_idl_, legend='IDL', line_color='blue', line_width=3)
-                    # plt.show(p)
 
             print(np.max(np.abs(f_idl_-f_py)))
             assert np.all(np.abs(f_idl_-f_py) < TOL), (

@@ -1,8 +1,6 @@
 import numpy as np
-import psycopg2
-import astropy.units as u
-import astropy.units.astrophys as ua
 from atomicdataMB import PhotoRate
+import astropy.units as u
 
 class LossInfo:
     def __init__(self, atom, lifetime, aplanet):
@@ -11,11 +9,16 @@ class LossInfo:
         self.eimp = 0.
         self.chX = 0.
         self.reactions = []
-
-        if lifetime.value < 0:
-            self.photo = np.abs(1./lifetime.value)
-            self.reactions = 'Generic photo reaction.'
+        
+        if isinstance(lifetime, type(1*u.s)):
+            lifetime_ = lifetime.value
         else:
+            lifetime_ = lifetime
+
+        if lifetime_ < 0:
+            self.photo = np.abs(1./lifetime_)
+            self.reactions = 'Generic photo reaction'
+        elif lifetime_ == 0:
             photo = PhotoRate(atom, aplanet)
             self.photo = photo.rate.value
             self.reactions = photo.reactions['reaction'].values
@@ -23,6 +26,10 @@ class LossInfo:
             # Electron impact
 
             # Charge exchange
+        else:
+            print('LossInfo objects should not be '
+                  'instantiated with lifetime > 0')
+            pass
 
         if len(self.reactions) == 0:
             self.reactions = None
@@ -32,19 +39,18 @@ class LossInfo:
 
     def __str__(self):
         if len(self) == 0:
-            print('No reactions included')
+            return 'No reactions included'
         elif len(self) == 1:
-            print('Included Reaction: {}'.format(self.reactions[0]))
+            result = f'Included Reaction: {self.reactions[0]}'
         else:
-            print('\tIncluded Reactions: {}'.format(tuple(self.reactions)))
-        if self.photo != 0:
-            print('Photo Rate = {:0.2e} s'.
-                  format(self.photo))
-        if self.eimp != 0:
-            print('Electron Impact Rate = {:0.2e} UNIT'.
-                  format(self.eimp))
-        if self.chX!= 0:
-            print('Charge Exchange Rate = {:0.2e} UNIT'.
-                  format(self.chX.value))
+            reacs = '\n\t'.join(self.reactions)
+            result = f'Included Reactions: {reacs}'
 
-        return ''
+        if self.photo != 0:
+            result += f'\nPhoto Rate = {self.photo:0.2e} s'
+        if self.eimp != 0:
+            result += f'\nElectron Impact Rate = {self.eimp:0.2e} UNIT'
+        if self.chX!= 0:
+            result += f'\nCharge Exchange Rate = {self.chX:0.2e} UNIT'
+
+        return result

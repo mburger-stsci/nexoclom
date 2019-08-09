@@ -75,8 +75,9 @@ class Geometry:
             inc = {self.planet.object, self.startpoint}
 
         for i in inc:
-            raise InputError('Geometry.__init__',
-                             f'Invalid object {i} in geometry.include')
+            if i not in objlist:
+                raise InputError('Geometry.__init__',
+                                 f'Invalid object {i} in geometry.include')
         self.objects = set(SSObject(o) for o in inc)
 
         # Different objects are created for geometry_with_starttime and
@@ -90,7 +91,7 @@ class Geometry:
                          f'Invalid starttime format: {gparam["starttime"]}')
         else:
             self.type = 'geometry without starttime'
-            if len(planet) == 1:
+            if len(self.planet) == 1:
                 self.phi = None
             elif 'phi' in gparam:
                 phi_ = gparam['phi'].split(',')
@@ -323,7 +324,7 @@ class SpatialDist:
             self.type = sparam['type']
         else:
             raise InputError('SpatialDist.__init__',
-                             'spatial_dist.type not given')
+                             'SpatialDist.type not given')
         
         if self.type == 'uniform':
             self.exobase = (float(sparam['exobase'])
@@ -349,7 +350,7 @@ class SpatialDist:
                 lat1 = min(lat1, np.pi/2)
                 if lat0 > lat1:
                     raise InputError('SpatialDist.__init__',
-                         'spatial_dist.latitude[0] > spatial_dist.latitude[1]')
+                         'SpatialDist.latitude[0] > SpatialDist.latitude[1]')
                 self.latitude = (lat0*u.rad, lat1*u.rad)
             else:
                 self.latitude = (-np.pi/2*u.rad, np.pi/2*u.rad)
@@ -362,7 +363,7 @@ class SpatialDist:
                 self.mapfile = sparam['mapfile']
             else:
                 raise InputError('SpatialDist.__init__',
-                                 'spatial_dist.mapfile not given.')
+                                 'SpatialDist.mapfile not given.')
             
             if not os.path.exists(self.mapfile):
                 raise InputError('SpatialDist.__init__',
@@ -387,27 +388,27 @@ class SpatialDist:
                 self.longitude = float(sparam['longitude'])*u.rad
             else:
                 raise InputError('SpatialDist.__init__',
-                                 'spatial_dist.longitude not given.')
+                                 'SpatialDist.longitude not given.')
             
             if 'latitude' in sparam:
                 self.latitude = float(sparam['latitude'])*u.rad
             else:
                 raise InputError('SpatialDist.__init__',
-                                 'spatial_dist.latitude not given.')
+                                 'SpatialDist.latitude not given.')
 
             if 'sigma' in sparam:
                 self.sigma = float(sparam['sigma'])*u.rad
             else:
                 raise InputError('SpatialDist.__init__',
-                                 'spatial_dist.sigma not given.')
+                                 'SpatialDist.sigma not given.')
         else:
             raise InputError('SpatialDist.__init__',
-                             f'spatial_dist.type = {self.type} not defined.')
+                             f'SpatialDist.type = {self.type} not defined.')
 
     def __str__(self):
         result = ''
         for key,value in self.__dict__.items():
-            result += (f'spatial_dist.{key} = {value}\n')
+            result += (f'SpatialDist.{key} = {value}\n')
         return result.strip()
 
     def search(self, startlist=None):
@@ -464,46 +465,46 @@ class SpeedDist:
                 self.vprob = float(sparam['vprob'])*u.km/u.s
             else:
                 raise InputError('SpatialDist.__init__',
-                                 'speed_dist.vprob not given.')
+                                 'SpeedDist.vprob not given.')
             if 'sigma' in sparam:
                 self.sigma = float(sparam['sigma'])*u.km/u.s
             else:
                 raise InputError('SpatialDist.__init__',
-                                 'speed_dist.sigma not given.')
+                                 'SpeedDist.sigma not given.')
         elif self.type == 'sputtering':
             if 'alpha' in sparam:
                 self.alpha = float(sparam['alpha'])
             else:
                 raise InputError('SpatialDist.__init__',
-                                 'speed_dist.alpha not given.')
+                                 'SpeedDist.alpha not given.')
             if 'beta' in sparam:
                 self.beta = float(sparam['beta'])
             else:
                 raise InputError('SpatialDist.__init__',
-                                 'speed_dist.beta not given.')
+                                 'SpeedDist.beta not given.')
             if 'u' in sparam:
                 self.U = float(sparam['u'])*u.eV
             else:
                 raise InputError('SpatialDist.__init__',
-                                 'speed_dist.U not given.')
+                                 'SpeedDist.U not given.')
         elif self.type == 'maxwellian':
             if 'temperature' in sparam:
-                self.alpha = float(sparam['temperature'])*u.K
+                self.temperature = float(sparam['temperature'])*u.K
             else:
                 raise InputError('SpatialDist.__init__',
-                                 'speed_dist.temperature not given.')
+                                 'SpeedDist.temperature not given.')
         elif self.type == 'flat':
             if 'vprob' in sparam:
                 self.alpha = float(sparam['vprob'])*u.km/u.s
             else:
                 raise InputError('SpatialDist.__init__',
-                                 'speed_dist.vprob not given.')
+                                 'SpeedDist.vprob not given.')
             
             if 'delv' in sparam:
                 self.alpha = float(sparam['delv'])*u.km/u.s
             else:
                 raise InputError('SpatialDist.__init__',
-                                 'speed_dist.delv not given.')
+                                 'SpeedDist.delv not given.')
 
         else:
             assert 0, f'SpeedDist.type = {self.type} not available'
@@ -511,7 +512,7 @@ class SpeedDist:
     def __str__(self):
         result = ''
         for key,value in self.__dict__.items():
-            result += (f'speed_dist{key} = {value}\n')
+            result += (f'SpeedDist.{key} = {value}\n')
         return result.strip()
 
     def search(self, startlist=None):
@@ -582,13 +583,13 @@ class AngularDist:
                     alt1 = min(alt1, np.pi/2)
                     if alt0 > alt1:
                         raise InputError('AngularDist.__init__',
-                         'angular_dist.altitude[0] > angular_dist.altitude[1]')
+                         'AngularDist.altitude[0] > AngularDist.altitude[1]')
                     self.altitude = (alt0*u.rad, alt1*u.rad)
                 else:
                     self.altitude = (-np.pi/2*u.rad, np.pi/2*u.rad)
             else:
                 raise InputError('AngularDist.__init__',
-                             f'angular_dist.type = {self.type} not defined.')
+                             f'AngularDist.type = {self.type} not defined.')
         else:
             self.type = 'isotropic'
             self.azimuth = (0*u.rad, 2*np.pi*u.rad)
@@ -597,7 +598,7 @@ class AngularDist:
     def __str__(self):
         result = ''
         for key,value in self.__dict__.items():
-            result += (f'angular_dist.{key} = {value}\n')
+            result += (f'AngularDist.{key} = {value}\n')
         return result.strip()
 
     def search(self, startlist=None):
@@ -650,7 +651,7 @@ class Options:
                              'options.endtime not specified.')
 
         if 'species' in oparam:
-            self.species = oparam['species']
+            self.species = oparam['species'].capitalize()
         else:
             raise InputError('Options.__init__',
                              'options.species not specified.')
