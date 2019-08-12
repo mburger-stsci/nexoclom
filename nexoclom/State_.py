@@ -1,4 +1,4 @@
-"""Computes acceleration and ionization on a packet due to specified forces
+''' Computes acceleration and ionization on a packet due to specified forces
 
 Gravitational acceleration
 
@@ -10,49 +10,52 @@ Equations of motion:
     dndt = instantaneous change in density
 
 Current version: Assumes there is only a planet -- does not do moons yet
-"""
+'''
+
 import numpy as np
+from astropy.time import Time
+#from .xyz_to_magcoord import xyz_to_magcoord
 
-
-def state(x, output):
+def State(t, x, v, output):
     # compute gravitational acceleration
     if output.inputs.forces.gravity:
-        r3 = (np.sum(x[:,1:4]**2, axis=1))**1.5
-        agrav = output.GM * x[:,1:4]/r3[:,np.newaxis]
+        r3 = (x[0,:]**2 + x[1,:]**2 + x[2,:]**2)**1.5
+        agrav = output.GM * x/r3
     else:
-        agrav = np.zeros(x[:,1:4].shape)
-        
+        agrav = np.zeros_like(x)
+
     # compute radiation acceleration
-    arad = np.zeros(x[:,1:4].shape)
+    arad = np.zeros_like(x)
     if output.inputs.forces.radpres:
-        rho = np.sum(x[:,[1,3]]**2, axis=1)
-        out_of_shadow = (rho > 1) | (x[:,2] < 0)
+        rho = x[0,:]**2 + x[2,:]**2
+        out_of_shadow = (rho > 1) | (x[1,:] < 0)
 
         # radial velocity of each packet realtive to the Sun
-        vv = x[:,5] + output.vrplanet
+        vv = v[1,:] + output.vrplanet
 
         # Compute radiation acceleration
-        arad[:,1] = np.interp(vv, output.radpres.velocity,
-                              output.radpres.accel) * out_of_shadow
+        arad[1,:] = (np.interp(vv, output.radpres.velocity,
+                               output.radpres.accel) * out_of_shadow)
     else:
         pass
-    
+
     # Compute total acceleration
     accel = agrav + arad
+    assert np.all(np.isfinite(accel))
 
     # Compute ionization rate
     if output.inputs.options.lifetime > 0:
         # Explicitly set lifetime
-        ionizerate = np.ones(x[:,0].shape)/output.inputs.options.lifetime.value
+        ionizerate = np.ones_like(t)/output.inputs.options.lifetime.value
     else:
         if output.loss_info.photo is not None:
             # Compute photoionization rate
-            rho = np.sum(x[:,[1,3]]**2, axis=1)
-            out_of_shadow = (rho > 1) | (x[:,2] < 0)
+            rho = x[0,:]**2 + x[2,:]**2
+            out_of_shadow = (rho > 1) | (x[1,:] < 0)
             photorate = output.loss_info.photo * out_of_shadow
         else:
-            photorate = np.zeros(x[:,0].shape)
-         
+            photorate = 0.
+
         '''
         magcoord = xyz_to_magcoord(t, x, output.inputs, output.planet)
 
@@ -69,6 +72,6 @@ def state(x, output):
             chxrate = 0.
         '''
 
-        ionizerate = photorate  # + eimprate + chxrate
+    ionizerate = photorate  #+ eimprate + chxrate
 
     return accel, ionizerate
