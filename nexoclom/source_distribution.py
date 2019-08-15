@@ -138,9 +138,8 @@ def speed_distribution(outputs):
         if speeddist.sigma == 0.:
             v0 = np.zeros(npackets)*u.km/u.s + speeddist.vprob
         else:
-            v0 = outputs.randgen.random(speeddist.vprob.value,
-                                        speeddist.sigma.value,
-                                        npackets)
+            v0 = (outputs.randgen.standard_normal(npackets) *
+                  speeddist.sigma.value + speeddist.vprob.value)
             v0 *= speeddist.vprob.unit
     elif speeddist.type == 'sputtering':
         velocity = np.linspace(.1, 50, 5000)*u.km/u.s

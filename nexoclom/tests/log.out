@@ -1,4 +1,3 @@
-INFO: Starting at 2019-08-12 16:31:49.416519
-INFO: Running Model
-INFO: Will complete 2 iterations of 100000 packets.
-INFO: Starting iteration #1 of 2
+INFO: Starting at 2019-08-15 16:56:10.691327
+INFO: Found 3 files with 108300000 packets.
+INFO: Model run completed in 0.047161999998124315 sec at 2019-08-15 16:56:10.738489.

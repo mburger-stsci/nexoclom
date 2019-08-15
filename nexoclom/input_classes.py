@@ -1,35 +1,22 @@
 """Classes used by the Inputs class"""
 import os.path
 import numpy as np
-import pandas as pd
 from astropy.time import Time
 import astropy.units as u
 from solarsystemMB import SSObject
 from .database_connect import database_connect
+
+
+dtor = np.pi/180.
+# Tolerances for floating point values
+dtaa = 5.*dtor
+
 
 class InputError(Exception):
     """Raised when a required parameter is not included in the inputfile."""
     def __init__(self, expression, message):
         self.expression = expression
         self.message = message
-
-
-def isNone(x):
-    try:
-        q = x.value
-    except:
-        q = x
-
-    if type(q) == str:
-        return f'is NULL' if q is None else f"= '{q}'"
-    else:
-        return f'is NULL' if q is None else f"= {q}"
-
-
-def inRange(field, x, delta):
-    return f'ABS({field} - {x}) <= {delta/2}'
-
-dtor = np.pi/180.
 
 
 class Geometry:
@@ -79,6 +66,8 @@ class Geometry:
                 raise InputError('Geometry.__init__',
                                  f'Invalid object {i} in geometry.include')
         self.objects = set(SSObject(o) for o in inc)
+        if len(self.objects) == 0:
+            self.objects = None
 
         # Different objects are created for geometry_with_starttime and
         # geometry_without_starttime
@@ -126,68 +115,121 @@ class Geometry:
     def __str__(self):
         result = ''
         for key,value in self.__dict__.items():
-            result += (f'geometry.{key} = {value}\n')
+            result += f'geometry.{key} = {value}\n'
         return result.strip()
-
-    def search(self, startlist=None):
-        # Make list of objects in planet system
-        objs = [obj.object for obj in self.objects]
-        objs.sort()
-        objs2 = ','.join(objs)
-
-        if startlist is None:
-            startstr = ''
-        else:
-            start_ = [str(s) for s in startlist]
-            startstr = f"and geo_idnum in ({', '.join(start_)})"
-
-        if self.time is None:
-            # Fields to query:
-            #   planet, startpoint, objects, phi, subsolarpoint, TAA
-            dtaa = (5.*u.deg).to(u.rad)
-            taa = [self.taa-dtaa/2., self.taa+dtaa/2.]
-            taa = [taa[0].value, taa[1].value]
-            if taa[0] < 0.:
-                taabit = '(taa>={} or taa<{})'.format(2*np.pi+taa[0], taa[1])
-            elif taa[1] > 2*np.pi:
-                taabit = '(taa>={} or taa<{})'.format(taa[0],
-                                                      taa[1] % (2*np.pi))
+    
+    def insert(self):
+        # check to see if it is already there
+        ids = self.search()
+        if ids is None:
+            if self.type == 'geometry with starttime':
+                if self.objects is None:
+                    objs = None
+                else:
+                    objs = [o.object for o in self.objects]
+                    
+                with database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO geometry_with_time (
+                                       planet, startpoint, objects,
+                                       starttime VALUES (%s, %s, %s, %s)''',
+                                (self.planet.object, self.startpoint, objs,
+                                 self.time))
+            elif self.type == 'geometry without starttime':
+                if self.objects is None:
+                    objs = None
+                else:
+                    objs = [o.object for o in self.objects]
+                    
+                subspt = [s.value for s in self.subsolarpoint]
+                
+                if self.phi is None:
+                    phi = None
+                else:
+                    phi = [p.value for p in self.phi]
+                    
+                with database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO geometry_without_time (
+                                       planet, startpoint, objects, phi,
+                                       subsolarpt, taa) VALUES (
+                                       %s, %s, %s::SSObject[], %s,
+                                       %s::DOUBLE PRECISION[2], %s)''',
+                                (self.planet.object, self.startpoint, objs,
+                                 phi, subspt, self.taa.value))
             else:
-                taabit = inRange('taa', self.taa.value, dtaa.value)
+                raise InputError('Geometry.search()',
+                                 f'geometry.type = {self.type} not allowed.')
 
-            phi = [p.value for p in self.phi]
-            assert phi[0] == 0., 'phi for planet should be zero.'
-            ptxt = [inRange('phi[{}]'.format(i+1), p, 5.*dtor) for
-                    i,p in enumerate(phi)]
-            ptxt2 = ' and '.join(ptxt)
-
-            sspt0 = inRange('subsolarpt[0]', self.subsolarpoint[0].value,
-                            5*dtor)
-            sspt1 = inRange('subsolarpt[1]', self.subsolarpoint[1].value,
-                            5*dtor)
-
-            query = f'''SELECT geo_idnum FROM geometry
-                        WHERE planet = '{self.planet.object}' and
-                              startpoint = '{self.startpoint}' and
-                              objects = ARRAY['{objs2}']::SSObject[] and
-                              {ptxt2} and
-                              {sspt0} and
-                              {sspt1} and
-                              {taabit} {startstr}'''
+            ids = self.search()
+            assert ids is not None
         else:
-            # Fields to query
-            # planet, StartPoint, objects, time
-            # query =
-            assert 0, 'Not working yet.'
+            pass
+        
+        return ids
 
+    def search(self):
+        if self.type == 'geometry with starttime':
+            params = [self.planet, self.startpoint]
+            if self.objects is None:
+                objects = 'objects is NULL'
+            else:
+                objects = 'objects = %s'
+                params.append([o.object for o in self.objects])
+
+            params.append(self.time)
+            
+            query = f'''
+                SELECT idnum
+                FROM geometry_with_time
+                WHERE planet = %s and
+                      startpoint = %s and
+                      {objects} and
+                      starttime = %s'''
+        elif self.type == 'geometry without starttime':
+            params = [self.planet.object, self.startpoint]
+            if self.objects is None:
+                objects = 'objects is NULL'
+            else:
+                objects = 'objects = %s::SSObject[]'
+                params.append([o.object for o in self.objects])
+            
+            if self.phi is None:
+                phi = 'phi is NULL'
+            else:
+                phi = 'phi is %s'
+                params.append([p.value for p in self.phi])
+                
+            params.append([s.value for s in self.subsolarpoint])
+            params.append(self.taa.value - dtaa/2.)
+            params.append(self.taa.value + dtaa/2.)
+
+            query = f"""
+                SELECT idnum
+                FROM geometry_without_time
+                WHERE planet = %s and
+                      startpoint = %s and
+                      {objects} and
+                      {phi} and
+                      subsolarpt = %s::DOUBLE PRECISION[2] and
+                      taa > %s and
+                      taa < %s"""
+        else:
+            raise InputError('geometry.search()',
+                             f'geometry.type = {self.type} not allowed.')
+                    
         with database_connect() as con:
-            result = pd.read_sql(query, con)
-        if len(result) == 0:
-            return None
-        else:
-            return result.geo_idnum.to_list()
-###############################################################
+            cur = con.cursor()
+            cur.execute(query, tuple(params))
 
+            if cur.rowcount == 0:
+                return None
+            elif cur.rowcount == 1:
+                return cur.fetchone()[0]
+            else:
+                raise RuntimeError('geometry.search()',
+                                   'Duplicates in geometry table')
+        
 
 class SurfaceInteraction:
     def __init__(self, sparam):
@@ -205,14 +247,14 @@ class SurfaceInteraction:
                 self.accomfactor = sparam['accomfactor']
             else:
                 raise InputError('SurfaceInteraction.__init__',
-                                 'surface_interaction.accomfactor not given.')
+                                 'surfaceinteraction.accomfactor not given.')
         elif sticktype == 'surface map':
             self.sticktype = sticktype
             if 'stick_mapfile' in sparam:
                 self.stick_mapfile = sparam['stick_mapfile']
             else:
                 raise InputError('SurfaceInteraction.__init__',
-                                 'surface_interaction.stick_mapfile not given.')
+                                 'surfaceinteraction.stick_mapfile not given.')
             
             if not os.path.exists(self.stick_mapfile):
                 raise InputError('SurfaceInteraction.__init__',
@@ -224,7 +266,7 @@ class SurfaceInteraction:
                 self.accomfactor = sparam['accomfactor']
             else:
                 raise InputError('SurfaceInteraction.__init__',
-                                 'surface_interaction.accomfactor not given.')
+                                 'surfaceinteraction.accomfactor not given.')
         elif 'stickcoef' in sparam:
             # Constant sticking
             self.sticktype = 'constant'
@@ -235,45 +277,97 @@ class SurfaceInteraction:
                 self.stickcoef = 1
             else:
                 pass
+            if 'accomfactor' in sparam:
+                self.accomfactor = sparam['accomfactor']
+            else:
+                if self.stickcoef == 1:
+                    self.accomfactor = None
+                else:
+                    raise InputError('SurfaceInteraction.__init__',
+                                 'surfaceinteraction.accomfactor not given.')
         else:
             self.sticktype = 'constant'
             self.stickcoef = 1.
+            self.accomfactor = None
         
     def __str__(self):
         result = ''
         for key,value in self.__dict__.items():
-            result += (f'surface_interaction.{key} = {value}\n')
+            result += f'surfaceinteraction.{key} = {value}\n'
         return result.strip()
-
-    def search(self, startlist=None):
-        if startlist is None:
-            startstr = ''
+    
+    def insert(self):
+        ids = self.search()
+        if ids is None:
+            if self.sticktype == 'constant':
+                with database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO surface_int_constant (
+                                       stickcoef, accomfactor) VALUES (
+                                       %s, %s)''',
+                                (self.stickcoef, self.accomfactor))
+            elif self.sticktype == 'surface map':
+                with database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO surface_int_constant (
+                                       mapfile, accomfactor) VALUES (
+                                       %s, %s)''',
+                                (self.stick_mapfile, self.accomfactor))
+            elif self.sticktype == 'temperature dependent':
+                with database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO surface_int_tempdependent (
+                                       accomfactor) VALUES (%s)''',
+                                (self.accomfactor, ))
+            else:
+                raise InputError('SurfaceInteraction.search()',
+                                 f'surfaceinteraction.sticktype = {self.sticktype} not allowed.')
+            ids = self.search()
+            assert ids is not None
         else:
-            start_ = [str(s) for s in startlist]
-            startstr = f"and st_idnum in ({', '.join(start_)})"
+            pass
 
-        if self.stickcoef == 1:
-            query = f'''SELECT st_idnum FROM sticking_info
-                        WHERE stickcoef=1 {startstr}'''
+        return ids
+
+    def search(self):
+        if self.sticktype == 'constant':
+            params = [self.stickcoef]
+            if self.accomfactor is None:
+                afactor = 'accomfactor is NULL'
+            else:
+                afactor = 'accomfactor = %s'
+                params.append(self.accomfactor)
+            
+            query = f"""SELECT idnum
+                        FROM surface_int_constant
+                        WHERE stickcoef = %s and
+                              {afactor}"""
+        elif self.sticktype == 'temperature dependent':
+            params = [self.accomfactor]
+            query = f"""SELECT idnum
+                        FROM surface_int_constant
+                        WHERE accomfactor = %s"""
+        elif self.sticktype == 'surface map':
+            params = [self.stick_mapfile, self.accomfactor]
+            query = f"""SELECT idnum
+                        FROM surface_int_constant
+                        WHERE mapfile = %s and
+                              accomfactor = %s"""
         else:
-            query = f'''SELECT st_idnum FROM sticking_info
-                        WHERE stickcoef={self.stickcoef}
-                             tsurf {self.tsurf} and
-                             stickfn {self.stickfn} and
-                             stick_mapfile {self.stick_mapfile} and
-                             epsilon {self.epsilon} and
-                             n {self.n} and
-                             tmin {self.tmin} and
-                             emitfn {self.emitfn} and
-                             accom_mapfile {self.accom_mapfile}
-                             {startstr}'''
-
+            raise InputError('SurfaceInteraction.search()',
+             f'surfaceinteraction.sticktype = {self.sticktype} not allowed.')
+        
         with database_connect() as con:
-            result = pd.read_sql(query, con)
-        if len(result) == 0:
-            return None
-        else:
-            return result.st_idnum.to_list()
+            cur = con.cursor()
+            cur.execute(query, tuple(params))
+    
+            if cur.rowcount == 0:
+                return None
+            elif cur.rowcount == 1:
+                return cur.fetchone()[0]
+            else:
+                raise RuntimeError('SurfaceInteraction.search()',
+                                   'Duplicates in surface interaction table')
 
 
 class Forces:
@@ -293,26 +387,41 @@ class Forces:
     def __str__(self):
         result = ''
         for key,value in self.__dict__.items():
-            result += (f'forces.{key} = {value}\n')
+            result += f'forces.{key} = {value}\n'
         return result.strip()
-
-    def search(self, startlist=None):
-        if startlist is None:
-            startstr = ''
+    
+    def insert(self):
+        ids = self.search()
+        if ids is None:
+            with database_connect() as con:
+                cur = con.cursor()
+                cur.execute('''INSERT INTO forces (
+                                   gravity, radpres) VALUES (%s, %s)''',
+                            (self.gravity, self.radpres))
+            ids = self.search()
+            assert ids is not None
         else:
-            start_ = [str(s) for s in startlist]
-            startstr = f"and f_idnum in ({', '.join(start_)})"
+                pass
 
-        query = f'''SELECT f_idnum FROM forces
-                    WHERE gravity={self.gravity} and
-                          radpres={self.radpres} {startstr}'''
+        return ids
+
+    def search(self):
+        query = f'''SELECT idnum FROM forces
+                    WHERE gravity = %s and
+                          radpres = %s'''
+        
         with database_connect() as con:
-            result = pd.read_sql(query, con)
+            cur = con.cursor()
+            cur.execute(query, (self.gravity, self.radpres))
+    
+            if cur.rowcount == 0:
+                return None
+            elif cur.rowcount == 1:
+                return cur.fetchone()[0]
+            else:
+                raise RuntimeError('Forces.search()',
+                                   'Duplicates in forces table')
 
-        if len(result) == 0:
-            return None
-        else:
-            return result.f_idnum.to_list()
 
 class SpatialDist:
     def __init__(self, sparam):
@@ -408,47 +517,89 @@ class SpatialDist:
     def __str__(self):
         result = ''
         for key,value in self.__dict__.items():
-            result += (f'SpatialDist.{key} = {value}\n')
+            result += f'SpatialDist.{key} = {value}\n'
         return result.strip()
-
-    def search(self, startlist=None):
-        if startlist is None:
-            startstr = ''
+    
+    def insert(self):
+        ids = self.search()
+        if ids is None:
+            if self.type == 'uniform':
+                long = [l.value for l in self.longitude]
+                lat = [l.value for l in self.latitude]
+                with database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO spatdist_uniform (
+                                       exobase, longitude, latitude) VALUES (
+                                       %s, %s::DOUBLE PRECISION[2],
+                                       %s::DOUBLE PRECISION[2])''',
+                                (self.exobase, long, lat))
+            elif self.type == 'surface map':
+                with database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO spatdist_surfmap (
+                                       exobase, mapfile, coordsystem) VALUES (
+                                       %s, %s, %s''',
+                                (self.exobase, self.mapfile, self.coordsystem))
+            elif self.type == 'surface spot':
+                with database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO spatdist_spot (
+                                       exobase, longitude, latitude, sigma) VALUES (
+                                       %s, %s, %s, %s)''',
+                                (self.exobase, self.longitude.value,
+                                 self.latitude.value, self.sigma.value))
+            else:
+                raise InputError('SpatialDist.search()',
+                                 f'SpatialDist.type = {self.type} not allowed.')
+            ids = self.search()
+            assert ids is not None
         else:
-            start_ = [str(s) for s in startlist]
-            startstr = f"and spat_idnum in ({', '.join(start_)})"
+            pass
+        
+        return ids
 
-        if self.longitude is None:
-            long0 = 'longitude[1] = 0.'
-            long1 = 'longitude[2] = 0.'
+    def search(self):
+        if self.type == 'uniform':
+            params = [self.exobase,
+                      [self.longitude[0].value, self.longitude[1].value],
+                      [self.latitude[0].value, self.latitude[1].value]]
+            query = '''SELECT idnum
+                       FROM spatdist_uniform
+                       WHERE exobase = %s and
+                             longitude = %s::DOUBLE PRECISION[2] and
+                             latitude = %s::DOUBLE PRECISION[2]'''
+        elif self.type == 'surface map':
+            params = [self.exobase, self.mapfile, self.coordsystem]
+            query = '''SELECT idnum
+                       FROM spatdist_surfmap
+                       WHERE exobase = %s and
+                             mapfile = %s and
+                             coordsystem = %s'''
+        elif self.type == 'surface spot':
+            params = [self.exobase, self.longitude.value, self.latitude.value,
+                      self.sigma.value]
+            query = '''SELECT idnum
+                       FROM spatdist_uniform
+                       WHERE exobase = %s and
+                             longitude = %s and
+                             latitude = %s and
+                             sigma = %s'''
         else:
-            long0 = inRange('longitude[1]', self.longitude[0].value, 5*dtor)
-            long1 = inRange('longitude[2]', self.longitude[1].value, 5*dtor)
-
-        if self.latitude is None:
-            lat0 = 'latitude[1] = 0.'
-            lat1 = 'latitude[2] = 0.'
-        else:
-            lat0 = inRange('latitude[1]', self.latitude[0].value, 5*dtor)
-            lat1 = inRange('latitude[2]', self.latitude[1].value, 5*dtor)
-
-        query = f'''SELECT spat_idnum FROM spatialdist
-                    WHERE type = '{self.type}' and
-                         {inRange('exobase', self.exobase, 0.05)} and
-                         use_map {isNone(self.use_map)} and
-                         mapfile {isNone(self.mapfile)} and
-                         {long0} and
-                         {long1} and
-                         {lat0} and
-                         {lat1} {startstr}'''
+            raise InputError('SpatialDist.__init__',
+                             f'SpatialDist.type = {self.type} not defined.')
 
         with database_connect() as con:
-            result = pd.read_sql(query, con)
-        if len(result) == 0:
-            return None
-        else:
-            return result.spat_idnum.to_list()
-###############################################################
+            cur = con.cursor()
+            cur.execute(query, tuple(params))
+    
+            if cur.rowcount == 0:
+                return None
+            elif cur.rowcount == 1:
+                return cur.fetchone()[0]
+            else:
+                raise RuntimeError('SpatialDist.search()',
+                                   'Duplicates in spatial distribution table')
+        
 
 
 class SpeedDist:
@@ -456,7 +607,6 @@ class SpeedDist:
 
     See :doc:`inputfiles#SpeedDist` for more information.
     """
-    
     def __init__(self, sparam):
         self.type = sparam['type']
 
@@ -495,13 +645,13 @@ class SpeedDist:
                                  'SpeedDist.temperature not given.')
         elif self.type == 'flat':
             if 'vprob' in sparam:
-                self.alpha = float(sparam['vprob'])*u.km/u.s
+                self.vprob = float(sparam['vprob'])*u.km/u.s
             else:
                 raise InputError('SpatialDist.__init__',
                                  'SpeedDist.vprob not given.')
             
             if 'delv' in sparam:
-                self.alpha = float(sparam['delv'])*u.km/u.s
+                self.delv = float(sparam['delv'])*u.km/u.s
             else:
                 raise InputError('SpatialDist.__init__',
                                  'SpeedDist.delv not given.')
@@ -512,45 +662,88 @@ class SpeedDist:
     def __str__(self):
         result = ''
         for key,value in self.__dict__.items():
-            result += (f'SpeedDist.{key} = {value}\n')
+            result += f'SpeedDist.{key} = {value}\n'
         return result.strip()
+    
+    def insert(self):
+        ids = self.search()
+        if ids is None:
+            if self.type == 'gaussian':
+                with database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO speeddist_gaussian (
+                                       vprob, sigma) VALUES (%s, %s)''',
+                                (self.vprob.value, self.sigma.value))
+            elif self.type == 'sputtering':
+                with database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO speeddist_sputtering (
+                                       alpha, beta, U) VALUES (%s, %s, %s)''',
+                                (self.alpha, self.beta, self.U.value))
+            elif self.type == 'maxwellian':
+                with database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO speeddist_maxwellian (
+                                       temperature) VALUES (%s)''',
+                                (self.temperature.value, ))
+            elif self.type == 'flat':
+                with database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO speeddist_flat (
+                                       vprob, delv) VALUES (%s, %s)''',
+                                (self.vprob.value, self.delv.value))
+            else:
+                raise InputError('SpeedDist.search()',
+                                 f'speeddist.type = {self.type} not allowed.')
 
-    def search(self, startlist=None):
-        if startlist is None:
-            startstr = ''
+            ids = self.search()
+            assert ids is not None
         else:
-            start_ = [str(s) for s in startlist]
-            startstr = f"and spd_idnum in ({', '.join(start_)})"
+            pass
 
-        if self.vprob is None:
-            vstr = 'vprob is NULL'
+        return ids
+
+    def search(self):
+        if self.type == 'gaussian':
+            params = [self.vprob.value, self.sigma.value]
+            query = '''SELECT idnum
+                       FROM speeddist_gaussian
+                       WHERE vprob = %s and
+                             sigma = %s'''
+        elif self.type == 'sputtering':
+            params = [self.alpha, self.beta, self.U.value]
+            query = '''SELECT idnum
+                       FROM speeddist_sputtering
+                       WHERE alpha = %s and
+                             beta = %s and
+                             U = %s'''
+        elif self.type == 'maxwellian':
+            params = [self.temperature.value]
+            query = '''SELECT idnum
+                       FROM speeddist_maxwellian
+                       WHERE temperature = %s'''
+        elif self.type == 'flat':
+            params = [self.vprob.value, self.delv.value]
+            query = '''SELECT idnum
+                       FROM speeddist_flat
+                       WHERE vprob = %s and
+                             delv = %s'''
         else:
-            vstr = inRange('vprob', self.vprob.value,
-                           self.vprob.value*0.05)
-
-        if self.temperature is None:
-            Tstr = 'temperature is NULL'
-        else:
-            Tstr = inRange('temperature', self.temperature.value,
-                           self.temperature.value*0.05)
-
-        query = f'''SELECT spd_idnum FROM speeddist
-                    WHERE type = '{self.type}' and
-                          {vstr} and
-                          sigma {isNone(self.sigma)} and
-                          U  {isNone(self.U)} and
-                          alpha  {isNone(self.alpha)} and
-                          beta  {isNone(self.beta)} and
-                          {Tstr} and
-                          delv  {isNone(self.delv)} {startstr}'''
+            raise InputError('SpeedDist.__init__',
+                             f'SpeedDist.type = {self.type} not defined.')
 
         with database_connect() as con:
-            result = pd.read_sql(query, con)
-        if len(result) == 0:
-            return None
-        else:
-            return result.spd_idnum.to_list()
-
+            cur = con.cursor()
+            cur.execute(query, tuple(params))
+        
+            if cur.rowcount == 0:
+                return None
+            elif cur.rowcount == 1:
+                return cur.fetchone()[0]
+            else:
+                raise RuntimeError('SpeedDist.search()',
+                                   'Duplicates in speed distribution table')
+    
 
 class AngularDist:
     def __init__(self, aparam):
@@ -598,44 +791,60 @@ class AngularDist:
     def __str__(self):
         result = ''
         for key,value in self.__dict__.items():
-            result += (f'AngularDist.{key} = {value}\n')
+            result += f'AngularDist.{key} = {value}\n'
         return result.strip()
+    
+    def insert(self):
+        ids = self.search()
+        if ids is None:
+            if self.type == 'radial':
+                assert 0, 'Should not be able to get here.'
+            elif self.type == 'isotropic':
+                alt = [a.value for a in self.altitude]
+                az = [a.value for a in self.azimuth]
+                with database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO angdist_isotropic (
+                                       altitude, azimuth) VALUES (
+                                       %s::DOUBLE PRECISION[2],
+                                       %s::DOUBLE PRECISION[2])''',
+                                (alt, az))
+            else:
+                raise InputError('AngularDist.search()',
+                                 f'angulardist.type = {self.type} not allowed.')
 
-    def search(self, startlist=None):
-        if startlist is None:
-            startstr = ''
+            ids = self.search()
+            assert ids is not None
         else:
-            start_ = [str(s) for s in startlist]
-            startstr = f"and ang_idnum in ({', '.join(start_)})"
+            pass
 
-        if self.azimuth is None:
-            az0 = 'azimuth[1] is NULL'
-            az1 = 'azimuth[2] is NULL'
+        return ids
+
+    def search(self):
+        if self.type == 'radial':
+            return 0
+        elif self.type == 'isotropic':
+            params = [[a.value for a in self.altitude],
+                      [a.value for a in self.azimuth]]
+            query = '''SELECT idnum
+                       FROM angdist_isotropic
+                       WHERE altitude=%s::DOUBLE PRECISION[2] and
+                             azimuth=%s::DOUBLE PRECISION[2]'''
         else:
-            az0 = inRange('azimuth[1]', self.azimuth[0].value, 5*dtor)
-            az1 = inRange('azimuth[2]', self.azimuth[1].value, 5*dtor)
-
-        if self.altitude is None:
-            alt0 = 'altitude[1] is NULL'
-            alt1 = 'altitude[2] is NULL'
-        else:
-            alt0 = inRange('altitude[1]', self.altitude[0].value, 5*dtor)
-            alt1 = inRange('altitude[2]', self.altitude[1].value, 5*dtor)
-        n = isNone(self.n)
-
-        query = f'''SELECT ang_idnum from angulardist
-                    WHERE type = '{self.type}' and
-                          {az0} and {az1} and
-                          {alt0} and {alt1} and
-                          n {n} {startstr}'''
+            raise InputError('AngularDist.__init__',
+                             f'AngularDist.type = {self.type} not defined.')
+    
         with database_connect() as con:
-            result = pd.read_sql(query, con)
-
-        if len(result) == 0:
-            return None
-        else:
-            return result.ang_idnum.to_list()
-###############################################################
+            cur = con.cursor()
+            cur.execute(query, tuple(params))
+        
+            if cur.rowcount == 0:
+                return None
+            elif cur.rowcount == 1:
+                return cur.fetchone()[0]
+            else:
+                raise RuntimeError('AngularDist.search()',
+                                   'Duplicates in angular distribution table')
 
 
 class Options:
@@ -660,7 +869,7 @@ class Options:
                          if 'lifetime' in oparam
                          else 0.*u.s)
         
-        self.outeredge = (float(oparam['outer_edge'])
+        self.outeredge = (float(oparam['outeredge'])
                           if 'outeredge' in oparam
                           else 1e30)
                           
@@ -677,37 +886,54 @@ class Options:
     def __str__(self):
         result = ''
         for key,value in self.__dict__.items():
-            result += (f'options.{key} = {value}\n')
+            result += f'options.{key} = {value}\n'
         return result.strip()
-
-    def search(self, startlist=None):
-        if startlist is None:
-            startstr = ''
+    
+    def insert(self):
+        ids = self.search()
+        if ids is None:
+            with database_connect() as con:
+                cur = con.cursor()
+                cur.execute('''INSERT into options (endtime, species, lifetime,
+                                   outer_edge, step_size, resolution) VALUES (
+                                   %s, %s, %s, %s, %s, %s)''',
+                            (self.endtime.value, self.species,
+                             self.lifetime.value, self.outeredge,
+                             self.step_size, self.resolution))
+            ids = self.search()
+            assert ids is not None
         else:
-            start_ = [str(s) for s in startlist]
-            startstr = f"and opt_idnum in ({', '.join(start_)})"
+            pass
 
-        endtime = inRange('endtime', self.endtime.value,
-                          self.endtime.value*0.05)
-        outeredge = isNone(self.outeredge)
-        nsteps = isNone(self.nsteps)
-        res = isNone(self.resolution)
+        return ids
 
-        query = f'''SELECT opt_idnum from options
-                    WHERE {endtime} and
-                          resolution {res} and
-                          at_once = {self.at_once} and
-                          atom = '{self.atom}' and
-                          lifetime = {self.lifetime.value} and
-                          fullsystem = {self.fullsystem} and
-                          outeredge {outeredge} and
-                          motion = {self.motion} and
-                          streamlines = {self.streamlines} and
-                          nsteps {nsteps} {startstr}'''
+    def search(self):
+        params = [self.endtime.value, self.species, self.lifetime.value,
+                  self.outeredge, self.step_size]
+        
+        if self.resolution is None:
+            resol = 'resolution is NULL'
+        else:
+            resol = 'resolution = %s'
+            params.append(self.resolution)
+            
+        query = f'''SELECT idnum
+                    FROM options
+                    WHERE endtime = %s and
+                          species = %s and
+                          lifetime = %s and
+                          outer_edge = %s and
+                          step_size = %s and
+                          {resol}'''
+        
         with database_connect() as con:
-            result = pd.read_sql(query, con)
-
-        if len(result) == 0:
-            return None
-        else:
-            return result.opt_idnum.to_list()
+            cur = con.cursor()
+            cur.execute(query, tuple(params))
+    
+            if cur.rowcount == 0:
+                return None
+            elif cur.rowcount == 1:
+                return cur.fetchone()[0]
+            else:
+                raise RuntimeError('Options.search()',
+                                   'Duplicates in options table')

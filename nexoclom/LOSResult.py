@@ -5,14 +5,119 @@ import pickle
 import astropy.units as u
 from solarsystemMB import SSObject
 from MESSENGERuvvs import MESSENGERdata
-from .ModelResults import (ModelResult, read_format, results_loadfile,
-                           results_packet_weighting)
+from .ModelResults import ModelResult
 from .database_connect import database_connect
 
 
 class LOSResult(ModelResult):
     def __init__(self, inputs, data, quantity, dphi=3*u.deg,
                  filenames=None, overwrite=False):
+        """Determine column or emission along lines of sight.
+        This assumes the model has already been run.
+        
+        Parameters
+        ==========
+        inputs
+            An Inputs object
+        
+        Data
+            A Pandas DataFrame object with information on the lines of sight.
+            
+        Quantity
+            Quantity to calculate: 'column', 'radiance', 'density'
+            
+        dphi
+            Angular size of the view cone. Default = 3 deg.
+            
+        filenames
+            A filename or list of filenames to use. Default = None is to
+            find all files created for the inputs.
+            
+        overwrite
+            If True, deletes any images that have already been computed.
+            Default = False
+        """
+        super().__init__(inputs, format, filenames=filenames)
+        self.type = 'image'
+
+        # Validate the format
+        quantities = ['column', 'radiance']
+
+        if 'quantity' in self.format:
+            if self.format['quantity'] in quantities:
+                self.quantity = self.format['quantity']
+            else:
+                raise InputError('ModelImage.__init__',
+                                 "quantity must be 'column' or 'radiance'")
+        else:
+            raise InputError('ModelImage.__init__',
+                             'quantity must be specified.')
+
+        if self.quantity == 'radiance':
+            # Note - only resonant scattering currently possible
+            self.mechanism = ['resonant scattering']
+    
+            if 'wavelength' in self.format:
+                self.wavelength = tuple(int(m.strip())*u.AA
+                                        for m
+                                        in self.format['wavelength'].split(','))
+            elif inputs.options.species == 'Na':
+                self.wavelength = (5891*u.AA, 5897*u.AA)
+            elif inputs.options.species == 'Ca':
+                self.wavelength = (4227*u.AA,)
+            elif inputs.options.species == 'Mg':
+                self.wavelength = (2852*u.AA,)
+            else:
+                raise InputError('ModelImage.__init__', ('Default wavelengths '
+                                                         f'not available for {inputs.options.species}'))
+
+        else:
+            pass
+
+        if 'origin' in self.format:
+            self.origin = SSObject(self.format['origin'])
+        else:
+            self.origin = inputs.geometry.planet
+
+        self.unit = u.def_unit('R_' + self.origin.object,
+                               self.origin.radius)
+
+        if 'dims' in self.format:
+            dimtemp = self.format['dims'].split(',')
+            self.dims = np.array((int(dimtemp[0]), int(dimtemp[1])))
+        else:
+            self.dims = (800, 800)
+
+        if 'center' in self.format:
+            centtemp = self.format['center'].split(',')
+            self.center = (float(centtemp[0])*self.unit,
+                           float(centtemp[1])*self.unit)
+        else:
+            self.center = (0*self.unit, 0*self.unit)
+
+        if 'width' in self.format:
+            widtemp = self.format['width'].split(',')
+            self.width = (float(widtemp[0])*self.unit,
+                          float(widtemp[1])*self.unit)
+        else:
+            self.width = (8*self.unit, 8*self.unit)
+
+        if 'subobslongitude' in self.format:
+            self.subobslongitude = float(self.format['subobslongitude'])*u.rad
+        else:
+            self.subobslongitude = 0.*u.rad
+
+        if 'subobslongitude' in self.format:
+            self.subobslatitude = float(self.format['subobslatitude'])*u.rad
+        else:
+            self.subobslatitude = np.pi*u.rad
+
+        self.image = np.zeros(self.dims)
+        self.packet_image = np.zeros(self.dims)
+        self.blimits = None
+        immin = tuple(c - w/2 for c, w in zip(self.center, self.width))
+        immax = tuple(c + w/2 for c, w in zip(self.center, self.width))
+        scale = tuple(w/(d-1) for w, d in zip(self.width, self.dims))
 
         self.type = 'LineOfSight'
         self.species = inputs.options.atom

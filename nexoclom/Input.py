@@ -26,6 +26,7 @@ Options
 """
 import os
 import os.path
+import numpy as np
 import sys
 import pandas as pd
 import logging
@@ -36,7 +37,6 @@ from .database_connect import database_connect
 from .input_classes import (Geometry, SurfaceInteraction, Forces, SpatialDist,
                             SpeedDist, AngularDist, Options)
 from .produce_image import ModelImage
-from .delete_files import delete_files
 
 
 class Input:
@@ -145,7 +145,7 @@ class Input:
         
         return result
 
-    def findpackets(self):
+    def search(self):
         """ Search the database for previous model runs with the same inputs.
         See :doc:`searchtolerances` for tolerances used in searches.
         
@@ -161,51 +161,39 @@ class Input:
         
         * Total modeled source rate.
         """
-        georesult = self.geometry.search(startlist=None)
-        if georesult is not None:
-            surfintresult = self.surfaceinteraction.search(startlist=georesult)
+        geo_id = self.geometry.search()
+        sint_id = self.surfaceinteraction.search()
+        for_id = self.forces.search()
+        spat_id = self.spatialdist.search()
+        spd_id = self.spatialdist.search()
+        ang_id = self.angulardist.search()
+        opt_id = self.options.search()
+        
+        if None in [geo_id, sint_id, for_id, spat_id, spd_id, ang_id, opt_id]:
+            return [], 0., 0.
         else:
-            return [], 0, 0
-
-        if surfintresult is not None:
-            forceresult = self.forces.search(startlist=surfintresult)
-        else:
-            return [], 0, 0
-
-        if forceresult is not None:
-            spatresult = self.spatialdist.search(startlist=forceresult)
-        else:
-            return [], 0, 0
-
-        if spatresult is not None:
-            spdresult = self.speeddist.search(startlist=spatresult)
-        else:
-            return [], 0, 0
-
-        if spdresult is not None:
-            angresult = self.angulardist.search(startlist=spdresult)
-        else:
-            return [], 0, 0
-
-        if angresult is not None:
-            finalresult = self.options.search(startlist=angresult)
-        else:
-            return [], 0, 0
-
-        if finalresult is not None:
-            result_ = [str(s) for s in finalresult]
-            resultstr = f"({', '.join(result_)})"
-            with database_connect() as con:
-                result = pd.read_sql(
-                    f'''SELECT filename, npackets, totalsource
+            query = f'''SELECT idnum, filename, npackets, totalsource
                         FROM outputfile
-                        WHERE idnum in {resultstr}''', con)
-            npackets = result.npackets.sum()
-            totalsource = result.totalsource.sum()
-
-            return result.filename.to_list(), npackets, totalsource
-        else:
-            return [], 0, 0
+                        WHERE geo_type = '{self.geometry.type}' and
+                              geo_id = {geo_id} and
+                              sint_type = '{self.surfaceinteraction.sticktype}' and
+                              sint_id = {sint_id} and
+                              force_id = {for_id} and
+                              spatdist_type = '{self.spatialdist.type}' and
+                              spatdist_id = {spat_id} and
+                              spddist_type = '{self.speeddist.type}' and
+                              spddist_id = {spd_id} and
+                              angdist_type = '{self.angulardist.type}' and
+                              angdist_id = {ang_id} and
+                              opt_id = {opt_id}'''
+            with database_connect() as con:
+                result = pd.read_sql(query, con)
+            
+            if len(query) == 0:
+                return None, 0., 0.
+            else:
+                return (result.filename.to_list(), result.npackets.sum(),
+                        result.totalsource.sum())
 
     def run(self, npackets, packs_per_it=None, overwrite=False, compress=True):
         """Run the nexoclom model with the current inputs.
@@ -253,32 +241,29 @@ class Input:
             sys.exit()
             
         # Determine how many packets have already been run
-        # outputfiles, totalpackets, _ = self.findpackets()
-        # logger.info(f'Found {len(outputfiles)} files with {totalpackets} '
-        #              'packets.')
-        #
-        # if (overwrite) and (totalpackets > 0):
-        #     # delete files and remove from database
-        #     delete_files(outputfiles)
-        #     totalpackets = 0
-        # else:
-        #     pass
-        totalpackets = 0
-        
+        if overwrite:
+            self.delete_files()
+            totalpackets = 0
+        else:
+            outputfiles, totalpackets, _ = self.search()
+            logger.info(f'Found {len(outputfiles)} files with {totalpackets} '
+                         'packets.')
+
         npackets = int(npackets)
         ntodo = npackets - totalpackets
         
         if ntodo > 0:
-            if packs_per_it is None:
-                packs_per_it = (100000
-                                if self.options.step_size > 0
-                                else int(1e6))
+            if (packs_per_it is None) and (self.options.step_size == 0):
+                packs_per_it = 1000000
+            elif packs_per_it is None:
+                packs_per_it = 1e8//(self.options.endtime.value/
+                                     self.options.step_size)
             else:
                 pass
-            packs_per_it = min(ntodo, packs_per_it)
+            packs_per_it = int(np.min([ntodo, packs_per_it]))
             
             # Determine how many iterations are needed
-            nits = ntodo//packs_per_it + 1
+            nits = int(np.ceil(ntodo/packs_per_it))
             
             logger.info('Running Model')
             logger.info(f'Will complete {nits} iterations of {packs_per_it} '
@@ -311,5 +296,53 @@ class Input:
         logger.info(f'Model run completed in {dt_} at {t2_}.')
         out_handler.close()
         
-    def produce_image(self, format_, filenames=None):
-        return ModelImage(self, format_, filenames=filenames)
+    def produce_image(self, format_, filenames=None, overwrite=False):
+        return ModelImage(self, format_, filenames=filenames,
+                          overwrite=overwrite)
+
+    def delete_files(self):
+        """Delete output files and remove them from the database.
+
+        **Parameters**
+
+        filelist
+            List of files to remove. This can be found with Inputs.findpackets()
+
+        **Returns**
+
+        No outputs.
+
+        """
+        filelist, _, _ = self.search()
+        with database_connect() as con:
+            cur = con.cursor()
+            
+            for f in filelist:
+                # Delete the file
+                print(f'Deleting {f}')
+                if os.path.exists(f):
+                    os.remove(f)
+                
+                # Remove from database
+                cur.execute('''SELECT idnum FROM outputfile
+                               WHERE filename = %s''', (f,))
+                idnum = cur.fetchone()[0]
+                
+                cur.execute('''DELETE FROM outputfile
+                               WHERE idnum = %s''', (idnum,))
+                
+                cur.execute('''SELECT idnum, filename FROM modelimages
+                               WHERE out_idnum = %s''', (idnum,))
+                for mid, mfile in cur.fetchall():
+                    cur.execute('''DELETE from modelimages
+                                   WHERE idnum = %s''', (mid,))
+                    if os.path.exists(mfile):
+                        os.remove(mfile)
+                
+                # cur.execute('''SELECT idnum, filename FROM uvvsmodels
+                #                WHERE out_idnum = %s''', (idnum,))
+                # for mid, mfile in cur.fetchall():
+                #     cur.execute('''DELETE from uvvsmodels
+                #                    WHERE idnum = %s''', (mid,))
+                #     if os.path.exists(mfile):
+                #         os.remove(mfile)

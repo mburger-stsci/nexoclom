@@ -17,7 +17,7 @@ import numpy as np
 def state(x, output):
     # compute gravitational acceleration
     if output.inputs.forces.gravity:
-        r3 = (np.sum(x[:,1:4]**2, axis=1))**1.5
+        r3 = (np.linalg.norm(x[:,1:4]**2, axis=1))**3
         agrav = output.GM * x[:,1:4]/r3[:,np.newaxis]
     else:
         agrav = np.zeros(x[:,1:4].shape)
@@ -25,7 +25,7 @@ def state(x, output):
     # compute radiation acceleration
     arad = np.zeros(x[:,1:4].shape)
     if output.inputs.forces.radpres:
-        rho = np.sum(x[:,[1,3]]**2, axis=1)
+        rho = np.linalg.norm(x[:,[1,3]], axis=1)
         out_of_shadow = (rho > 1) | (x[:,2] < 0)
 
         # radial velocity of each packet realtive to the Sun
@@ -47,7 +47,7 @@ def state(x, output):
     else:
         if output.loss_info.photo is not None:
             # Compute photoionization rate
-            rho = np.sum(x[:,[1,3]]**2, axis=1)
+            rho = np.linalg.norm(x[:,[1,3]], axis=1)
             out_of_shadow = (rho > 1) | (x[:,2] < 0)
             photorate = output.loss_info.photo * out_of_shadow
         else:

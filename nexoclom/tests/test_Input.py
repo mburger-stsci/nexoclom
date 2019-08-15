@@ -30,9 +30,10 @@ def test_Input():
     inputs = Input(os.path.join(os.path.dirname(__file__),
                                 'inputfiles',
                                 'Ca.isotropic.maxwellian.50000.input'))
-    inputs.run(1e5)
-
-    print(inputs)
+    inputs.run(3e5, overwrite=False)
+    image = inputs.produce_image('inputfiles/MercuryEmission.format',
+                                 overwrite=True)
+    image.display()
     assert True
     
     

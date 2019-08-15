@@ -9,4 +9,5 @@ AngularDist.type = isotropic
 
 options.endtime = 10800.0
 options.species = Ca
-options.outer_edge = 15
+options.outeredge = 15
+options.step_size = 30

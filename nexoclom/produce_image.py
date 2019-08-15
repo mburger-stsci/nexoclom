@@ -6,127 +6,114 @@ import pickle
 import astropy.units as u
 from solarsystemMB import SSObject
 from mathMB import rotation_matrix
-from .ModelResults import (ModelResult, read_format, results_loadfile,
-                           results_packet_weighting)
+from .ModelResults import ModelResult
 from .database_connect import database_connect
-
-quantities = ['column', 'intensity', 'density']
-
-def image_rotation(image):
-    slong = image.subobslongitude
-    slat = image.subobslatitude
-
-    pSun = np.array([0., -1., 0.])
-    pObs = np.array([np.sin(slong)*np.cos(slat),
-                     -np.cos(slong)*np.cos(slat),
-                     np.sin(slat)])
-    if np.array_equal(pSun, pObs):
-        M = npmat.identity(3)
-    else:
-        costh = np.dot(pSun, pObs)/np.linalg.norm(pSun)/np.linalg.norm(pObs)
-        theta = np.arccos(np.clip(costh, -1, 1))
-        axis = np.cross(pSun, pObs)
-        M = rotation_matrix(theta, axis)
-
-    #M = np.transpose(M)
-    return M
+from .input_classes import InputError
+from .Output import Output
 
 
 class ModelImage(ModelResult):
-    def __init__(self, inputs, formatfile, filenames=None):
+    def __init__(self, inputs, format, filenames=None, overwrite=False):
+        """ Create Images from model results.
+        This Assumes the model has already been run.
+        
+        Parameters
+        ==========
+        inputs
+            An Input object
+        
+        format
+            A dictionary with format information or a path to a formatfile.
+            
+        filenames
+            A filename or list of filenames to use. Default = None is to
+            find all files created for the inputs.
+            
+        overwrite
+            If True, deletes any images that have already been computed.
+            Default = False
+        """
+        super().__init__(inputs, format, filenames=filenames)
         self.type = 'image'
-
-        # Read in the format file
-        if isinstance(formatfile, str):
-            format_ = read_format(formatfile)
-
-            quantities = ['column', 'radiance']
-            if format_['quantity'] in quantities:
-                self.quantity = format_['quantity']
+        
+        # Validate the format
+        quantities = ['column', 'radiance']
+        
+        if 'quantity' in self.format:
+            if self.format['quantity'] in quantities:
+                self.quantity = self.format['quantity']
             else:
-                assert 0, 'Quantity not specified'
-
-            if format_['quantity'] == 'radiance':
-                self.mechanism = tuple(m.strip()
-                                  for m in format_['mechanism'].split(','))
-                if 'wavelength' in format_:
-                    self.wavelength = tuple(int(m.strip())*u.AA
-                                 for m in format_['wavelength'].split(','))
-                elif inputs.options.atom == 'Na':
-                    self.wavelength = (5891*u.AA, 5897*u.AA)
-                elif inputs.options.atom == 'Ca':
-                    self.wavelength = (4227*u.AA,)
-                elif inputs.options.atom == 'Mg':
-                    self.wavelength = (2852*u.AA,)
-                else:
-                    assert 0, f'No default wavelength for {input.options.atom}'
-            else:
-                pass
-
-            self.origin = SSObject(format_['origin'])
-            self.unit = u.def_unit('R_' + self.origin.object,
-                                   self.origin.radius)
-
-            dimtemp = format_['dims'].split(',')
-            self.dims = np.array((int(dimtemp[0]), int(dimtemp[1])))
-
-            centtemp = format_['center'].split(',')
-            self.center = np.array((float(centtemp[0]), float(centtemp[1])))
-            self.center *= self.unit
-
-            widtemp = format_['width'].split(',')
-            self.width = np.array((float(widtemp[0]), float(widtemp[1])))
-            self.width *= self.unit
-
-            self.subobslongitude = float(format_['subobslongitude'])*u.rad
-            self.subobslatitude = float(format_['subobslatitude'])*u.rad
-        elif isinstance(formatfile, dict):
-            assert 0, 'Not working right yet'
-            format_ = formatfile
-            if format_['quantity'] in quantities:
-                self.quantity= format_['quantity']
-            else:
-                assert 0, 'Quantity not specified'
-
-            self.origin = SSObject(format_['origin'])
-            unit = u.def_unit('R_' + self.origin.object, self.origin.radius)
-
-            self.dims = format_['dims']
-            self.center = format_['center']
-            self.width = format_['width']
-
-            if isinstance(format_['subobslongitude'][0], (int, float)):
-                self.subobslongitude = (format_['subobslongitude'][0]*u.rad,
-                                        format_['subobslongitude'][1]*u.rad)
-            elif isinstance(format_['subobslongitude'][0], type(1*u.rad)):
-                self.subobslongitude = format_['subobslongitude']
-
-            if isinstance(format_['subobslatitude'][0], (int, float)):
-                self.subobslatitude = (format_['subobslatitude'][0]*u.rad,
-                                        format_['subobslatitude'][1]*u.rad)
-            elif isinstance(format_['subobslatitude'][0], type(1*u.rad)):
-                self.subobslatitude = format_['subobslatitude']
-
+                raise InputError('ModelImage.__init__',
+                                 "quantity must be 'column' or 'radiance'")
         else:
-            assert 0, 'Format problem.'
+            raise InputError('ModelImage.__init__',
+                             'quantity must be specified.')
+        
+        if self.quantity == 'radiance':
+            # Note - only resonant scattering currently possible
+            self.mechanism = ['resonant scattering']
+        
+            if 'wavelength' in self.format:
+                self.wavelength = tuple(int(m.strip())*u.AA
+                                        for m
+                                        in self.format['wavelength'].split(','))
+            elif inputs.options.species == 'Na':
+                self.wavelength = (5891*u.AA, 5897*u.AA)
+            elif inputs.options.species == 'Ca':
+                self.wavelength = (4227*u.AA,)
+            elif inputs.options.species == 'Mg':
+                self.wavelength = (2852*u.AA,)
+            else:
+                raise InputError('ModelImage.__init__', ('Default wavelengths '
+                             f'not available for {inputs.options.species}'))
 
-        # Set up universal result stuff
-        ModelResult.__init__(self, inputs)
-        if isinstance(filenames, str):
-            print('Setting filenames breaks calibration.')
-            self.filenames = [filenames]
-        elif isinstance(filenames, list):
-            print('Setting filenames breaks calibration.')
-            self.filenames = filenames
         else:
             pass
+
+        if 'origin' in self.format:
+            self.origin = SSObject(self.format['origin'])
+        else:
+            self.origin = inputs.geometry.planet
+            
+        self.unit = u.def_unit('R_' + self.origin.object,
+                               self.origin.radius)
+
+        if 'dims' in self.format:
+            dimtemp = self.format['dims'].split(',')
+            self.dims = [int(dimtemp[0]), int(dimtemp[1])]
+        else:
+            self.dims = [800, 800]
+
+        if 'center' in self.format:
+            centtemp = self.format['center'].split(',')
+            self.center = [float(centtemp[0])*self.unit,
+                           float(centtemp[1])*self.unit]
+        else:
+            self.center = [0*self.unit, 0*self.unit]
+
+        if 'width' in self.format:
+            widtemp = self.format['width'].split(',')
+            self.width = [float(widtemp[0])*self.unit,
+                          float(widtemp[1])*self.unit]
+        else:
+            self.width = [8*self.unit, 8*self.unit]
+
+        if 'subobslongitude' in self.format:
+            self.subobslongitude = float(self.format['subobslongitude'])*u.rad
+        else:
+            self.subobslongitude = 0.*u.rad
+
+        if 'subobslongitude' in self.format:
+            self.subobslatitude = float(self.format['subobslatitude'])*u.rad
+        else:
+            self.subobslatitude = np.pi*u.rad
 
         self.image = np.zeros(self.dims)
         self.packet_image = np.zeros(self.dims)
         self.blimits = None
-        immin = self.center - self.width/2.
-        immax = self.center + self.width/2.
-        scale = self.width/(self.dims-1) # Rplan/pix
+        immin = tuple(c - w/2 for c, w in zip(self.center, self.width))
+        immax = tuple(c + w/2 for c, w in zip(self.center, self.width))
+        scale = tuple(w/(d-1) for w, d in zip(self.width, self.dims))
         self.Apix = (scale[0]*scale[1]).to(u.cm**2)
 
         self.xaxis = np.linspace(immin[0], immax[0], self.dims[0])
@@ -134,7 +121,8 @@ class ModelImage(ModelResult):
 
         for i, fname in enumerate(self.filenames):
             # Search to see if its already been done
-            image_, packets_ = self.restore(fname)
+            print(f'Output filename: {fname}')
+            image_, packets_ = self.restore(fname, overwrite=overwrite)
 
             if image_ is None:
                 image_, packets_ = self.create_image(fname)
@@ -146,17 +134,11 @@ class ModelImage(ModelResult):
             self.image += image_
             self.packet_image += packets_
 
-        self.image = self.image * self.atoms_per_packet
+        self.image *= self.atoms_per_packet
 
     def save(self, fname, image, packets):
-        con = database_connect()
-        cur = con.cursor()
-
         # Determine the id of the outputfile
-        idnum_ = pd.read_sql(f'''SELECT idnum
-                                FROM outputfile
-                                WHERE filename='{fname}' ''', con)
-        idnum = int(idnum_.idnum[0])
+        idnum = int(os.path.basename(fname).split('.')[0])
 
         # Insert the image into the database
         if self.quantity == 'radiance':
@@ -167,23 +149,27 @@ class ModelImage(ModelResult):
             mech = None
             wave = None
 
-        dims = f'ARRAY[{self.dims[0]}, {self.dims[1]}]'
-        center = f'ARRAY[{self.center[0].value}, {self.center[1].value}]'
-        width = f'ARRAY[{self.width[0].value}, {self.width[1].value}]'
+        width = [w.value for w in self.width]
+        center = [c.value for c in self.center]
+        
+        with database_connect() as con:
+            cur = con.cursor()
+            cur.execute(f'''INSERT into modelimages (out_idnum, quantity,
+                                origin, dims, center, width, subobslongitude,
+                                subobslatitude, mechanism, wavelength,
+                                filename)
+                            VALUES (%s, %s, %s, %s::INT[2],
+                                    %s::DOUBLE PRECISION[2],
+                                    %s::DOUBLE PRECISION[2],
+                                    %s, %s, %s, %s, 'temp')''',
+                        (idnum, self.quantity, self.origin.object,
+                         self.dims, center, width,
+                         self.subobslongitude.value, self.subobslatitude.value,
+                         mech, wave))
 
-        cur.execute(f'''INSERT into modelimages (out_idnum, quantity,
-                            origin, dims, center, width, subobslongitude,
-                            subobslatitude, mechanism, wavelength)
-                        values (%s, %s, %s, {dims}, {center}, {width},
-                            %s, %s, %s, %s)''',
-                    (idnum, self.quantity, self.origin.object,
-                    self.subobslongitude.value, self.subobslatitude.value,
-                    mech, wave))
-
-        # Determine the savefile name
         idnum_ = pd.read_sql(f'''SELECT idnum
                                 FROM modelimages
-                                WHERE filename is NULL''', con)
+                                WHERE filename = 'temp';''', con)
         assert len(idnum_) == 1
         idnum = int(idnum_.idnum[0])
 
@@ -195,15 +181,8 @@ class ModelImage(ModelResult):
                         WHERE idnum = %s''', (savefile, idnum))
         con.close()
 
-    def restore(self, fname):
-        con = database_connect()
-
+    def restore(self, fname, overwrite=False):
         # Determine the id of the outputfile
-        idnum_ = pd.read_sql(f'''SELECT idnum
-                                FROM outputfile
-                                WHERE filename='{fname}' ''', con)
-        oid = idnum_.idnum[0]
-
         if self.quantity == 'radiance':
             mech = ("mechanism = '" +
                     ", ".join(sorted([m for m in self.mechanism])) +
@@ -216,82 +195,97 @@ class ModelImage(ModelResult):
             mech = 'mechanism is NULL'
             wave = 'wavelength is NULL'
 
-        result = pd.read_sql(
-            f'''SELECT filename FROM modelimages
-                WHERE out_idnum = {oid} and
-                      quantity = '{self.quantity}' and
-                      origin = '{self.origin.object}' and
-                      dims[1] = {self.dims[0]} and
-                      dims[2] = {self.dims[1]} and
-                      center[1] = {self.center[0].value} and
-                      center[2] = {self.center[1].value} and
-                      width[1] = {self.width[0].value} and
-                      width[2] = {self.width[1].value} and
-                      subobslongitude = {self.subobslongitude.value} and
-                      subobslatitude = {self.subobslatitude.value} and
-                      {mech} and
-                      {wave}''', con)
+        with database_connect() as con:
+            idnum_ = pd.read_sql(f'''SELECT idnum
+                                FROM outputfile
+                                WHERE filename='{fname}' ''', con)
+            oid = idnum_.idnum[0]
 
-        assert len(result) <= 1
-        if len(result) == 1:
-            savefile = result.filename[0]
-            image, packets = pickle.load(open(savefile, 'rb'))
-        else:
+            result = pd.read_sql(
+                f'''SELECT filename FROM modelimages
+                    WHERE out_idnum = {oid} and
+                          quantity = '{self.quantity}' and
+                          origin = '{self.origin.object}' and
+                          dims[1] = {self.dims[0]} and
+                          dims[2] = {self.dims[1]} and
+                          center[1] = {self.center[0].value} and
+                          center[2] = {self.center[1].value} and
+                          width[1] = {self.width[0].value} and
+                          width[2] = {self.width[1].value} and
+                          subobslongitude = {self.subobslongitude.value} and
+                          subobslatitude = {self.subobslatitude.value} and
+                          {mech} and
+                          {wave}''', con)
+
+        if (len(result) == 1) and overwrite:
+            if os.path.exists(result.filename[0]):
+                os.remove(result.filename[0])
+            with database_connect() as con:
+                cur = con.cursor()
+                cur.execute('''DELETE FROM modelimages
+                               WHERE filename = %s''', (result.filename[0],))
             image, packets = None, None
-
-        con.close()
+        elif len(result) == 1:
+            image, packets = pickle.load(open(result.filename[0], 'rb'))
+        elif len(result) == 0:
+            image, packets = None, None
+        else:
+            raise RuntimeError('ModelImage.restore',
+                               'Should not be able to get here.')
 
         return image, packets
 
     def create_image(self, fname):
         # Determine the proper frame rotation
-        M = image_rotation(self)
+        M = self.image_rotation()
 
         # Load data in solar reference frame
-        output = results_loadfile(fname)
-        radvel_sun = output.vy + output.vrplanet
+        output = Output.restore(fname)
+        packets = output.X
+        if self.origin != self.inputs.geometry.planet:
+            super().transform_reference_frame(packets)
+        
+        packets['radvel_sun'] = (packets['vy'] +
+                                 output.vrplanet.to(self.unit/u.s).value)
 
         # packet positions in an array
-        pts_sun = np.array((output.x, output.y, output.z))*output.x.unit
-        frac = output.frac
+        pts_sun = packets[['x', 'y', 'z']].values
 
         # Rotate to observer frame
-        pts_obs = np.matmul(M, pts_sun)
+        pts_obs = np.array(np.matmul(M, pts_sun.transpose()).transpose())
 
         # Determine which packets are not blocked by planet
-        rhosqr_obs = pts_obs[0,:]**2 + pts_obs[2,:]**2
-        inview = (rhosqr_obs.value > 1) | (pts_obs[1,:].value < 0)
-        frac *= inview
+        rhosqr_obs = np.linalg.norm(pts_obs[:, [0, 2]], axis=1)
+        inview = (rhosqr_obs > 1) | (pts_obs[:,1] < 0)
+        packets['frac'] *= inview
 
         # Which packets are in sunlight
-        rhosqr_sun = pts_sun[0,:]**2 + pts_sun[2,:]**2
-        out_of_shadow = (rhosqr_sun.value > 1) | (pts_sun[1,:].value < 0)
+        rhosqr_sun = np.linalg.norm(pts_sun[:, [0, 2]], axis=1)
+        out_of_shadow = (rhosqr_sun > 1) | (pts_sun[:,1] < 0)
 
         # Packet weighting
-        weight = results_packet_weighting(self, radvel_sun, frac,
-                                  out_of_shadow, output.aplanet) / self.Apix
-        assert pts_obs.unit == self.xaxis.unit
+        self.results_packet_weighting(packets, out_of_shadow, output.aplanet)
+        packets['weight'] /= self.Apix
 
+        # Edges of each pixel (bin) for the histogram
         dx = (self.xaxis[1]-self.xaxis[0])/2.
-        bx = np.append(self.xaxis.value-dx.value,
-                       self.xaxis[-1].value+dx.value)*self.xaxis.unit
+        bx = np.append(self.xaxis-dx, self.xaxis[-1]+dx)
         dz = (self.zaxis[1]-self.zaxis[0])/2.
-        bz = np.append(self.zaxis.value-dz.value,
-                       self.zaxis[-1].value+dz.value)*self.zaxis.unit
+        bz = np.append(self.zaxis-dz, self.zaxis[-1]+dz)
 
+        pts_obs = pts_obs.transpose()
         image, _, _ = np.histogram2d(pts_obs[0,:], pts_obs[2,:],
-                                  weights=weight, bins=(bx, bz))
-        packets, _, _ = np.histogram2d(pts_obs[0,:], pts_obs[2,:],
-                                  bins=(bx, bz))
+                                     weights=packets['weight'], bins=(bx, bz))
+        packim, _, _ = np.histogram2d(pts_obs[0,:], pts_obs[2,:],
+                                       bins=(bx, bz))
 
-        self.save(fname, image, packets)
+        self.save(fname, image, packim)
         del output
 
-        return image, packets
+        return image, packim
 
     def display(self, savefile='image.png', limits=None, show=True):
         import matplotlib.pyplot as plt
-        import matplotlib.image as mpimg
         from matplotlib.colors import LogNorm
         from astropy.visualization import (PercentileInterval, LogStretch,
                                            ImageNormalize)
@@ -323,13 +317,13 @@ class ModelImage(ModelResult):
                        norm=LogNorm(vmin=self.blimits[0], vmax=self.blimits[1]))
         ax.set_xlabel(f'Distance ({ustr})')
         ax.set_ylabel(f'Distance ({ustr})')
-        ax.set_title(f'{self.inputs.options.atom} {self.quantity.title()}')
+        ax.set_title(f'{self.inputs.options.species} {self.quantity.title()}')
 
         # Make the colorbar
         if self.quantity == 'column':
-            clabel = f'$N_{{ {self.inputs.options.atom} }}\ cm^{{-2}}$'
+            clabel = f'$N_{{ {self.inputs.options.species} }}\ cm^{{-2}}$'
         else:
-            clabel = f'$I_{{ {self.inputs.options.atom} }} R$'
+            clabel = f'$I_{{ {self.inputs.options.species} }} R$'
         cbar = fig.colorbar(im, shrink=0.7, label=clabel)
 
         # Put Planet's disk in the middle
@@ -347,3 +341,24 @@ class ModelImage(ModelResult):
 
         # Returns figure, axes, and colorbar for further work if desired
         return fig, ax, cbar
+    
+    def image_rotation(image):
+        slong = image.subobslongitude
+        slat = image.subobslatitude
+        
+        pSun = np.array([0., -1., 0.])
+        pObs = np.array([np.sin(slong)*np.cos(slat),
+                         -np.cos(slong)*np.cos(slat),
+                         np.sin(slat)])
+        if np.array_equal(pSun, pObs):
+            M = npmat.identity(3)
+        else:
+            costh = np.dot(pSun, pObs)/np.linalg.norm(pSun)/np.linalg.norm(pObs)
+            theta = np.arccos(np.clip(costh, -1, 1))
+            axis = np.cross(pSun, pObs)
+            M = rotation_matrix(theta, axis)
+        
+        #M = np.transpose(M)
+        return M
+
+
