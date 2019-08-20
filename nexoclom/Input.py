@@ -31,12 +31,14 @@ import sys
 import pandas as pd
 import logging
 from astropy.time import Time
+import astropy.units as u
 from .Output import Output
 from .configure_model import configfile
 from .database_connect import database_connect
 from .input_classes import (Geometry, SurfaceInteraction, Forces, SpatialDist,
                             SpeedDist, AngularDist, Options)
 from .produce_image import ModelImage
+from .LOSResult import LOSResult
 
 
 class Input:
@@ -299,6 +301,11 @@ class Input:
     def produce_image(self, format_, filenames=None, overwrite=False):
         return ModelImage(self, format_, filenames=filenames,
                           overwrite=overwrite)
+    
+    def line_of_sight(self, data, quantity, dphi=3*u.deg,
+                      filenames=None, overwrite=False):
+        return LOSResult(self, data, quantity, dphi=dphi, filenames=filenames,
+                         overwrite=overwrite)
 
     def delete_files(self):
         """Delete output files and remove them from the database.

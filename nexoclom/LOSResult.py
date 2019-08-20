@@ -3,10 +3,10 @@ import numpy as np
 import pandas as pd
 import pickle
 import astropy.units as u
-from solarsystemMB import SSObject
 from MESSENGERuvvs import MESSENGERdata
 from .ModelResults import ModelResult
 from .database_connect import database_connect
+from .Output import Output
 
 
 class LOSResult(ModelResult):
@@ -20,10 +20,10 @@ class LOSResult(ModelResult):
         inputs
             An Inputs object
         
-        Data
+        data
             A Pandas DataFrame object with information on the lines of sight.
             
-        Quantity
+        quantity
             Quantity to calculate: 'column', 'radiance', 'density'
             
         dphi
@@ -37,147 +37,46 @@ class LOSResult(ModelResult):
             If True, deletes any images that have already been computed.
             Default = False
         """
+        format = {'quantity':quantity}
         super().__init__(inputs, format, filenames=filenames)
-        self.type = 'image'
-
-        # Validate the format
-        quantities = ['column', 'radiance']
-
-        if 'quantity' in self.format:
-            if self.format['quantity'] in quantities:
-                self.quantity = self.format['quantity']
-            else:
-                raise InputError('ModelImage.__init__',
-                                 "quantity must be 'column' or 'radiance'")
-        else:
-            raise InputError('ModelImage.__init__',
-                             'quantity must be specified.')
-
-        if self.quantity == 'radiance':
-            # Note - only resonant scattering currently possible
-            self.mechanism = ['resonant scattering']
-    
-            if 'wavelength' in self.format:
-                self.wavelength = tuple(int(m.strip())*u.AA
-                                        for m
-                                        in self.format['wavelength'].split(','))
-            elif inputs.options.species == 'Na':
-                self.wavelength = (5891*u.AA, 5897*u.AA)
-            elif inputs.options.species == 'Ca':
-                self.wavelength = (4227*u.AA,)
-            elif inputs.options.species == 'Mg':
-                self.wavelength = (2852*u.AA,)
-            else:
-                raise InputError('ModelImage.__init__', ('Default wavelengths '
-                                                         f'not available for {inputs.options.species}'))
-
-        else:
-            pass
-
-        if 'origin' in self.format:
-            self.origin = SSObject(self.format['origin'])
-        else:
-            self.origin = inputs.geometry.planet
-
-        self.unit = u.def_unit('R_' + self.origin.object,
-                               self.origin.radius)
-
-        if 'dims' in self.format:
-            dimtemp = self.format['dims'].split(',')
-            self.dims = np.array((int(dimtemp[0]), int(dimtemp[1])))
-        else:
-            self.dims = (800, 800)
-
-        if 'center' in self.format:
-            centtemp = self.format['center'].split(',')
-            self.center = (float(centtemp[0])*self.unit,
-                           float(centtemp[1])*self.unit)
-        else:
-            self.center = (0*self.unit, 0*self.unit)
-
-        if 'width' in self.format:
-            widtemp = self.format['width'].split(',')
-            self.width = (float(widtemp[0])*self.unit,
-                          float(widtemp[1])*self.unit)
-        else:
-            self.width = (8*self.unit, 8*self.unit)
-
-        if 'subobslongitude' in self.format:
-            self.subobslongitude = float(self.format['subobslongitude'])*u.rad
-        else:
-            self.subobslongitude = 0.*u.rad
-
-        if 'subobslongitude' in self.format:
-            self.subobslatitude = float(self.format['subobslatitude'])*u.rad
-        else:
-            self.subobslatitude = np.pi*u.rad
-
-        self.image = np.zeros(self.dims)
-        self.packet_image = np.zeros(self.dims)
-        self.blimits = None
-        immin = tuple(c - w/2 for c, w in zip(self.center, self.width))
-        immax = tuple(c + w/2 for c, w in zip(self.center, self.width))
-        scale = tuple(w/(d-1) for w, d in zip(self.width, self.dims))
-
         self.type = 'LineOfSight'
-        self.species = inputs.options.atom
-        self.quantity = quantity # column, radiance
+        self.species = inputs.options.species
         self.origin = inputs.geometry.planet
         self.unit = u.def_unit('R_' + self.origin.object,
                                self.origin.radius)
-        self.dphi = dphi
+        self.dphi = dphi.to(u.rad).value
 
-        ModelResult.__init__(self, inputs)
-        if isinstance(filenames, str):
-            print('Setting filenames breaks calibration.')
-            self.filenames = [filenames]
-        elif isinstance(filenames, list):
-            print('Setting filenames breaks calibration.')
-            self.filenames = filenames
-        else:
-            pass
-
-        if self.quantity == 'radiance':
-            self.mechanism = 'resscat',
-
-            if inputs.options.atom == 'Na':
-                self.wavelength = 5891*u.AA, 5897*u.AA
-            elif inputs.options.atom == 'Ca':
-                self.wavelength = 4227*u.AA,
-            elif inputs.options.atom == 'Mg':
-                self.wavelength = 2852*u.AA,
-            else:
-                assert 0, f'No default wavelength for {input.options.atom}'
-        else:
-            pass
-
-        nspec = len(data.x)
+        nspec = len(data)
         self.radiance = np.zeros(nspec)
+        self.packets = np.zeros(nspec)
         self.ninview = np.zeros(nspec, dtype=int)
 
         for j,outfile in enumerate(self.filenames):
             # Search to see if it is already done
             radiance_, packets_, idnum = self.restore(data, outfile)
 
-            if (radiance_ is None) or (overwrite):
-                if (radiance_ is not None) and (overwrite):
+            if (radiance_ is None) or overwrite:
+                if (radiance_ is not None) and overwrite:
                     self.delete_model(idnum)
                 radiance_, packets_, = self.create_model(data, outfile)
                 print(f'Completed model {j+1} of {len(self.filenames)}')
             else:
                 print(f'Model {j+1} of {len(self.filenames)} '
-                       'previously completed.')
+                      'previously completed.')
 
             self.radiance += radiance_
             self.packets += packets_
 
-        self.radiance = self.radiance * self.atoms_per_packet.value * u.R
+        self.radiance *= self.atoms_per_packet
+        self.radiance *= u.R
 
+    @staticmethod
     def delete_model(self, idnum):
         with database_connect() as con:
             cur = con.cursor()
             cur.execute('''SELECT idnum, filename FROM uvvsmodels
                            WHERE out_idnum = %s''', (idnum, ))
+            assert cur.rowcount in (0, 1)
             for mid, mfile in cur.fetchall():
                 cur.execute('''DELETE from uvvsmodels
                                WHERE idnum = %s''', (mid, ))
@@ -217,15 +116,15 @@ class LOSResult(ModelResult):
                     wave = None
 
                 cur.execute(f'''INSERT into uvvsmodels (out_idnum, quantity,
-                                    orbit, dphi, mechanism, wavelength)
-                                values (%s, %s, %s, %s, %s, %s)''',
-                            (idnum, self.quantity, orb, self.dphi.value,
+                                orbit, dphi, mechanism, wavelength, filename)
+                                values (%s, %s, %s, %s, %s, %s, 'temp')''',
+                            (idnum, self.quantity, orb, self.dphi,
                              mech, wave))
 
                 # Determine the savefile name
                 idnum_ = pd.read_sql('''SELECT idnum
                                         FROM uvvsmodels
-                                        WHERE filename is NULL''', con)
+                                        WHERE filename='temp';''', con)
                 assert len(idnum_) == 1
                 idnum = int(idnum_.idnum[0])
 
@@ -280,7 +179,7 @@ class LOSResult(ModelResult):
                         WHERE out_idnum={oid} and
                               quantity = '{self.quantity}' and
                               orbit = {orb} and
-                              dphi = {self.dphi.value} and
+                              dphi = {self.dphi} and
                               {mech} and
                               {wave}''', con)
 
@@ -297,6 +196,7 @@ class LOSResult(ModelResult):
 
     def create_model(self, data, outfile):
         # distance of s/c from planet
+        
         dist_from_plan = np.sqrt(data.x**2 + data.y**2 + data.z**2)
 
         # Angle between look direction and planet.
@@ -310,81 +210,83 @@ class LOSResult(ModelResult):
         dist_from_plan[ang > asize_plan] = 1e30
 
         # Load the outputfile
-        output = results_loadfile(outfile)
-        radvel_sun = output.vy + output.vrplanet
+        output = Output.restore(outfile)
+        packets = output.X
+        packets['radvel_sun'] = (packets['vy'] +
+                                 output.vrplanet.to(self.unit/u.s).value)
 
         # Will base shadow on line of sight, not the packets
-        out_of_shadow = np.ones_like(output.x)
-        weight = results_packet_weighting(self, radvel_sun, output.frac,
-                                          out_of_shadow, output.aplanet)
+        out_of_shadow = np.ones(len(packets))
+        self.packet_weighting(packets, out_of_shadow, output.aplanet)
 
+        # This sets limits on regions where packets might be
         xx_, yy_, zz_ = (np.zeros((2,len(data))), np.zeros((2,len(data))),
                          np.zeros((2,len(data))))
-        xx_[1,:], yy_[1,:], zz_[1,:] = (data.xbore*10, data.ybore*10,
-                                        data.zbore*10)
+        oedge = output.inputs.options.outeredge
+        xx_[1,:], yy_[1,:], zz_[1,:] = (data.xbore*oedge*2,
+                                        data.ybore*oedge*2,
+                                        data.zbore*oedge*2)
         xx = (data.x[np.newaxis,:] + xx_)
         yy = (data.y[np.newaxis,:] + yy_)
         zz = (data.z[np.newaxis,:] + zz_)
+        
+        box_size = output.inputs.options.outeredge*2*np.sin(self.dphi) + 0.1
+        
+        xx_min = np.min(xx-box_size, axis=0)
+        yy_min = np.min(yy-box_size, axis=0)
+        zz_min = np.min(zz-box_size, axis=0)
+        xx_max = np.max(xx+box_size, axis=0)
+        yy_max = np.max(yy+box_size, axis=0)
+        zz_max = np.max(zz+box_size, axis=0)
 
-        xx_min = np.min(xx-0.5, axis=0)*self.unit
-        yy_min = np.min(yy-0.5, axis=0)*self.unit
-        zz_min = np.min(zz-0.5, axis=0)*self.unit
-        xx_max = np.max(xx+0.5, axis=0)*self.unit
-        yy_max = np.max(yy+0.5, axis=0)*self.unit
-        zz_max = np.max(zz+0.5, axis=0)*self.unit
+        rad, pack = np.zeros(len(data)), np.zeros(len(data))
 
-        radiance, packets = np.zeros(len(data)), np.zeros(len(data))
-
-        for i,row in data.iterrows():
-            j = i - min(data.index)
+        index = np.arange(len(data))
+        for j, row in zip(index,data.iterrows()):
+            i, row = row
             # This removes the packets that aren't close to the los
-            mask = ((output.x >= xx_min[j]) &
-                    (output.x <= xx_max[j]) &
-                    (output.y >= yy_min[j]) &
-                    (output.y <= yy_max[j]) &
-                    (output.z >= zz_min[j]) &
-                    (output.z <= zz_max[j]))
-            x_, y_, z_, w_, rvsun_ = (output.x[mask], output.y[mask],
-                                      output.z[mask], weight[mask],
-                                      radvel_sun[mask])
-
-            # Distance from the spacecraft
-            xpr = x_ - row.x*self.unit
-            ypr = y_ - row.y*self.unit
-            zpr = z_ - row.z*self.unit
-            rpr = np.sqrt(xpr**2 + ypr**2 + zpr**2)
-
+            mask = ((packets.x >= xx_min[j]) &
+                    (packets.x <= xx_max[j]) &
+                    (packets.y >= yy_min[j]) &
+                    (packets.y <= yy_max[j]) &
+                    (packets.z >= zz_min[j]) &
+                    (packets.z <= zz_max[j]))
+            subset = packets[mask]
+            
+            # Distance of packets from spacecraft
+            row_pr = row[['x', 'y', 'z']].values.astype(float)
+            xpr = subset[['x', 'y', 'z']].values - row_pr[np.newaxis,:]
+            bore = row[['xbore', 'ybore', 'zbore']].values.astype(float)
+            rpr = np.linalg.norm(xpr, axis=1)
+            
             # Packet-s/c boresight angle
-            costheta = (xpr*row.xbore + ypr*row.ybore + zpr*row.zbore)/rpr
+            costheta = np.sum(xpr * bore[np.newaxis,:], axis=1) / rpr
             costheta[costheta > 1] = 1.
             costheta[costheta < -1] = -1.
-
+            
             inview = ((costheta >= np.cos(self.dphi)) &
-                      (w_ > 0) &
-                      (rpr < dist_from_plan[i]*self.unit))
+                      (subset['weight'] > 0) &
+                      (rpr < dist_from_plan[i]))
 
             if np.any(inview):
-                Apix = np.pi * (rpr[inview]*np.sin(self.dphi))**2
-                wtemp = w_[inview]/Apix.to(u.cm**2)
-                wtemp = wtemp.value
+                Apix = np.pi*(rpr[inview]*np.sin(self.dphi))**2 * self.unit**2
+                wtemp = subset.weight[inview]/Apix.to(u.cm**2).value
                 if self.quantity == 'radiance':
                     # Determine if any packets are in shadow
                     # Projection of packet onto LOS
                     losrad = rpr[inview] * costheta[inview]
 
                     # Point along LOS the packet represents
-                    xhit = row.x + row.xbore*losrad.value
-                    yhit = row.y + row.ybore*losrad.value
-                    zhit = row.z + row.zbore*losrad.value
-
-                    rhohit = xhit**2 + zhit**2
-                    out_of_shadow = (rhohit > 1) | (yhit < 0)
+                    hit = (row_pr[np.newaxis,:] +
+                           bore[np.newaxis,:] * losrad[:,np.newaxis])
+                    rhohit = np.linalg.norm(hit[:,[0,1]], axis=1)
+                    out_of_shadow = (rhohit > 1) | (hit[:,1] < 0)
                     wtemp *= out_of_shadow
 
-                    radiance[j] = np.sum(wtemp)
-                    packets[j] = np.sum(inview)
+                    rad[j] = np.sum(wtemp)
+                    pack[j] = np.sum(inview)
 
         del output
-        self.save(data, outfile, radiance, packets)
+        self.save(data, outfile, rad, pack)
 
-        return radiance, packets
+        return rad, pack

@@ -869,13 +869,19 @@ class Options:
                          if 'lifetime' in oparam
                          else 0.*u.s)
         
-        self.outeredge = (float(oparam['outeredge'])
-                          if 'outeredge' in oparam
-                          else 1e30)
-                          
-        self.step_size = (float(oparam['step_size'])
-                          if 'step_size' in oparam
-                          else 0.)
+        if 'outeredge' in oparam:
+            self.outeredge = float(oparam['outeredge'])
+        elif 'outer_edge' in oparam:
+            self.outeredge = float(oparam['outeredge'])
+        else:
+            self.outeredge = 1e30
+            
+        if 'step_size' in oparam:
+            self.step_size = float(oparam['step_size'])
+        elif 'stepsize' in oparam:
+            self.step_size = float(oparam['step_size'])
+        else:
+            self.step_size = 0.
 
         if self.step_size == 0:
             self.resolution = (float(oparam['resolution'])

@@ -110,7 +110,7 @@ def configure_model():
         # Verify database is running
         status = os.popen('pg_ctl status').read()
         if 'no server running' in status:
-            os.system(f'pg_ctl start -D $HOME/.postgres/main'
+            os.system(f'pg_ctl start -D $HOME/.postgres/main '
                       f'-l $HOME/.postgres/logfile -o "-p {port}"')
         else:
             pass

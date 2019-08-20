@@ -36,40 +36,6 @@ class ModelImage(ModelResult):
         super().__init__(inputs, format, filenames=filenames)
         self.type = 'image'
         
-        # Validate the format
-        quantities = ['column', 'radiance']
-        
-        if 'quantity' in self.format:
-            if self.format['quantity'] in quantities:
-                self.quantity = self.format['quantity']
-            else:
-                raise InputError('ModelImage.__init__',
-                                 "quantity must be 'column' or 'radiance'")
-        else:
-            raise InputError('ModelImage.__init__',
-                             'quantity must be specified.')
-        
-        if self.quantity == 'radiance':
-            # Note - only resonant scattering currently possible
-            self.mechanism = ['resonant scattering']
-        
-            if 'wavelength' in self.format:
-                self.wavelength = tuple(int(m.strip())*u.AA
-                                        for m
-                                        in self.format['wavelength'].split(','))
-            elif inputs.options.species == 'Na':
-                self.wavelength = (5891*u.AA, 5897*u.AA)
-            elif inputs.options.species == 'Ca':
-                self.wavelength = (4227*u.AA,)
-            elif inputs.options.species == 'Mg':
-                self.wavelength = (2852*u.AA,)
-            else:
-                raise InputError('ModelImage.__init__', ('Default wavelengths '
-                             f'not available for {inputs.options.species}'))
-
-        else:
-            pass
-
         if 'origin' in self.format:
             self.origin = SSObject(self.format['origin'])
         else:
@@ -264,7 +230,7 @@ class ModelImage(ModelResult):
         out_of_shadow = (rhosqr_sun > 1) | (pts_sun[:,1] < 0)
 
         # Packet weighting
-        self.results_packet_weighting(packets, out_of_shadow, output.aplanet)
+        self.packet_weighting(packets, out_of_shadow, output.aplanet)
         packets['weight'] /= self.Apix
 
         # Edges of each pixel (bin) for the histogram

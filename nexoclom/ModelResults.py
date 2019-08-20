@@ -5,6 +5,7 @@ import astropy.units as u
 import mathMB
 from atomicdataMB import gValue
 from .database_connect import database_connect
+from .input_classes import InputError
 
 
 class ModelResult:
@@ -63,6 +64,36 @@ class ModelResult:
         else:
             raise TypeError('ModelResult.__init__',
                             'format must be a dict or filename.')
+        
+        # Do some validation
+        quantities = ['column', 'radiance', 'density']
+
+        if 'quantity' in self.format:
+            if self.format['quantity'] in quantities:
+                self.quantity = self.format['quantity']
+            else:
+                raise InputError('ModelImage.__init__', "quantity must be 'column' or 'radiance'")
+        else:
+            raise InputError('ModelImage.__init__', 'quantity must be specified.')
+
+        if self.quantity == 'radiance':
+            # Note - only resonant scattering currently possible
+            self.mechanism = ['resonant scattering']
+    
+            if 'wavelength' in self.format:
+                self.wavelength = tuple(
+                    int(m.strip())*u.AA for m in self.format['wavelength'].split(','))
+            elif inputs.options.species == 'Na':
+                self.wavelength = (5891*u.AA, 5897*u.AA)
+            elif inputs.options.species == 'Ca':
+                self.wavelength = (4227*u.AA,)
+            elif inputs.options.species == 'Mg':
+                self.wavelength = (2852*u.AA,)
+            else:
+                raise InputError('ModelResult.__init__', ('Default wavelengths '
+                              f'not available for {inputs.options.species}'))
+        else:
+            pass
 
     def transform_reference_frame(self, output):
         """If the image center is not the planet, transform to a
@@ -96,7 +127,7 @@ class ModelResult:
 
         return output #, pts_sun, vels_sun, frac
 
-    def results_packet_weighting(self, packets, out_of_shadow, aplanet):
+    def packet_weighting(self, packets, out_of_shadow, aplanet):
         if self.quantity == 'column':
             packets['weight'] = packets['frac']
         elif self.quantity == 'density':
