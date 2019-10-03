@@ -10,6 +10,6 @@ from .IDLout import IDLout
 name = 'nexoclom'
 __author__ = 'Matthew Burger'
 __email__ = 'mburger@stsci.edu'
-__version__ = '2.0.0'
+__version__ = '2.0.1'
 
 configure_model()

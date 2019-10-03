@@ -5,7 +5,6 @@ import pandas as pd
 import pickle
 import astropy.units as u
 from datetime import datetime
-from MESSENGERuvvs import MESSENGERdata
 from .ModelResults import ModelResult
 from .database_connect import database_connect
 from .Output import Output
@@ -152,50 +151,48 @@ class LOSResult(ModelResult):
             print('Model spans more than one orbit. Cannot be saved.')
             radiance, packets, idnum = None, None, None
         else:
-            mdata = MESSENGERdata(self.species, f'orbit = {orb}')
-            if len(mdata) != len(data):
-                print('Model does not contain the complete orbit. '
-                      'Cannot be saved.')
-                radiance, packets, idnum = None, None, None
+            con = database_connect()
+            con.autocommit = True
+
+            # Determine the id of the outputfile
+            idnum_ = pd.read_sql(f'''SELECT idnum
+                                    FROM outputfile
+                                    WHERE filename='{fname}' ''', con)
+            oid = idnum_.idnum[0]
+
+            if self.quantity == 'radiance':
+                mech = ("mechanism = '" +
+                        ", ".join(sorted([m for m in self.mechanism])) +
+                        "'")
+                wave_ = sorted([w.value for w in self.wavelength])
+                wave = ("wavelength = '" +
+                        ", ".join([str(w) for w in wave_]) +
+                        "'")
             else:
-                con = database_connect()
-                con.autocommit = True
+                mech = 'mechanism is NULL'
+                wave = 'wavelength is NULL'
 
-                # Determine the id of the outputfile
-                idnum_ = pd.read_sql(f'''SELECT idnum
-                                        FROM outputfile
-                                        WHERE filename='{fname}' ''', con)
-                oid = idnum_.idnum[0]
+            result = pd.read_sql(
+                f'''SELECT idnum, filename FROM uvvsmodels
+                    WHERE out_idnum={oid} and
+                          quantity = '{self.quantity}' and
+                          orbit = {orb} and
+                          dphi = {self.dphi} and
+                          {mech} and
+                          {wave}''', con)
 
-                if self.quantity == 'radiance':
-                    mech = ("mechanism = '" +
-                            ", ".join(sorted([m for m in self.mechanism])) +
-                            "'")
-                    wave_ = sorted([w.value for w in self.wavelength])
-                    wave = ("wavelength = '" +
-                            ", ".join([str(w) for w in wave_]) +
-                            "'")
-                else:
-                    mech = 'mechanism is NULL'
-                    wave = 'wavelength is NULL'
-
-                result = pd.read_sql(
-                    f'''SELECT idnum, filename FROM uvvsmodels
-                        WHERE out_idnum={oid} and
-                              quantity = '{self.quantity}' and
-                              orbit = {orb} and
-                              dphi = {self.dphi} and
-                              {mech} and
-                              {wave}''', con)
-
-                assert len(result) <= 1
-                if len(result) == 1:
-                    savefile = result.filename[0]
-                    with open(savefile, 'rb') as f:
-                        radiance, packets = pickle.load(f)
-                    idnum = result.idnum[0]
-                else:
+            assert len(result) <= 1
+            if len(result) == 1:
+                savefile = result.filename[0]
+                with open(savefile, 'rb') as f:
+                    radiance, packets = pickle.load(f)
+                idnum = result.idnum[0]
+                if len(radiance) != len(data):
                     radiance, packets, idnum = None, None, None
+                else:
+                    pass
+            else:
+                radiance, packets, idnum = None, None, None
 
         return radiance, packets, idnum
 
