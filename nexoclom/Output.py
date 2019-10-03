@@ -16,6 +16,7 @@ from .bouncepackets import bouncepackets
 from .source_distribution import (surface_distribution, speed_distribution,
                                   angular_distribution)
 from .database_connect import database_connect
+from .surface_interaction_setup import surface_interaction_setup
 
 
 class Output:
@@ -76,16 +77,16 @@ class Output:
             
         
         """
-        if logger is None:
-            logger = logging.getLogger()
-            logger.setLevel(logging.INFO)
-            out_handler = logging.StreamHandler(sys.stdout)
-            logger.addHandler(out_handler)
-            fmt = logging.Formatter('%(levelname)s: %(msg)s')
-            out_handler.setFormatter(fmt)
-        else:
-            pass
-        self.logger = logger
+        # if logger is None:
+        #     logger = logging.getLogger()
+        #     logger.setLevel(logging.INFO)
+        #     out_handler = logging.StreamHandler(sys.stdout)
+        #     logger.addHandler(out_handler)
+        #     fmt = logging.Formatter('%(levelname)s: %(msg)s')
+        #     out_handler.setFormatter(fmt)
+        # else:
+        #     pass
+        # self.logger = logger
 
         self.inputs = inputs
         self.planet = inputs.geometry.planet
@@ -130,8 +131,9 @@ class Output:
             self.radpres = None
 
         # Set up sticking
-        # if inputs.sticking_info['stickcoef'] != 1:
-        #     stick = sticking_setup(inputs)
+        if inputs.surfaceinteraction.stickcoef != 1:
+            # set up surface accommodation + maybe other things
+            self.surfaceint = surface_interaction_setup(inputs)
 
         # Define the time that packets will run
         if inputs.options.step_size > 0:
@@ -155,8 +157,8 @@ class Output:
             pass
 
         # Determine starting location for each packet
-        if self.inputs.spatialdist.type in ('uniform', 'surface_map',
-                                            'surface_spot'):
+        if self.inputs.spatialdist.type in ('uniform', 'surface map',
+                                            'surface spot'):
             surface_distribution(self)
         else:
             assert 0, 'Not a valid spatial distribution type'
@@ -174,12 +176,19 @@ class Output:
         else:
             pass
         
+        # Reorder the dataframe columns
+        cols = ['time', 'x', 'y', 'z', 'vx', 'vy', 'vz', 'frac', 'v',
+                'longitude', 'latitude']
+        self.X0 = self.X0[cols]
+        
         # Integrate the packets forward
         if self.inputs.options.step_size == 0:
+            print('Running variable step size integrator.')
             self.X = self.X0.drop(['longitude', 'latitude'], axis=1)
             self.X['lossfrac'] = np.zeros(npackets)
             self.variable_step_size_driver()
         else:
+            print('Running constant step size integrator.')
             self.constant_step_size_driver()
             
         self.save()
@@ -237,8 +246,10 @@ class Output:
             Xold = Xtodo.copy()
             
             if np.any(step < 0):
-                self.logger.error('Negative values of h '
-                                  'in variable_step_size_dirver')
+                # self.logger.error('Negative values of h '
+                #                   'in variable_step_size_dirver')
+                print('Negative values of h '
+                      'in variable_step_size_dirver')
                 assert 0, '\n\tNegative values of step_size'
             else:
                 pass
@@ -293,13 +304,14 @@ class Output:
                 tempR = np.linalg.norm(Ximpcheck[:,1:4], axis=1)
                 hitplanet = (tempR - 1.) < 0
                 if np.any(hitplanet):
-                    if self.inputs.surfaceinteraction.sticktype == 'constant':
-                        if self.inputs.surfaceinteraction.stickcoef == 1.:
-                            Ximpcheck[hitplanet,7] = 0.
-                        else:
-                            bouncepackets(self, Ximpcheck)
+                    if ((self.inputs.surfaceinteraction.sticktype == 'constant')
+                        and (self.inputs.surfaceinteraction.stickcoef == 1.)):
+                        Xnext[hitplanet, 7] = 0.
                     else:
-                        bouncepackets(self, Ximpcheck)
+                        bouncepackets(self, Xnext[hitplanet, :],
+                                      tempR[hitplanet])
+                else:
+                    pass
 
                 # Check for escape
                 Ximpcheck[tempR > self.inputs.options.outeredge,7] = 0
@@ -376,13 +388,13 @@ class Output:
             hitplanet = (tempR - 1.) < 0
 
             if np.any(hitplanet):
-                if self.inputs.surfaceinteraction.sticktype == 'constant':
-                    if self.inputs.surfaceinteraction.stickcoef == 1.:
+                if ((self.inputs.surfaceinteraction.sticktype == 'constant')
+                    and (self.inputs.surfaceinteraction.stickcoef == 1.)):
                         Xnext[hitplanet,7] = 0.
-                    else:
-                        bouncepackets(self, Xnext)
                 else:
-                    bouncepackets(self, Xnext)
+                    bouncepackets(self, Xnext, tempR, hitplanet)
+            else:
+                pass
 
             # Check for escape
             Xnext[tempR > self.inputs.options.outeredge,7] = 0
@@ -506,6 +518,7 @@ class Output:
             pass
 
         # Save output as a pickle
+        print(f'Saving file {self.filename}')
         with open(self.filename, 'wb') as f:
             pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
 

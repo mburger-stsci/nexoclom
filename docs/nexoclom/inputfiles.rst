@@ -160,12 +160,12 @@ More distributions may defined upon request.
 The coordinate system used for the object's latitude and longitude depends
 on whether the packets are ejected from a planet or a moon. For planets, a
 solar-fixed coordinate system is used where the longitude increases in the
-positive direction from the anti-solar (midnight) point to dawn point: ::
+positive direction from the sub-solar point (noon) point to dusk point: ::
 
-    anti-solar (midnight) point = 0 rad = 0°
-    dawn point = π/2 rad = 90°
-    sub-solar (noon) point = π rad = 180°
-    dusk point = 3π/2 rad = 270°
+    sub-solar (noon) point = 0 rad = 0°
+    dusk point = π/2 rad = 90°
+    anti-solar (midnight) point = π rad = 180°
+    dawn point = 3π/2 rad = 270°
 
 For satellites, the coordinate system is planet-fixed from the sub-planet
 point increasing positive through the leading point: ::

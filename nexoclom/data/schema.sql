@@ -75,7 +75,7 @@ CREATE TABLE speeddist_gaussian (
     idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     vprob DOUBLE PRECISION NOT NULL,
     sigma DOUBLE PRECISION NOT NULL,
-    check (sigma > 0.)
+    check (sigma >= 0.)
 );
 
 CREATE TABLE speeddist_maxwellian (

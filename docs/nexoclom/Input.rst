@@ -10,12 +10,12 @@ Input
 
    .. autosummary::
 
-      ~Input.findpackets
+      ~Input.search
       ~Input.produce_image
       ~Input.run
 
    .. rubric:: Methods Documentation
 
-   .. automethod:: findpackets
+   .. automethod:: search
    .. automethod:: produce_image
    .. automethod:: run

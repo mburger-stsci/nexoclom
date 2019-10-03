@@ -35,12 +35,15 @@ def rk5(output, X0, h):
             x[:,7,n+1] -= h*a[n+1,i]*ioniz[:,i]
         x[:,:,n+1] += x[:,:,0]
 
-    delta = np.zeros_like(X0)
-    for i in range(6):
-        delta[:,1:4] += bd[i]*x[:,4:7,i]
-        delta[:,4:7] += bd[i]*accel[:,:,i]
-        delta[:,7] += bd[i]*ioniz[:,i]
-    delta = np.abs(h[:,np.newaxis]*delta)
+    if output.inputs.options.step_size == 0:
+        delta = np.zeros_like(X0)
+        for i in range(6):
+            delta[:,1:4] += bd[i]*x[:,4:7,i]
+            delta[:,4:7] += bd[i]*accel[:,:,i]
+            delta[:,7] += bd[i]*ioniz[:,i]
+        delta = np.abs(h[:,np.newaxis]*delta)
+    else:
+        delta = None
 
     # Put frac back the way it should be
     result = x[:,:,6]

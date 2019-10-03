@@ -1,4 +1,5 @@
 geometry.planet = Mercury
+geometry.taa = 1.3
 
 SpatialDist.type = uniform
 

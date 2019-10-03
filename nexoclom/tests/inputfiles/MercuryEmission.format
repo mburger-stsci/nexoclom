@@ -1,1 +1,7 @@
 quantity = radiance
+mechanism = resscat
+dims = 501, 501
+width = 8,8
+subobslongitude = 4.71238898038469
+subobslatitude = 0.
+polarangle = 0

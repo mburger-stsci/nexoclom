@@ -1,27 +1,20 @@
 geometry.planet = Mercury
+geometry.taa = 0
 
-sticking_info.stickcoef = 1.
+surfaceinteraction.stickcoef = 1.
 
-forces.gravity = 1.
-forces.radpres = 1.
+forces.radpres = False
 
-SpatialDist.type = surfacespot
+SpatialDist.type = surface spot
 SpatialDist.longitude = 4.71238898038469
 SpatialDist.latitude = 0.
-SpatlaDist.sigma = 0.5235987755982988  
+SpatialDist.sigma = 0.5235987755982988
 
 SpeedDist.type = maxwellian
-SpeedDist.Temperature = 50000.
-
-AngularDist.type = isotropic
-
-PerturbVel.type = none
+SpeedDist.Temperature = 70000.
 
 options.endtime = 10800.0
-options.atom = Ca
-options.fullsystem = 0
+options.lifetime = 0.
+options.species = Ca
 options.outeredge = 15
-options.trackloss = 1
-options.at_once = 1
-options.streamlines = 1
-options.nsteps = 360
+options.step_size = 30.

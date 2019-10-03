@@ -31,7 +31,12 @@ class ModelResult:
             self.totalsource = packs.source[0]
         elif filenames is None:
             self.filenames, self.npackets, self.totalsource = inputs.search()
-
+            
+        if self.npackets == 0:
+            return None
+        else:
+            pass
+            
         self.mod_rate = self.totalsource/inputs.options.endtime.value
         self.atoms_per_packet = 1e26/self.mod_rate
         print(f'Total number of packets run = {self.npackets}')
@@ -72,9 +77,11 @@ class ModelResult:
             if self.format['quantity'] in quantities:
                 self.quantity = self.format['quantity']
             else:
-                raise InputError('ModelImage.__init__', "quantity must be 'column' or 'radiance'")
+                raise InputError('ModelImage.__init__',
+                                 "quantity must be 'column' or 'radiance'")
         else:
-            raise InputError('ModelImage.__init__', 'quantity must be specified.')
+            raise InputError('ModelImage.__init__',
+                             'quantity must be specified.')
 
         if self.quantity == 'radiance':
             # Note - only resonant scattering currently possible
@@ -82,7 +89,9 @@ class ModelResult:
     
             if 'wavelength' in self.format:
                 self.wavelength = tuple(
-                    int(m.strip())*u.AA for m in self.format['wavelength'].split(','))
+                    int(m.strip())*u.AA
+                    for m
+                    in self.format['wavelength'].split(','))
             elif inputs.options.species == 'Na':
                 self.wavelength = (5891*u.AA, 5897*u.AA)
             elif inputs.options.species == 'Ca':

@@ -270,7 +270,7 @@ class SurfaceInteraction:
         elif 'stickcoef' in sparam:
             # Constant sticking
             self.sticktype = 'constant'
-            self.stickcoef = sparam['stickcoef']
+            self.stickcoef = float(sparam['stickcoef'])
             if self.stickcoef < 0:
                 self.stickcoef = 0
             elif self.stickcoef > 1:
@@ -278,7 +278,7 @@ class SurfaceInteraction:
             else:
                 pass
             if 'accomfactor' in sparam:
-                self.accomfactor = sparam['accomfactor']
+                self.accomfactor = float(sparam['accomfactor'])
             else:
                 if self.stickcoef == 1:
                     self.accomfactor = None
@@ -377,10 +377,10 @@ class Forces:
         See :doc:`inputfiles#Forces` for more information.
         """
     
-        self.gravity = (eval(fparam['gravity'])
+        self.gravity = (bool(eval(fparam['gravity'].title()))
                         if 'gravity' in fparam
                         else True)
-        self.radpres = (eval(fparam['radpres'])
+        self.radpres = (bool(eval(fparam['radpres'].title()))
                         if 'radpres' in fparam
                         else True)
 
@@ -451,7 +451,7 @@ class SpatialDist:
                 self.longitude = (0.*u.rad, 2*np.pi*u.rad)
                 
             if 'latitude' in sparam:
-                lat0, lat1 = (float(l.strip())*u.rad
+                lat0, lat1 = (float(l.strip())
                               for l in sparam['latitude'].split(','))
                 lat0 = max(lat0, -np.pi/2)
                 lat0 = min(lat0, np.pi/2)
@@ -579,7 +579,7 @@ class SpatialDist:
             params = [self.exobase, self.longitude.value, self.latitude.value,
                       self.sigma.value]
             query = '''SELECT idnum
-                       FROM spatdist_uniform
+                       FROM spatdist_spot
                        WHERE exobase = %s and
                              longitude = %s and
                              latitude = %s and
@@ -770,23 +770,23 @@ class AngularDist:
                 if 'altitude' in aparam:
                     alt0, alt1 = (float(l.strip())*u.rad
                                   for l in aparam['altitude'].split(','))
-                    alt0 = max(alt0, -np.pi/2)
+                    alt0 = max(alt0, 0)
                     alt0 = min(alt0, np.pi/2)
-                    alt1 = max(alt1, -np.pi/2)
+                    alt1 = max(alt1, 0)
                     alt1 = min(alt1, np.pi/2)
                     if alt0 > alt1:
                         raise InputError('AngularDist.__init__',
                          'AngularDist.altitude[0] > AngularDist.altitude[1]')
                     self.altitude = (alt0*u.rad, alt1*u.rad)
                 else:
-                    self.altitude = (-np.pi/2*u.rad, np.pi/2*u.rad)
+                    self.altitude = (0*u.rad, np.pi/2*u.rad)
             else:
                 raise InputError('AngularDist.__init__',
                              f'AngularDist.type = {self.type} not defined.')
         else:
             self.type = 'isotropic'
             self.azimuth = (0*u.rad, 2*np.pi*u.rad)
-            self.altitude = (-np.pi/2*u.rad, np.pi/2*u.rad)
+            self.altitude = (0*u.rad, np.pi/2*u.rad)
 
     def __str__(self):
         result = ''
@@ -861,6 +861,8 @@ class Options:
 
         if 'species' in oparam:
             self.species = oparam['species'].capitalize()
+        elif 'atom' in oparam:
+            self.species = oparam['atom'].capitalize()
         else:
             raise InputError('Options.__init__',
                              'options.species not specified.')

@@ -17,7 +17,7 @@ import numpy as np
 def state(x, output):
     # compute gravitational acceleration
     if output.inputs.forces.gravity:
-        r3 = (np.linalg.norm(x[:,1:4]**2, axis=1))**3
+        r3 = (np.linalg.norm(x[:,1:4], axis=1))**3
         agrav = output.GM * x[:,1:4]/r3[:,np.newaxis]
     else:
         agrav = np.zeros(x[:,1:4].shape)

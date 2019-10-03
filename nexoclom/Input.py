@@ -67,14 +67,6 @@ class Input:
         
         * options
         
-        **Class Methods**
-
-        * findpackets()
-        
-        * run(npackets, packs_per_it=None, overwrite=False, compress=True)
-        
-        * produce_image(format, filenames=None)
-        
         """
         # Read the configuration file
         self._savepath = configfile()
@@ -167,7 +159,7 @@ class Input:
         sint_id = self.surfaceinteraction.search()
         for_id = self.forces.search()
         spat_id = self.spatialdist.search()
-        spd_id = self.spatialdist.search()
+        spd_id = self.speeddist.search()
         ang_id = self.angulardist.search()
         opt_id = self.options.search()
         
@@ -191,11 +183,8 @@ class Input:
             with database_connect() as con:
                 result = pd.read_sql(query, con)
             
-            if len(query) == 0:
-                return None, 0., 0.
-            else:
-                return (result.filename.to_list(), result.npackets.sum(),
-                        result.totalsource.sum())
+            return (result.filename.to_list(), result.npackets.sum(),
+                    result.totalsource.sum())
 
     def run(self, npackets, packs_per_it=None, overwrite=False, compress=True):
         """Run the nexoclom model with the current inputs.
@@ -224,22 +213,23 @@ class Input:
         # Configure the logger
         # Note: The logfile name will be changed to match the outputfile name
         #       and stored in the Output object.
-        logger = logging.getLogger()
-        logger.setLevel(logging.INFO)
-        log_file_handler = logging.FileHandler('log.out', 'w')
-        logger.addHandler(log_file_handler)
-        out_handler = logging.StreamHandler(sys.stdout)
-        logger.addHandler(out_handler)
-        fmt = logging.Formatter('%(levelname)s: %(msg)s')
-        log_file_handler.setFormatter(fmt)
-        out_handler.setFormatter(fmt)
+        # logger = logging.getLogger()
+        # logger.setLevel(logging.INFO)
+        # log_file_handler = logging.FileHandler('log.out', 'w')
+        # logger.addHandler(log_file_handler)
+        # out_handler = logging.StreamHandler(sys.stdout)
+        # logger.addHandler(out_handler)
+        # fmt = logging.Formatter('%(levelname)s: %(msg)s')
+        # log_file_handler.setFormatter(fmt)
+        # out_handler.setFormatter(fmt)
 
         t0_ = Time.now()
-        logger.info(f'Starting at {t0_}')
-        
+        # logger.info(f'Starting at {t0_}')
+        print(f'Starting at {t0_}')
+
         if len(self.geometry.planet) != 1:
-            logger.error('Gravity and impact check not working for '
-                          'planets with moons.')
+            # logger.error('Gravity and impact check not working for '
+            #               'planets with moons.')
             sys.exit()
             
         # Determine how many packets have already been run
@@ -248,8 +238,10 @@ class Input:
             totalpackets = 0
         else:
             outputfiles, totalpackets, _ = self.search()
-            logger.info(f'Found {len(outputfiles)} files with {totalpackets} '
-                         'packets.')
+            # logger.info(f'Found {len(outputfiles)} files with {totalpackets} '
+            #              'packets.')
+            print(f'Found {len(outputfiles)} files with {totalpackets} '
+                  'packets.')
 
         npackets = int(npackets)
         ntodo = npackets - totalpackets
@@ -258,8 +250,8 @@ class Input:
             if (packs_per_it is None) and (self.options.step_size == 0):
                 packs_per_it = 1000000
             elif packs_per_it is None:
-                packs_per_it = 1e8//(self.options.endtime.value/
-                                     self.options.step_size)
+                packs_per_it = (1e8 * self.options.step_size /
+                                self.options.endtime.value)
             else:
                 pass
             packs_per_it = int(np.min([ntodo, packs_per_it]))
@@ -267,23 +259,28 @@ class Input:
             # Determine how many iterations are needed
             nits = int(np.ceil(ntodo/packs_per_it))
             
-            logger.info('Running Model')
-            logger.info(f'Will complete {nits} iterations of {packs_per_it} '
-                         'packets.')
-            
+            # logger.info('Running Model')
+            # logger.info(f'Will complete {nits} iterations of {packs_per_it} '
+            #              'packets.')
+            print('Running Model')
+            print(f'Will complete {nits} iterations of {packs_per_it} packets.')
+
             for _ in range(nits):
                 tit0_ = Time.now()
-                logger.info(f'Starting iteration #{_+1} of {nits}')
-                
+             #    logger.info(f'Starting iteration #{_+1} of {nits}')
+                print(f'Starting iteration #{_+1} of {nits}')
+
                 # Create an output object
-                Output(self, packs_per_it, compress=compress,
-                       logger=logger)
+                Output(self, packs_per_it, compress=compress)
+                       #logger=logger)
                 # Just run and save the model when output is created
                 # No reason to explicitly call run
                 
                 tit1_ = Time.now()
-                logger.info(f'Completed iteration #{_+1} in '
-                            f'{(tit1_ - tit0_).sec} seconds.')
+                # logger.info(f'Completed iteration #{_+1} in '
+                #             f'{(tit1_ - tit0_).sec} seconds.')
+                print(f'Completed iteration #{_+1} in '
+                      f'{(tit1_ - tit0_).sec} seconds.')
         else:
             pass
 
@@ -295,9 +292,10 @@ class Input:
             dt_ = f'{dt_/60} min'
         else:
             dt_ = f'{dt_/3600} hr'
-        logger.info(f'Model run completed in {dt_} at {t2_}.')
-        out_handler.close()
-        
+        # logger.info(f'Model run completed in {dt_} at {t2_}.')
+        # out_handler.close()
+        print(f'Model run completed in {dt_} at {t2_}.')
+
     def produce_image(self, format_, filenames=None, overwrite=False):
         return ModelImage(self, format_, filenames=filenames,
                           overwrite=overwrite)
@@ -313,7 +311,7 @@ class Input:
         **Parameters**
 
         filelist
-            List of files to remove. This can be found with Inputs.findpackets()
+            List of files to remove. This can be found with Inputs.search()
 
         **Returns**
 

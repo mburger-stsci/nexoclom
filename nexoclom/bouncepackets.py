@@ -1,82 +1,92 @@
 import numpy as np
-from .input_classes import AngularDist
-from .source_distribution import angular_distribution
+from .surface_temperature import surface_temperature
 
-def bouncepackets(self, t1, x1, v1, f1, hhh):
+
+def rebound_direction(outputs, x):
+    npackets = x.shape[0]
+
+    # Choose the altitude -- f(alt) = cos(alt)
+    sinalt = outputs.randgen.random(npackets)
+    alt = np.arcsin(sinalt)
+
+    # Choose the azimuth -- f(az) = 1/(azmax-azmin)
+    az = 2*np.pi*outputs.randgen.random(npackets)
+
+    # Find the velocity components in coordinate system centered on packet
+    v_rad = np.sin(alt)                 # Radial component of velocity
+    v_tan0 = np.cos(alt) * np.cos(az)   # Component along latitude (points E)
+    v_tan1 = np.cos(alt) * np.sin(az)   # Component along longitude (points N)
+
+    # Now rotate to proper surface point
+    # v_ren = M # v_xyz => v_xyz = invert(M) # v_ren
+
+    rad = x.copy()
+    rad /= np.linalg.norm(rad, axis=1)[:,np.newaxis]
+    east = np.array([x[:,1], -x[:,0], np.zeros(npackets)]).transpose()
+    east /= np.linalg.norm(east, axis=1)[:,np.newaxis]
+    north = np.array([-x[:,2]*x[:,0], -x[:,2]*x[:,1],
+                      x[:,0]**2 + x[:,1]**2]).transpose()
+    north /= np.linalg.norm(north, axis=1)[:,np.newaxis]
+    
+    direction = (v_tan0[:,np.newaxis]*north +
+                 v_tan1[:,np.newaxis]*east +
+                 v_rad[:,np.newaxis]*rad)
+    assert np.all(np.isfinite(direction))
+    
+    return direction
+
+
+def bouncepackets(outputs, Ximpcheck, r0, hitplanet):
+    npackets = np.sum(hitplanet)
     # This will need to be rewritten for satellite impacts
 
     # Determine where packets hit surface
-    #srad = satrad[hhh]
-    #r0 = tempR[hhh]
-    x0 = x1[0,hhh]
-    y0 = x1[1,hhh]
-    z0 = x1[2,hhh]
-    r0 = np.sqrt(x0**2 + y0**2 + z0**2)
-    vx0 = v1[0,hhh]
-    vy0 = v1[1,hhh]
-    vz0 = v1[2,hhh]
-
-    a = vx0**2 + vy0**2 + vz0**2  # = vv02
-    b = 2*(x0*vx0 + y0*vy0 + z0*vz0)
-    c = x0**2 + y0**2 + z0**2 - 1.
+    Xtemp, rtemp = Ximpcheck[hitplanet,:], r0[hitplanet]
+    a = np.sum(Xtemp[:,4:7]**2, axis=1)  # = vv02
+    b = 2 * np.sum(Xtemp[:,1:4] * Xtemp[:,4:7], axis=1)
+    c = np.sum(Xtemp[:,1:4]**2, axis=1) - 1.
     dd = b**2 - 4*a*c
-    assert np.all(dd >= 0)
 
     t0 = (-b - np.sqrt(b**2-4*a*c))/(2*a)
     t1 = (-b + np.sqrt(b**2-4*a*c))/(2*a)
-    t = (t0 <= 0)*t0 + (t1 < 0)*t1
+    t = np.minimum(t0, t1) # t0 <= 0)*t0 + (t1 < 0)*t1
 
     # point where packet hit the surface
-    x2 = x0 + vx0*t
-    y2 = y0 + vy0*t
-    z2 = z0 + vz0*t
-    assert np.all(np.isfinite(x2))
-    assert np.all(np.isfinite(y2))
-    assert np.all(np.isfinite(z2))
+    Xtemp[:,1:4] = Xtemp[:,1:4] + Xtemp[:,4:7] * t[:,np.newaxis]
+    # assert np.all(np.isclose(np.linalg.norm(Xtemp[:,1:4], axis=1), 1.))
 
-    lonhit = (np.arctan2(x2, -y2) + 2*np.pi) % (2*np.pi)
-    lathit = np.arcsin(z2)
+    # Determine impact velocity
+    PE = 2*outputs.GM*(1./rtemp - 1)
+    v_old2 = a + PE
+    v_old2[v_old2 < 0] = 0.
 
-    # put new coordinates into array
-    x1[0,hhh] = x2
-    x1[1,hhh] = y2
-    x1[2,hhh] = z2
-
-    # Determine rebound velocity
-    #vv02 = vx0**2 + vy0**2 + vz0**2  # rplan/s
-    PE = 2*self.GM*(1./r0 - 1)
-    vv02 = a + PE
-    vv02[vv02 < 0] = 0.
-    assert np.all(np.isfinite(vv02))
-
-    if self.inputs.sticking_info.emitfn.lower() == 'maxwellian':
-        assert 0, 'Not set up yet'
-        if self.inputs.sticking_info.Tsurf == 0:
-            surftemp = SurfaceTemperatue(self.inputs.geometry,
-                                         lonhit, lathit)
-        else:
-            pass # Need to set this up to
-    elif self.inputs.sticking_info.emitfn.lower() == 'elastic scattering':
-        vv2 = np.sqrt(vv02)
+    direction = rebound_direction(outputs, Xtemp[:,1:4])
+    
+    if outputs.inputs.surfaceinteraction.accomfactor == 0:
+        v_new = np.sqrt(v_old2)
     else:
-        assert 0, 'Emit function not set up yet'
-
-    # Determine rebound angle
-
-    angdist = AngularDist({'type':'costheta',
-                           'altitude':f'0,{np.pi/2}',
-                           'azimuth':f'0,{2*np.pi}'}, None)
-#    angdist = AngularDist({'type':'radial'}, None)
-    VV = angular_distribution(angdist, x1[:,hhh], vv2)
-
-    # Rotate to proper position
-    # to do
-
-    # Put back into the arrays
-    v1[:,hhh] = VV
+        lonhit = (np.arctan2(Xtemp[:, 0],
+                  -Xtemp[:, 1])+2*np.pi) % (2*np.pi)
+        lathit = np.arcsin(Xtemp[:, 2])
+        
+        surftemp = surface_temperature(outputs.inputs.geometry,
+                                       lonhit, lathit)
+        probability = outputs.randgen.random(npackets)
+        v_emit = outputs.surfaceint['v_accom'].ev(surftemp, probability)
+        v_emit /= outputs.inputs.geometry.planet.radius.value
+        
+        afactor = outputs.inputs.surfaceinteraction.accomfactor
+        v_new = np.sqrt(v_emit**2 * afactor + v_old2 * (1-afactor))
+        
+    Xtemp[:,4:7] = direction * v_new[:,np.newaxis]
 
     # Adjust the fractional values
-    if self.inputs.sticking_info.stickcoef > 0:
-        f1[hhh] *= 1 - self.inputs.sticking_info.stickcoef
+    if outputs.inputs.surfaceinteraction.stickcoef > 0:
+        Xtemp[:,7] *= (1 - outputs.inputs.surfaceinteraction.stickcoef)
+    elif outputs.inputs.surfaceinteraction.stickcoef == 0:
+        pass
     else:
-        assert 0
+        assert 0, 'Should not be able to get here.'
+        
+    # Put new values back in
+    Ximpcheck[hitplanet,:] = Xtemp
