@@ -205,7 +205,7 @@ class Geometry:
             params.append(self.taa.value + dtaa/2.)
 
             query = f"""
-                SELECT idnum
+                SELECT idnum, taa
                 FROM geometry_without_time
                 WHERE planet = %s and
                       startpoint = %s and
@@ -227,8 +227,16 @@ class Geometry:
             elif cur.rowcount == 1:
                 return cur.fetchone()[0]
             else:
-                raise RuntimeError('geometry.search()',
-                                   'Duplicates in geometry table')
+                results = cur.fetchall()
+                diff = [np.abs(row[1] - self.taa.value) for row in results]
+                result = [row[0]
+                          for row in results
+                          if np.abs(row[1] - self.taa.value) == min(diff)]
+                if len(result) == 1:
+                   return result[0]
+                else:
+                    raise RuntimeError('geometry.search()',
+                                       'Duplicates in geometry table')
         
 
 class SurfaceInteraction:
