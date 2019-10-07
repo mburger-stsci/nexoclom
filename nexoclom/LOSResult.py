@@ -1,6 +1,6 @@
 import os.path
 import numpy as np
-from scipy.spatial import distance_matrix
+# from scipy.spatial import distance_matrix
 import pandas as pd
 import pickle
 import astropy.units as u
@@ -96,6 +96,7 @@ class LOSResult(ModelResult):
         if len(orbits) != 0:
             print('Model spans more than one orbit. Cannot be saved.')
         else:
+            from MESSENGERuvvs import MESSENGERdata
             mdata = MESSENGERdata(self.species, f'orbit = {orb}')
             if len(mdata) != len(data):
                 print('Model does not contain the complete orbit. '
@@ -286,14 +287,9 @@ class LOSResult(ModelResult):
                 else:
                     pass
                     
-            # self.atoms_per_packet = 2.9916898266145551e+22
-            # print(rad[i]*self.atoms_per_packet, pack[i])
-            # if (i % 100) == 0:
-            #     import pdb
-            #     pdb.set_trace()
-
-            if (i % (len(data)//10)) == 0:
-                print(f'Completed {i+1} spectra')
+            if len(data) > 10:
+                if (i % (len(data)//10)) == 0:
+                    print(f'Completed {i+1} spectra')
 
         del output
         self.save(data, outfile, rad, pack)
