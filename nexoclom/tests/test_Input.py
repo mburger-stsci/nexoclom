@@ -48,7 +48,7 @@ def test_Input():
         #                      'outputs', infile.replace('.input', '.png'))
         # image.display(show=False, savefile=sfile)
 
-        data.model(inputs, 1e5, overwrite=False)
+        data.model(inputs, 1e4, overwrite=True)
         
         sfile = os.path.join(os.path.dirname(__file__),
                              'outputs',

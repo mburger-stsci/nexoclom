@@ -104,7 +104,7 @@ class LOSResult(ModelResult):
                       'Cannot be saved.')
             else:
                 with database_connect() as con:
-                    con.autocommit = False
+                    #con.autocommit = False
                     cur = con.cursor()
 
                     # Determine the id of the outputfile
@@ -125,9 +125,9 @@ class LOSResult(ModelResult):
                     tempname = f'temp_{orb}_{str(random.randint(0, 1000000))}'
                     cur.execute(f'''INSERT into uvvsmodels (out_idnum, quantity,
                                     orbit, dphi, mechanism, wavelength, filename)
-                                    values (%s, %s, %s, %s, %s, %s, tempname)''',
+                                    values (%s, %s, %s, %s, %s, %s, %s)''',
                                 (idnum, self.quantity, orb, self.dphi,
-                                 mech, wave))
+                                 mech, wave, tempname))
 
                     # Determine the savefile name
                     idnum_ = pd.read_sql(f'''SELECT idnum
