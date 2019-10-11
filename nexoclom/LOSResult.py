@@ -104,7 +104,6 @@ class LOSResult(ModelResult):
                       'Cannot be saved.')
             else:
                 with database_connect() as con:
-                    con.autocommit = False
                     cur = con.cursor()
 
                     # Determine the id of the outputfile
@@ -143,7 +142,6 @@ class LOSResult(ModelResult):
                     cur.execute(f'''UPDATE uvvsmodels
                                     SET filename=%s
                                     WHERE idnum=%s''', (savefile, idnum))
-                    con.commit()
 
     def restore(self, data, fname):
         # Determine if the model can be restored.
@@ -155,35 +153,33 @@ class LOSResult(ModelResult):
             print('Model spans more than one orbit. Cannot be saved.')
             radiance, packets, idnum = None, None, None
         else:
-            con = database_connect()
-            con.autocommit = True
+            with database_connect() as con:
+                # Determine the id of the outputfile
+                idnum_ = pd.read_sql(f'''SELECT idnum
+                                        FROM outputfile
+                                        WHERE filename='{fname}' ''', con)
+                oid = idnum_.idnum[0]
 
-            # Determine the id of the outputfile
-            idnum_ = pd.read_sql(f'''SELECT idnum
-                                    FROM outputfile
-                                    WHERE filename='{fname}' ''', con)
-            oid = idnum_.idnum[0]
+                if self.quantity == 'radiance':
+                    mech = ("mechanism = '" +
+                            ", ".join(sorted([m for m in self.mechanism])) +
+                            "'")
+                    wave_ = sorted([w.value for w in self.wavelength])
+                    wave = ("wavelength = '" +
+                            ", ".join([str(w) for w in wave_]) +
+                            "'")
+                else:
+                    mech = 'mechanism is NULL'
+                    wave = 'wavelength is NULL'
 
-            if self.quantity == 'radiance':
-                mech = ("mechanism = '" +
-                        ", ".join(sorted([m for m in self.mechanism])) +
-                        "'")
-                wave_ = sorted([w.value for w in self.wavelength])
-                wave = ("wavelength = '" +
-                        ", ".join([str(w) for w in wave_]) +
-                        "'")
-            else:
-                mech = 'mechanism is NULL'
-                wave = 'wavelength is NULL'
-
-            result = pd.read_sql(
-                f'''SELECT idnum, filename FROM uvvsmodels
-                    WHERE out_idnum={oid} and
-                          quantity = '{self.quantity}' and
-                          orbit = {orb} and
-                          dphi = {self.dphi} and
-                          {mech} and
-                          {wave}''', con)
+                result = pd.read_sql(
+                    f'''SELECT idnum, filename FROM uvvsmodels
+                        WHERE out_idnum={oid} and
+                              quantity = '{self.quantity}' and
+                              orbit = {orb} and
+                              dphi = {self.dphi} and
+                              {mech} and
+                              {wave}''', con)
 
             assert len(result) <= 1
             if len(result) == 1:
