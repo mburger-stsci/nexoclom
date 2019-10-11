@@ -3,6 +3,7 @@ import numpy as np
 # from scipy.spatial import distance_matrix
 import pandas as pd
 import pickle
+import random
 import astropy.units as u
 from datetime import datetime
 from .ModelResults import ModelResult
@@ -120,16 +121,17 @@ class LOSResult(ModelResult):
                     mech = None
                     wave = None
 
+                tempname = f'temp_{orb}_{str(random.randint(0, 1000000))}'
                 cur.execute(f'''INSERT into uvvsmodels (out_idnum, quantity,
                                 orbit, dphi, mechanism, wavelength, filename)
-                                values (%s, %s, %s, %s, %s, %s, 'temp')''',
+                                values (%s, %s, %s, %s, %s, %s, tempname)''',
                             (idnum, self.quantity, orb, self.dphi,
                              mech, wave))
 
                 # Determine the savefile name
-                idnum_ = pd.read_sql('''SELECT idnum
-                                        FROM uvvsmodels
-                                        WHERE filename='temp';''', con)
+                idnum_ = pd.read_sql(f'''SELECT idnum
+                                         FROM uvvsmodels
+                                         WHERE filename='{tempname}';''', con)
                 assert len(idnum_) == 1
                 idnum = int(idnum_.idnum[0])
 

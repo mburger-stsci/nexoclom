@@ -1,10 +1,9 @@
 import os
 import os.path
-import sys
 import pandas as pd
 import numpy as np
 import pickle
-import logging
+import random
 import astropy.units as u
 from solarsystemMB import planet_dist
 import mathMB
@@ -488,28 +487,31 @@ class Output:
         opt_id = self.inputs.options.insert()
         
         with database_connect() as con:
-            n = pd.read_sql('SELECT MAX(idnum) FROM outputfile', con)
-            if n['max'][0] is None:
-                self.idnum = 1
-            else:
-                self.idnum = int(n['max'][0]) + 1
-            self.make_filename()
-
+            tempfilename = f'temp_{str(random.randint(0, 1000000))i}
             cur = con.cursor()
-            cur.execute('''INSERT INTO outputfile (idnum, filename,
+            cur.execute('''INSERT INTO outputfile (filename,
                                npackets, totalsource, creation_time,
                                geo_type, geo_id, sint_type, sint_id,
                                force_id, spatdist_type, spatdist_id,
                                spddist_type, spddist_id, angdist_type,
-                               angdist_id, opt_id) VALUES (%s, %s, %s, %s,
+                               angdist_id, opt_id) VALUES (%s, %s, %s,
                                NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                %s, %s)''',
-                        (self.idnum, self.filename, self.npackets,
+                        (tempfilename, self.npackets,
                          self.totalsource, self.inputs.geometry.type, geo_id,
                          self.inputs.surfaceinteraction.sticktype, sint_id,
                          for_id, self.inputs.spatialdist.type, spat_id,
                          self.inputs.speeddist.type, spd_id,
                          self.inputs.angulardist.type, ang_id, opt_id))
+            
+            cur.execute('''SELECT idnum
+                           FROM outputfile
+                           WHERE filename = %s''', (tempfilename,))
+            self.idnum = cur.fetchone()[0]
+            self.make_filename()
+            cur.execute('''UPDATE outputfile
+                           SET filename = %s
+                           WHERE idnum = %s''', (self.filename, self.idnum))
 
         # Remove frac = 0
         if self.compress:
