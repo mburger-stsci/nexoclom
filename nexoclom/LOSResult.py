@@ -103,46 +103,47 @@ class LOSResult(ModelResult):
                 print('Model does not contain the complete orbit. '
                       'Cannot be saved.')
             else:
-                con = database_connect()
-                cur = con.cursor()
+                with database_connect() as con:
+                    con.autocommit = False
+                    cur = con.cursor()
 
-                # Determine the id of the outputfile
-                idnum_ = pd.read_sql(f'''SELECT idnum
-                                        FROM outputfile
-                                        WHERE filename='{fname}' ''', con)
-                idnum = int(idnum_.idnum[0])
+                    # Determine the id of the outputfile
+                    idnum_ = pd.read_sql(f'''SELECT idnum
+                                            FROM outputfile
+                                            WHERE filename='{fname}' ''', con)
+                    idnum = int(idnum_.idnum[0])
 
-                # Insert the model into the database
-                if self.quantity == 'radiance':
-                    mech = ', '.join(sorted([m for m in self.mechanism]))
-                    wave_ = sorted([w.value for w in self.wavelength])
-                    wave = ', '.join([str(w) for w in wave_])
-                else:
-                    mech = None
-                    wave = None
+                    # Insert the model into the database
+                    if self.quantity == 'radiance':
+                        mech = ', '.join(sorted([m for m in self.mechanism]))
+                        wave_ = sorted([w.value for w in self.wavelength])
+                        wave = ', '.join([str(w) for w in wave_])
+                    else:
+                        mech = None
+                        wave = None
 
-                tempname = f'temp_{orb}_{str(random.randint(0, 1000000))}'
-                cur.execute(f'''INSERT into uvvsmodels (out_idnum, quantity,
-                                orbit, dphi, mechanism, wavelength, filename)
-                                values (%s, %s, %s, %s, %s, %s, tempname)''',
-                            (idnum, self.quantity, orb, self.dphi,
-                             mech, wave))
+                    tempname = f'temp_{orb}_{str(random.randint(0, 1000000))}'
+                    cur.execute(f'''INSERT into uvvsmodels (out_idnum, quantity,
+                                    orbit, dphi, mechanism, wavelength, filename)
+                                    values (%s, %s, %s, %s, %s, %s, tempname)''',
+                                (idnum, self.quantity, orb, self.dphi,
+                                 mech, wave))
 
-                # Determine the savefile name
-                idnum_ = pd.read_sql(f'''SELECT idnum
-                                         FROM uvvsmodels
-                                         WHERE filename='{tempname}';''', con)
-                assert len(idnum_) == 1
-                idnum = int(idnum_.idnum[0])
+                    # Determine the savefile name
+                    idnum_ = pd.read_sql(f'''SELECT idnum
+                                             FROM uvvsmodels
+                                             WHERE filename='{tempname}';''', con)
+                    assert len(idnum_) == 1
+                    idnum = int(idnum_.idnum[0])
 
-                savefile = os.path.join(os.path.dirname(fname),
+                    savefile = os.path.join(os.path.dirname(fname),
                                         f'model.orbit{orb:04}.{idnum}.pkl')
-                with open(savefile, 'wb') as f:
-                    pickle.dump((radiance, packets), f)
-                cur.execute(f'''UPDATE uvvsmodels
-                                SET filename=%s
-                                WHERE idnum=%s''', (savefile, idnum))
-                con.close()
+                    with open(savefile, 'wb') as f:
+                        pickle.dump((radiance, packets), f)
+                    cur.execute(f'''UPDATE uvvsmodels
+                                    SET filename=%s
+                                    WHERE idnum=%s''', (savefile, idnum))
+                    con.commit()
 
     def restore(self, data, fname):
         # Determine if the model can be restored.

@@ -487,6 +487,7 @@ class Output:
         opt_id = self.inputs.options.insert()
         
         with database_connect() as con:
+            con.auotcommit = False
             tempfilename = f'temp_{str(random.randint(0, 1000000))}'
             cur = con.cursor()
             cur.execute('''INSERT INTO outputfile (filename,
@@ -512,6 +513,7 @@ class Output:
             cur.execute('''UPDATE outputfile
                            SET filename = %s
                            WHERE idnum = %s''', (self.filename, self.idnum))
+            con.commit()
 
         # Remove frac = 0
         if self.compress:
