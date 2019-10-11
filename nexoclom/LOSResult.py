@@ -104,7 +104,7 @@ class LOSResult(ModelResult):
                       'Cannot be saved.')
             else:
                 with database_connect() as con:
-                    #con.autocommit = False
+                    con.autocommit = False
                     cur = con.cursor()
 
                     # Determine the id of the outputfile

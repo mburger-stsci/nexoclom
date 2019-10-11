@@ -487,7 +487,7 @@ class Output:
         opt_id = self.inputs.options.insert()
         
         with database_connect() as con:
-            #con.autocommit = False
+            con.autocommit = False
             tempfilename = f'temp_{str(random.randint(0, 1000000))}'
             cur = con.cursor()
             cur.execute('''INSERT INTO outputfile (filename,
