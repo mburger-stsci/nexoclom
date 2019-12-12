@@ -15,7 +15,7 @@ from .bouncepackets import bouncepackets
 from .source_distribution import (surface_distribution, speed_distribution,
                                   angular_distribution)
 from .database_connect import database_connect
-from .surface_interaction_setup import surface_interaction_setup
+from .SurfaceInteraction import SurfaceInteraction
 
 
 class Output:
@@ -132,7 +132,8 @@ class Output:
         # Set up sticking
         if inputs.surfaceinteraction.stickcoef != 1:
             # set up surface accommodation + maybe other things
-            self.surfaceint = surface_interaction_setup(inputs)
+            self.surfaceint = SurfaceInteraction(inputs,
+                                                 nt=21, nv=101, nprob=101)
 
         # Define the time that packets will run
         if inputs.options.step_size > 0:

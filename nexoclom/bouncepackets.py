@@ -53,7 +53,7 @@ def bouncepackets(outputs, Ximpcheck, r0, hitplanet):
 
     # point where packet hit the surface
     Xtemp[:,1:4] = Xtemp[:,1:4] + Xtemp[:,4:7] * t[:,np.newaxis]
-    # assert np.all(np.isclose(np.linalg.norm(Xtemp[:,1:4], axis=1), 1.))
+    assert np.all(np.isclose(np.linalg.norm(Xtemp[:,1:4], axis=1), 1.))
 
     # Determine impact velocity
     PE = 2*outputs.GM*(1./rtemp - 1)
@@ -65,14 +65,13 @@ def bouncepackets(outputs, Ximpcheck, r0, hitplanet):
     if outputs.inputs.surfaceinteraction.accomfactor == 0:
         v_new = np.sqrt(v_old2)
     else:
-        lonhit = (np.arctan2(Xtemp[:, 0],
-                  -Xtemp[:, 1])+2*np.pi) % (2*np.pi)
-        lathit = np.arcsin(Xtemp[:, 2])
+        lonhit = (np.arctan2(Xtemp[:,1], -Xtemp[:,2])+2*np.pi) % (2*np.pi)
+        lathit = np.arcsin(Xtemp[:,3])
         
         surftemp = surface_temperature(outputs.inputs.geometry,
                                        lonhit, lathit)
         probability = outputs.randgen.random(npackets)
-        v_emit = outputs.surfaceint['v_accom'].ev(surftemp, probability)
+        v_emit = outputs.surfaceint.v_interp(surftemp, probability)
         v_emit /= outputs.inputs.geometry.planet.radius.value
         
         afactor = outputs.inputs.surfaceinteraction.accomfactor
