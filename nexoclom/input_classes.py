@@ -252,10 +252,20 @@ class SurfaceInteraction:
             self.sticktype = sticktype
             
             if 'accomfactor' in sparam:
-                self.accomfactor = sparam['accomfactor']
+                self.accomfactor = float(sparam['accomfactor'])
             else:
                 raise InputError('SurfaceInteraction.__init__',
                                  'surfaceinteraction.accomfactor not given.')
+            
+            if 'a' in sparam:
+                A = [float(a) for a in sparam['a'].split(',')]
+                if len(A) == 3:
+                    self.A = A
+                else:
+                    raise InputError('SurfaceInteraction.__init__',
+                                     'surfaceinteraction.A must have 3 values')
+            else:
+                self.A = [1.57014, -0.006262, 0.1614157]
         elif sticktype == 'surface map':
             self.sticktype = sticktype
             if 'stick_mapfile' in sparam:
@@ -271,7 +281,7 @@ class SurfaceInteraction:
                 pass
             
             if 'accomfactor' in sparam:
-                self.accomfactor = sparam['accomfactor']
+                self.accomfactor = float(sparam['accomfactor'])
             else:
                 raise InputError('SurfaceInteraction.__init__',
                                  'surfaceinteraction.accomfactor not given.')
@@ -317,7 +327,7 @@ class SurfaceInteraction:
             elif self.sticktype == 'surface map':
                 with database_connect() as con:
                     cur = con.cursor()
-                    cur.execute('''INSERT INTO surface_int_constant (
+                    cur.execute('''INSERT INTO surface_int_map (
                                        mapfile, accomfactor) VALUES (
                                        %s, %s)''',
                                 (self.stick_mapfile, self.accomfactor))
@@ -325,11 +335,12 @@ class SurfaceInteraction:
                 with database_connect() as con:
                     cur = con.cursor()
                     cur.execute('''INSERT INTO surface_int_tempdependent (
-                                       accomfactor) VALUES (%s)''',
-                                (self.accomfactor, ))
+                                       accomfactor, a) VALUES
+                                       (%s, %s::DOUBLE PRECISION[3])''',
+                                (self.accomfactor, self.A))
             else:
                 raise InputError('SurfaceInteraction.search()',
-                                 f'surfaceinteraction.sticktype = {self.sticktype} not allowed.')
+                    f'surfaceinteraction.sticktype = {self.sticktype} not allowed.')
             ids = self.search()
             assert ids is not None
         else:
@@ -351,14 +362,15 @@ class SurfaceInteraction:
                         WHERE stickcoef = %s and
                               {afactor}"""
         elif self.sticktype == 'temperature dependent':
-            params = [self.accomfactor]
+            params = [self.accomfactor, self.A]
             query = f"""SELECT idnum
-                        FROM surface_int_constant
-                        WHERE accomfactor = %s"""
+                        FROM surface_int_tempdependent
+                        WHERE accomfactor = %s and
+                              a = %s::DOUBLE PRECISION[3]"""
         elif self.sticktype == 'surface map':
             params = [self.stick_mapfile, self.accomfactor]
             query = f"""SELECT idnum
-                        FROM surface_int_constant
+                        FROM surface_int_map
                         WHERE mapfile = %s and
                               accomfactor = %s"""
         else:

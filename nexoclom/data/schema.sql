@@ -37,6 +37,7 @@ CREATE TABLE surface_int_map (
 CREATE TABLE surface_int_tempdependent (
     idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     accomfactor DOUBLE PRECISION NOT NULL,
+    a DOUBLE PRECISION[3] NOT NULL,
     check (accomfactor >= 0 and accomfactor <= 1)
 );
 

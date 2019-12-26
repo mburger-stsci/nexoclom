@@ -251,62 +251,95 @@ class ModelImage(ModelResult):
         return image, packim
 
     def display(self, savefile='image.png', limits=None, show=True):
-        import matplotlib.pyplot as plt
-        from matplotlib.colors import LogNorm
-        from astropy.visualization import (PercentileInterval, LogStretch,
-                                           ImageNormalize)
+        import bokeh.plotting as bkp
+        from bokeh.palettes import Inferno256
+        from bokeh.models import (HoverTool, ColumnDataSource, ColorBar,
+                                  LogColorMapper, LogTicker)
+        from bokeh.io import curdoc
+        from bokeh.themes import Theme
 
-        extent = (np.min(self.xaxis.value), np.max(self.xaxis.value),
-                  np.min(self.zaxis.value), np.max(self.zaxis.value))
         if self.unit.__str__() == 'R_Mercury':
-            ustr = '$R_{M}$'
+            ustr = 'R_M'
         else:
-            ustr = '$R_{obj}$'
+            ustr = 'R_obj'
+            
+        if self.quantity == 'radiance':
+            runit = 'kR'
+            rname = 'Radiance'
+        elif self.quantity == 'column':
+            runit = 'cm-2'
+            rname = 'Column'
+        else:
+            assert 0
 
-        # Determine limits if none given
-        if limits is None:
-            interval = PercentileInterval(95)
-            self.blimits = interval.get_limits(self.image[self.image > 0])
-        elif len(limits) == 2:
-            self.blimits = limits
+        tooltips = [('x', '$x{0.1f} ' + ustr),
+                    ('y', '$y{0.1f} ' + ustr),
+                    (rname, '@image ' + runit)]
+        
+        curdoc().theme = Theme(os.path.join(os.path.dirname(__file__),
+                                            'data', 'bokeh.yml'))
+
+        low = np.min(self.image[self.image > 0])
+        color_mapper = LogColorMapper(palette=Inferno256, low=low,
+                                      high=np.max(self.image))
+
+        x0 = np.min(self.xaxis.value)
+        y0 = np.min(self.zaxis.value)
+        dw = np.max(self.xaxis.value) - np.min(self.xaxis.value)
+        dh = np.max(self.zaxis.value) - np.min(self.zaxis.value)
+
+        fig = bkp.figure(plot_width=1000, plot_height=1000,
+                         title=f'{self.inputs.options.species} {rname}',
+                         x_axis_label=f'Distance ({ustr})',
+                         y_axis_label=f'Distance ({ustr})',
+                         x_range=[np.min(self.xaxis.value),
+                                  np.max(self.xaxis.value)],
+                         y_range=[np.min(self.zaxis.value),
+                                  np.max(self.zaxis.value)],
+                         tooltips=tooltips)
+
+        fig.image(image=[self.image], x=x0, y=y0, dw=dw, dh=dh,
+                  color_mapper=color_mapper)
+        xc = np.cos(np.linspace(0, 2*np.pi, 1000))
+        yc = np.sin(np.linspace(0, 2*np.pi, 1000))
+        fig.patch(xc, yc, fill_color='yellow')
+        
+        bkp.output_file(savefile)
+        if show:
+            bkp.show(fig)
         else:
-            assert 0, 'Problem with the display limits'
+            bkp.save(fig)
+            
+        assert 0
+
+        # from astropy.visualization import (PercentileInterval, LogStretch,
+        #                                    ImageNormalize)
+        #
+        # # Determine limits if none given
+        # if limits is None:
+        #     interval = PercentileInterval(95)
+        #     self.blimits = interval.get_limits(self.image[self.image > 0])
+        # elif len(limits) == 2:
+        #     self.blimits = limits
+        # else:
+        #     assert 0, 'Problem with the display limits'
 
 #        norm = ImageNormalize(self.image, stretch=LogStretch(),
 #                              vmin=self.blimits[0], vmax=self.blimits[1])
 
-        # Make the figure
-        fig, ax = plt.subplots(figsize=(12,12))
-#        im = ax.imshow(self.image, cmap='afmhot', extent=extent,
-#                       norm=LogNorm(vmin=self.blimits[0], vmax=self.blimits[1]))
-        im = ax.imshow(self.image.transpose(), cmap='afmhot', extent=extent,
-                       norm=LogNorm(vmin=self.blimits[0], vmax=self.blimits[1]))
-        ax.set_xlabel(f'Distance ({ustr})')
-        ax.set_ylabel(f'Distance ({ustr})')
-        ax.set_title(f'{self.inputs.options.species} {self.quantity.title()}')
-
-        # Make the colorbar
-        if self.quantity == 'column':
-            clabel = f'$N_{{ {self.inputs.options.species} }}\ cm^{{-2}}$'
-        else:
-            clabel = f'$I_{{ {self.inputs.options.species} }} R$'
-        cbar = fig.colorbar(im, shrink=0.7, label=clabel)
+        # # Make the colorbar
+        # if self.quantity == 'column':
+        #     clabel = f'$N_{{ {self.inputs.options.species} }}\ cm^{{-2}}$'
+        # else:
+        #     clabel = f'$I_{{ {self.inputs.options.species} }} R$'
+        # cbar = fig.colorbar(im, shrink=0.7, label=clabel)
 
         # Put Planet's disk in the middle
-        xc, yc = (np.cos(np.linspace(0, 2*np.pi, 1000)),
-                  np.sin(np.linspace(0, 2*np.pi, 1000)))
-        ax.fill(xc, yc, 'y')
+        # xc, yc = (np.cos(np.linspace(0, 2*np.pi, 1000)),
+        #           np.sin(np.linspace(0, 2*np.pi, 1000)))
+        # ax.fill(xc, yc, 'y')
 
-        # Display the plot if requested
-        if show:
-            plt.show()
-
-        # Save the figure
-        plt.savefig(savefile)
-        plt.close()
-
-        # Returns figure, axes, and colorbar for further work if desired
-        return fig, ax, cbar
+        return fig
     
     def image_rotation(image):
         slong = image.subobslongitude

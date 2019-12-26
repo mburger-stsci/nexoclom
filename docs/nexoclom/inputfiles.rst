@@ -110,6 +110,14 @@ surfaceinteraction.accomfactor [Required if stickcoef < 1]
 Temperature Dependent Sticking Coefficient
 ------------------------------------------
 
+The sticking coefficient follows the functional form (Yakshinskiy & Madey 2005):
+
+.. math::
+    S(T) = A_0 e^{A_1 T} + A_2
+
+where the coefficients are species dependent. For Na,
+:math:`A_0=1.57014, A_1=-0.006262, A_2=0.1614157`.
+
 surfaceinteraction.sticktype [Required]
     Set `surfaceinteraction.sticktype = temperature dependent`.
 
@@ -117,8 +125,12 @@ surfaceinteractions.accomfactor [Required]
     Surface accommodation factor. 1 = Fully accommodated to local surface
     temperature. 0 = Elastic reemission.
 
-The exact functional dependence of the sticking coefficient has not yet been
-determined.
+surfaceinteractions.A [Optional]
+    Comma separated values for the coeffeicients.
+    Default = 1.57014, 0.006262, 0.1614157. (Ideally the defaults will be
+    species dependent, but I only have values for Na.)
+
+
 
 Sticking Coefficient from a Surface Map
 ---------------------------------------

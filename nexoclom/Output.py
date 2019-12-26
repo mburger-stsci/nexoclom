@@ -129,11 +129,11 @@ class Output:
         else:
             self.radpres = None
 
-        # Set up sticking
-        if inputs.surfaceinteraction.stickcoef != 1:
-            # set up surface accommodation + maybe other things
+        # set up surface accommodation + maybe other things if needed
+        if (('stickcoef' not in inputs.surfaceinteraction.__dict__) or
+            (inputs.surfaceinteraction.stickcoef != 1)):
             self.surfaceint = SurfaceInteraction(inputs,
-                                                 nt=21, nv=101, nprob=101)
+                                                 nt=201, nv=101, nprob=101)
 
         # Define the time that packets will run
         if inputs.options.step_size > 0:
@@ -522,6 +522,9 @@ class Output:
 
         # Save output as a pickle
         print(f'Saving file {self.filename}')
+        if self.inputs.surfaceinteraction.sticktype == 'temperature dependent':
+            self.surfaceint.stickcoef = 'FUNCTION'
+            
         with open(self.filename, 'wb') as f:
             pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
 

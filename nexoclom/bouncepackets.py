@@ -80,7 +80,16 @@ def bouncepackets(outputs, Ximpcheck, r0, hitplanet):
     Xtemp[:,4:7] = direction * v_new[:,np.newaxis]
 
     # Adjust the fractional values
-    if outputs.inputs.surfaceinteraction.stickcoef > 0:
+    if outputs.inputs.surfaceinteraction.sticktype == 'temperature dependent':
+        lonhit = (np.arctan2(Xtemp[:,1], -Xtemp[:,2])+2*np.pi) % (2*np.pi)
+        lathit = np.arcsin(Xtemp[:,3])
+        stickcoef = outputs.surfaceint.stickcoef(lonhit, lathit)
+        assert np.all(stickcoef <= 1) and np.all(stickcoef >= 0), (
+            'Problem with the sticking coefficient')
+        Xtemp[:,7] *= (1 - stickcoef)
+    elif outputs.inputs.surfaceinteraction.sticktype == 'surface map':
+        assert 0
+    elif outputs.inputs.surfaceinteraction.stickcoef > 0:
         Xtemp[:,7] *= (1 - outputs.inputs.surfaceinteraction.stickcoef)
     elif outputs.inputs.surfaceinteraction.stickcoef == 0:
         pass

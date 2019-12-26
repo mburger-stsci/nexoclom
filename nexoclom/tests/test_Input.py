@@ -27,31 +27,29 @@ except:
     from nexoclom import Input
 from MESSENGERuvvs import MESSENGERdata
 
-inputfiles = ['Ca.isotropic.maxwellian.50000.input']
-              # 'Ca.spot.maxwellian.input']
+inputfiles = [#'Na.Gaussian.3_1.no_accom_tempsticking.input']
+               'Ca.spot.maxwellian.input']
               #'Na.Gaussian.3_1.no_accom.input',
               # 'Na.maxwellian.1200.accom.input']
 
 orbit = 36
-overwrite = True
+overwrite = False
 
 def test_Input():
-    data = MESSENGERdata('Ca', f'orbit={orbit}')
+    data = MESSENGERdata('Na', f'orbit={orbit}')
     for infile in inputfiles:
         inputs = Input(os.path.join(os.path.dirname(__file__),
                                     'inputfiles', infile))
-        inputs.options.step_size = 30.
-        # inputs.run(1e5, overwrite=overwrite)
-        # image = inputs.produce_image('inputfiles/MercuryEmission.format',
-        #                              overwrite=overwrite)
-        # sfile = os.path.join(os.path.dirname(__file__),
-        #                      'outputs', infile.replace('.input', '.png'))
-        # image.display(show=False, savefile=sfile)
-
-        data.model(inputs, 1e4, overwrite=True)
-        
+        inputs.run(1e5, overwrite=overwrite)
+        image = inputs.produce_image('inputfiles/MercuryEmission.format',
+                                     overwrite=overwrite)
         sfile = os.path.join(os.path.dirname(__file__),
-                             'outputs',
+                             'outputs', infile.replace('.input', '.html'))
+        image.display(show=True, savefile=sfile)
+
+        data.model(inputs, 1e5, overwrite=True)
+        
+        sfile = os.path.join(os.path.dirname(__file__), 'figures',
                              f'{infile}_Orbit{orbit:04d}.html')
         data.plot(filename=sfile)
 

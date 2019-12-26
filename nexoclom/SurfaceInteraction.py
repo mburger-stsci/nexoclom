@@ -6,9 +6,29 @@ from atomicdataMB import atomicmass
 from .surface_temperature import surface_temperature
 from .source_distribution import MaxwellianDist
 
+def temp_dependent_sticking_coef(tsurf, A):
+    return
+
 
 class SurfaceInteraction:
     def __init__(self, inputs, **kwargs):
+        # Sticking coeffienct setup
+        if inputs.surfaceinteraction.sticktype == 'temperature dependent':
+            A = inputs.surfaceinteraction.A
+            def stickcoef(lon, lat):
+                tsurf = surface_temperature(inputs.geometry, lon, lat)
+                stickcoef = A[0] * np.exp(A[1]*tsurf) + A[2]
+                stickcoef[stickcoef > 1.] = 1.
+                stickcoef[stickcoef < 0.] = 0.
+                return stickcoef
+            
+            self.stickcoef = stickcoef
+        elif inputs.surfaceinteraction.sticktype == 'surface map':
+            assert 0
+        else:
+            pass
+
+        # Surface accommodation setup
         if inputs.surfaceinteraction.accomfactor == 0:
             pass
         else:
@@ -42,3 +62,4 @@ class SurfaceInteraction:
             self.probgrid = probgrid
             self.temperature = temperature
             self.probability = probability
+            
