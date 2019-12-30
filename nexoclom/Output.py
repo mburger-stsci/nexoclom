@@ -71,10 +71,6 @@ class Output:
         radpres
             Radiation pressure object containing acceleration as funtion
             of velocity in units of R_planet/s**2 and R_planet/s
-            
-        
-            
-        
         """
         # if logger is None:
         #     logger = logging.getLogger()

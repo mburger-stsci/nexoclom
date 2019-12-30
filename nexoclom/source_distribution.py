@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pickle
 import astropy.units as u
@@ -76,7 +77,12 @@ def surface_distribution(outputs):
                (2*np.pi*u.rad))
     elif spatialdist.type == 'surface map':
         # Choose lon, lat based on predetermined map
-        if spatialdist.mapfile.endswith('.pkl'):
+        if spatialdist.mapfile == 'default':
+            mapfile = os.path.join(os.path.dirname('__file__'), 'data',
+                f'{outputs.inputs.options.species}_surface_composition.pkl')
+            with open(spatialdist.mapfile, 'rb') as mapfile:
+                sourcemap = pickle.load(mapfile)
+        elif spatialdist.mapfile.endswith('.pkl'):
             with open(spatialdist.mapfile, 'rb') as mapfile:
                 sourcemap = pickle.load(mapfile)
         elif spatialdist.mapfile.endswith('.sav'):
@@ -84,15 +90,24 @@ def surface_distribution(outputs):
             sourcemap_ = readsav(spatialdist.mapfile)['sourcemap']
             sourcemap = {'longitude':sourcemap_['longitude'][0]*u.rad,
                          'latitude':sourcemap_['latitude'][0]*u.rad,
-                         'map':sourcemap_['map'][0].transpose()}
+                         'map':sourcemap_['map'][0].transpose(),
+                         'coordinate_system':sourcemap_['coordinate_system'][0]}
         else:
             assert 0, 'Mapfile is the wrong format.'
-    
+
+        assert 0
         lon, lat = mathMB.random_deviates_2d(sourcemap['map'],
                                              sourcemap['longitude'],
                                              np.sin(sourcemap['latitude']),
                                              npack)
         lat = np.arcsin(lat)
+        
+        if sourcemap['coordinate_system'] == 'planet-fixed':
+            # Need to rotate to model coordinate system
+            lon = ((outputs.inputs.spatialdist.subsolarlon - lon + 2*np.pi) %
+                   (2*np.pi))
+        else:
+            pass
     elif spatialdist.type == 'surface spot':
         lon0 = spatialdist.longitude
         lat0 = spatialdist.latitude

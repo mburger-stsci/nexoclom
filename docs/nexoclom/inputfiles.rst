@@ -228,14 +228,25 @@ pre-defined surface map.
 spatialdist.type [Required]
     Set `spatialdist.type = surface map`.
 
-spatialdist.mapfile [Required]
-    Path to the file containing the surface map.
+spatialdist.mapfile [Optional]
+    Set this to a pickle or IDL savefile containing the map information, or
+    set to 'default' to use the default surface composition map.
 
-spatialdist.coordsystem [Optional]
-    Coordinate system for the map. Options are solar-fixed, planet-fixed,
-    or moon-fixed. Default = solar-fixed for planets and planet-fixed for
-    moons. For a surface composition map that rotates with the planet, use
-    planet-fixed.
+    The sourcemap is saved as a dictionary with the fields:
+
+        * longitude: longitude axis in radians
+
+        * latitude: latitude axis in radians
+
+        * abundance: surface abundance map
+
+        * coordinate_system: planet-fixed, solar-fixed, or moon-fixed
+
+    If not given, the default, planet-fixed surface composition map is used.
+
+spatialdist.subsolarlon [Optional]
+    Sub-solar longitude for the observation in radians. This is required for
+    a planet-fixed coordinate system.
 
 spatialdist.exobase [Optional]
     Location of the exobase in units of the starting point's radius.

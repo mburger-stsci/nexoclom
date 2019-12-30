@@ -59,7 +59,7 @@ CREATE TABLE spatdist_surfmap (
     idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     exobase DOUBLE PRECISION NOT NULL,
     mapfile TEXT NOT NULL,
-    coordsystem TEXT NOT NULL,
+    subsolarlon DOUBLE PRECISION,
     check(exobase >= 1)
 );
 

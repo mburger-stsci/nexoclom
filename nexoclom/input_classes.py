@@ -1,6 +1,7 @@
 """Classes used by the Inputs class"""
 import os.path
 import numpy as np
+import pickle
 from astropy.time import Time
 import astropy.units as u
 from solarsystemMB import SSObject
@@ -490,25 +491,34 @@ class SpatialDist:
             
             if 'mapfile' in sparam:
                 self.mapfile = sparam['mapfile']
-            else:
-                raise InputError('SpatialDist.__init__',
-                                 'SpatialDist.mapfile not given.')
-            
-            if not os.path.exists(self.mapfile):
-                raise InputError('SpatialDist.__init__',
-                                 f'File Not Found: {self.mapfile}')
-            else:
-                pass
-            
-            if 'coordsystem' in sparam:
-                coordsystems = {'solar-fixed', 'planet-fixed', 'moon-fixed'}
-                if sparam['coordsystem'] in coordsystems:
-                    self.coordsystem = sparam['coordsystem']
-                else:
+                # Check that the mapfile exists
+                if not os.path.exists(self.mapfile):
                     raise InputError('SpatialDist.__init__',
-                     f'{sparam["coordsystem"]} not a valid coordinat system.')
+                                     f'File Not Found: {self.mapfile}')
+                else:
+                    pass
             else:
-                self.coordsystem = 'default'
+                # Default mapfile = saved surface composition map
+                self.mapfile = 'default'
+                
+            if self.mapfile == 'default':
+                need_subslon = True
+            else:
+                if self.mapfile.endswith('.pkl'):
+                    with open(self.mapfile, 'rb') as f:
+                        sourcemap = pickle.load(f)
+                    need_subslon = sourcemap['coordinate_system'] == 'planet-fixed'
+                else:
+                    assert 0, 'Not set up yet'
+                
+            if need_subslon and ('subsolarlon' in sparam):
+                self.subsolarlon = float(sparam['subsolarlon'])*u.rad
+            elif need_subslon:
+                raise InputError('SpatialDist.__init__',
+                                 'subsolarlon must be specified.')
+            else:
+                self.subsolarlon = None
+
         elif self.type == 'surface spot':
             self.exobase = (float(sparam['exobase'])
                             if 'exobase' in sparam
@@ -556,10 +566,13 @@ class SpatialDist:
             elif self.type == 'surface map':
                 with database_connect() as con:
                     cur = con.cursor()
+                    sslon = (None
+                             if self.subsolarlon is None
+                             else self.subsolarlon.value)
                     cur.execute('''INSERT INTO spatdist_surfmap (
-                                       exobase, mapfile, coordsystem) VALUES (
+                                       exobase, mapfile, subsolarlon) VALUES (
                                        %s, %s, %s''',
-                                (self.exobase, self.mapfile, self.coordsystem))
+                                (self.exobase, self.mapfile, sslon))
             elif self.type == 'surface spot':
                 with database_connect() as con:
                     cur = con.cursor()
@@ -589,12 +602,15 @@ class SpatialDist:
                              longitude = %s::DOUBLE PRECISION[2] and
                              latitude = %s::DOUBLE PRECISION[2]'''
         elif self.type == 'surface map':
-            params = [self.exobase, self.mapfile, self.coordsystem]
+            sslon = (None
+                     if self.subsolarlon is None
+                     else self.subsolarlon.value)
+            params = [self.exobase, self.mapfile, sslon]
             query = '''SELECT idnum
                        FROM spatdist_surfmap
                        WHERE exobase = %s and
                              mapfile = %s and
-                             coordsystem = %s'''
+                             subsolarlon = %s'''
         elif self.type == 'surface spot':
             params = [self.exobase, self.longitude.value, self.latitude.value,
                       self.sigma.value]
