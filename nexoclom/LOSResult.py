@@ -184,6 +184,7 @@ class LOSResult(ModelResult):
             assert len(result) <= 1
             if len(result) == 1:
                 savefile = result.filename[0]
+
                 with open(savefile, 'rb') as f:
                     radiance, packets = pickle.load(f)
                 idnum = result.idnum[0]

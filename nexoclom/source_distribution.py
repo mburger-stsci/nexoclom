@@ -115,21 +115,21 @@ def surface_distribution(outputs):
         lat0 = spatialdist.latitude
         sigma0 = spatialdist.sigma
     
-        spot0 = (np.sin(lon0)*np.cos(lat0),
-                 -np.cos(lon0)*np.cos(lat0),
-                 np.sin(lat0))
+        spot0 = ((np.sin(lon0)*np.cos(lat0)).value,
+                 (-np.cos(lon0)*np.cos(lat0)).value,
+                 (np.sin(lat0)).value)
         longitude = np.linspace(0, 2*np.pi, 361)*u.rad
         latitude = np.linspace(-np.pi/2, np.pi/2, 181)*u.rad
     
-        ptsx = np.outer(np.sin(longitude), np.cos(latitude))
-        ptsy = -np.outer(np.cos(longitude), np.cos(latitude))
-        ptsz = -np.outer(np.ones_like(longitude), np.sin(latitude))
+        ptsx = np.outer(np.sin(longitude.value), np.cos(latitude.value))
+        ptsy = -np.outer(np.cos(longitude.value), np.cos(latitude.value))
+        ptsz = -np.outer(np.ones_like(longitude.value), np.sin(latitude.value))
     
         cosphi = ptsx*spot0[0]+ptsy*spot0[1]+ptsz*spot0[2]
         cosphi[cosphi > 1] = 1
         cosphi[cosphi < -1] = -1
         phi = np.arccos(cosphi)
-        sourcemap = np.exp(-phi/sigma0)
+        sourcemap = np.exp(-phi/sigma0.value)
     
         lon, lat = mathMB.random_deviates_2d(sourcemap, longitude,
                                              np.sin(latitude), npack)
