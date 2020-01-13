@@ -246,7 +246,10 @@ spatialdist.mapfile [Optional]
 
 spatialdist.subsolarlon [Optional]
     Sub-solar longitude for the observation in radians. This is required for
-    a planet-fixed coordinate system.
+    a planet-fixed coordinate system. However, if simulating a MESSENGER
+    orbit, this value will be overwritten by the value at the time the data
+    were taken. If it is required, but not given or specified programmatically,
+    an Exception will be raised.
 
 spatialdist.exobase [Optional]
     Location of the exobase in units of the starting point's radius.

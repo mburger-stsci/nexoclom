@@ -101,26 +101,11 @@ class Input:
         def extract_param(tag):
             return {b:c for (a,b,c) in params if a == tag}
 
-        if extract_param('geometry'):
-            self.geometry = Geometry(extract_param('geometry'))
-        else:
-            assert 0, 'Need to define default action.'
-            
+        self.geometry = Geometry(extract_param('geometry'))
         self.surfaceinteraction = SurfaceInteraction(extract_param(
             'surfaceinteraction'))
-        
         self.forces = Forces(extract_param('forces'))
-        
         self.spatialdist = SpatialDist(extract_param('spatialdist'))
-        if self.spatialdist.type == 'surface map':
-            if self.spatialdist.coordsystem == 'default':
-                if self.geometry.startpoint == self.geometry.planet.object:
-                    self.spatialdist.coordsystem = 'solar-fixed'
-                else:
-                    self.spatialdist.coordsystem = 'planet-fixed'
-            else:
-                pass
-        
         self.speeddist = SpeedDist(extract_param('speeddist'))
         self.angulardist = AngularDist(extract_param('angulardist'))
         self.options = Options(extract_param('options'))

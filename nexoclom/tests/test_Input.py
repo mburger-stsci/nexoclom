@@ -28,24 +28,25 @@ except:
 from MESSENGERuvvs import MESSENGERdata
 
 inputfiles = [#'Na.Gaussian.3_1.no_accom_tempsticking.input']
-               'Ca.spot.maxwellian.input']
               #'Na.Gaussian.3_1.no_accom.input',
-              # 'Na.maxwellian.1200.accom.input']
+              # 'Na.maxwellian.1200.accom.input',
+              'Ca.surfacemap.maxwellian.50000.input',
+              'Ca.spot.maxwellian.input']
 
 orbit = 36
-overwrite = False
+overwrite = True
 
 def test_Input():
-    data = MESSENGERdata('Na', f'orbit={orbit}')
     for infile in inputfiles:
+        data = MESSENGERdata(infile[0:2], f'orbit={orbit}')
         inputs = Input(os.path.join(os.path.dirname(__file__),
                                     'inputfiles', infile))
-        inputs.run(1e5, overwrite=overwrite)
-        image = inputs.produce_image('inputfiles/MercuryEmission.format',
-                                     overwrite=overwrite)
-        sfile = os.path.join(os.path.dirname(__file__),
-                             'outputs', infile.replace('.input', '.html'))
-        image.display(show=True, savefile=sfile)
+        # inputs.run(1e5, overwrite=overwrite)
+        # image = inputs.produce_image('inputfiles/MercuryEmission.format',
+        #                              overwrite=overwrite)
+        # sfile = os.path.join(os.path.dirname(__file__),
+        #                      'outputs', infile.replace('.input', '.html'))
+        # image.display(show=True, savefile=sfile)
 
         data.model(inputs, 1e5, overwrite=True)
         

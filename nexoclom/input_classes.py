@@ -502,20 +502,21 @@ class SpatialDist:
                 self.mapfile = 'default'
                 
             if self.mapfile == 'default':
-                need_subslon = True
+                self.coordinate_system = 'planet-fixed'
             else:
                 if self.mapfile.endswith('.pkl'):
                     with open(self.mapfile, 'rb') as f:
                         sourcemap = pickle.load(f)
-                    need_subslon = sourcemap['coordinate_system'] == 'planet-fixed'
+                    coord_systems = ['planet-fixed', 'solar-fixed']
+                    assert sourcemap['coordinate_system'] in coord_systems, (
+                        'source map must be in planet-fixed or solar-fixed coordinates.')
+                    self.coordinate_system = sourcemap['coordinate_system']
                 else:
                     assert 0, 'Not set up yet'
                 
-            if need_subslon and ('subsolarlon' in sparam):
+            if ((self.coordinate_system == 'planet-fixed') and
+                ('subsolarlon' in sparam)):
                 self.subsolarlon = float(sparam['subsolarlon'])*u.rad
-            elif need_subslon:
-                raise InputError('SpatialDist.__init__',
-                                 'subsolarlon must be specified.')
             else:
                 self.subsolarlon = None
 
@@ -570,9 +571,11 @@ class SpatialDist:
                              if self.subsolarlon is None
                              else self.subsolarlon.value)
                     cur.execute('''INSERT INTO spatdist_surfmap (
-                                       exobase, mapfile, subsolarlon) VALUES (
-                                       %s, %s, %s''',
-                                (self.exobase, self.mapfile, sslon))
+                                       exobase, mapfile, subsolarlon,
+                                       coordinate_system) VALUES (
+                                       %s, %s, %s, %s)''',
+                                (self.exobase, self.mapfile, sslon,
+                                 self.coordinate_system))
             elif self.type == 'surface spot':
                 with database_connect() as con:
                     cur = con.cursor()
@@ -605,12 +608,13 @@ class SpatialDist:
             sslon = (None
                      if self.subsolarlon is None
                      else self.subsolarlon.value)
-            params = [self.exobase, self.mapfile, sslon]
+            params = [self.exobase, self.mapfile, sslon, self.coordinate_system]
             query = '''SELECT idnum
                        FROM spatdist_surfmap
                        WHERE exobase = %s and
                              mapfile = %s and
-                             subsolarlon = %s'''
+                             subsolarlon = %s and
+                             coordinate_system = %s'''
         elif self.type == 'surface spot':
             params = [self.exobase, self.longitude.value, self.latitude.value,
                       self.sigma.value]

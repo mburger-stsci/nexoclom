@@ -78,34 +78,36 @@ def surface_distribution(outputs):
     elif spatialdist.type == 'surface map':
         # Choose lon, lat based on predetermined map
         if spatialdist.mapfile == 'default':
-            mapfile = os.path.join(os.path.dirname('__file__'), 'data',
+            mapfile = os.path.join(os.path.dirname(__file__), 'data',
                 f'{outputs.inputs.options.species}_surface_composition.pkl')
-            with open(spatialdist.mapfile, 'rb') as mapfile:
-                sourcemap = pickle.load(mapfile)
+            with open(mapfile, 'rb') as mfile:
+                sourcemap = pickle.load(mfile)
         elif spatialdist.mapfile.endswith('.pkl'):
-            with open(spatialdist.mapfile, 'rb') as mapfile:
-                sourcemap = pickle.load(mapfile)
+            with open(spatialdist.mapfile, 'rb') as mfile:
+                sourcemap = pickle.load(mfile)
         elif spatialdist.mapfile.endswith('.sav'):
             from scipy.io import readsav
             sourcemap_ = readsav(spatialdist.mapfile)['sourcemap']
             sourcemap = {'longitude':sourcemap_['longitude'][0]*u.rad,
                          'latitude':sourcemap_['latitude'][0]*u.rad,
-                         'map':sourcemap_['map'][0].transpose(),
+                         'abundance':sourcemap_['map'][0].transpose(),
                          'coordinate_system':sourcemap_['coordinate_system'][0]}
         else:
             assert 0, 'Mapfile is the wrong format.'
 
-        assert 0
-        lon, lat = mathMB.random_deviates_2d(sourcemap['map'],
-                                             sourcemap['longitude'],
+        lat, lon = mathMB.random_deviates_2d(sourcemap['abundance'],
                                              np.sin(sourcemap['latitude']),
+                                             sourcemap['longitude'],
                                              npack)
         lat = np.arcsin(lat)
         
-        if sourcemap['coordinate_system'] == 'planet-fixed':
+        if (('planet' in sourcemap['coordinate_system']) and
+            (outputs.inputs.spatialdist.subsolarlon is not None)):
             # Need to rotate to model coordinate system
-            lon = ((outputs.inputs.spatialdist.subsolarlon - lon + 2*np.pi) %
-                   (2*np.pi))
+            lon = ((outputs.inputs.spatialdist.subsolarlon.value - lon +
+                    2*np.pi) % (2*np.pi))
+        elif ('planet' in sourcemap['coordinate_system']):
+            raise ValueError('inputs.spatialdist.subsolarlon is None')
         else:
             pass
     elif spatialdist.type == 'surface spot':
