@@ -1,6 +1,5 @@
 import os.path
 import numpy as np
-# from scipy.spatial import distance_matrix
 import pandas as pd
 import pickle
 import random
@@ -9,8 +8,6 @@ from datetime import datetime
 from .ModelResults import ModelResult
 from .database_connect import database_connect
 from .Output import Output
-
-from datetime import datetime
 
 
 class LOSResult(ModelResult):
@@ -186,6 +183,7 @@ class LOSResult(ModelResult):
             assert len(result) <= 1
             if len(result) == 1:
                 savefile = result.filename[0]
+
                 with open(savefile, 'rb') as f:
                     radiance, packets = pickle.load(f)
                 idnum = result.idnum[0]
@@ -231,16 +229,14 @@ class LOSResult(ModelResult):
         xdata = data[['x', 'y', 'z']].values.astype(float)
         boresight = data[['xbore', 'ybore', 'zbore']].values.astype(float)
         
+        # This removes the packets that aren't close to the los
+        if 'outeredge' in kwargs:
+            oedge = kwargs['outeredge']
+        else:
+            oedge = output.inputs.options.outeredge*2
+
         print(f'{len(data)} spectra taken.')
-        t0, t1, t2, t3 = 0, 0, 0, 0
         for i in range(len(data)):
-            t0_ = datetime.now()
-            # This removes the packets that aren't close to the los
-            if 'outeredge' in kwargs:
-                oedge = kwargs['outeredge']
-            else:
-                oedge = output.inputs.options.outeredge * 2
-                
             x_sc = xdata[i,:]
             bore = boresight[i,:]
 
@@ -265,8 +261,6 @@ class LOSResult(ModelResult):
             
             subset = xpack[mask]
             wt = weight[mask]
-            # subset, wt = xpack, weight
-            t1_ = datetime.now()
 
             # Distance of packets from spacecraft
             xpr = subset - x_sc[np.newaxis,:]
@@ -278,10 +272,9 @@ class LOSResult(ModelResult):
             costheta = losrad/rpr
             costheta[costheta > 1] = 1.
             costheta[costheta < -1] = -1.
-            
+
             inview = ((costheta >= np.cos(self.dphi)) &
                       (rpr < dist_from_plan[i]))
-            t2_ = datetime.now()
 
             if np.any(inview):
                 Apix = np.pi*(rpr[inview]*np.sin(self.dphi))**2 * self.unit**2
@@ -302,17 +295,10 @@ class LOSResult(ModelResult):
                     pack[i] = np.sum(inview)
                 else:
                     pass
-            t3_ = datetime.now()
 
             if len(data) > 10:
                 if (i % (len(data)//10)) == 0:
                     print(f'Completed {i+1} spectra')
-            t0 += (t1_-t0_).microseconds
-            t1 += (t2_-t1_).microseconds
-            t2 += (t3_-t2_).microseconds
-
-        print(t0/1e6, t1/1e6, t2/1e6)
-        assert 0
         del output
         self.save(data, outfile, rad, pack)
 

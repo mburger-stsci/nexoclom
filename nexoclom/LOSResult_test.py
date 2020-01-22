@@ -1,5 +1,6 @@
 import os.path
 import numpy as np
+# from scipy.spatial import distance_matrix
 import pandas as pd
 import pickle
 import random
@@ -223,7 +224,15 @@ class LOSResult(ModelResult):
         
         xpack = packets[['x', 'y', 'z']].values
         weight = packets['weight'].values
+        ta_ = datetime.today()
         tree = KDTree(xpack)
+        tb_ = datetime.today()
+        print((tb_-ta_).microseconds)
+        
+        from IPython import embed
+        embed() # drop into an IPython session.
+
+        assert 0
 
         # This sets limits on regions where packets might be
         rad, pack = np.zeros(len(data)), np.zeros(len(data))
@@ -239,6 +248,7 @@ class LOSResult(ModelResult):
             oedge = output.inputs.options.outeredge*2
 
         print(f'{len(data)} spectra taken.')
+        t0, t1, t2, t3 = 0, 0, 0, 0
         for i in range(len(data)):
             x_sc = xdata[i,:]
             bore = boresight[i,:]
@@ -250,6 +260,7 @@ class LOSResult(ModelResult):
                 x_far = x_sc+bore*dd
                 
             ###########################
+            t0_ = datetime.today()
             t = [0.05]
             while t[-1] < dd:
                 t.append(t[-1] + t[-1]*np.sin(self.dphi))
@@ -268,6 +279,7 @@ class LOSResult(ModelResult):
             losrad_ = np.sum(xpr*bore[np.newaxis, :], axis=1)
 
             #############################
+            t1_ = datetime.today()
             x_far = x_sc + bore*oedge
             b_min = np.minimum(x_sc, x_far)
             b_max = np.maximum(x_sc, x_far)
@@ -296,8 +308,10 @@ class LOSResult(ModelResult):
 
             inview = ((costheta >= np.cos(self.dphi)) &
                       (rpr < dist_from_plan[i]))
+            t1a_ = datetime.today()
             #############################
             if np.any(inview):
+                t2_ = datetime.today()
                 Apix_ = np.pi*(losrad_*np.sin(self.dphi))**2 * self.unit**2
                 wtemp_ = wt_/Apix_.to(u.cm**2).value
                 if self.quantity == 'radiance':
@@ -313,6 +327,7 @@ class LOSResult(ModelResult):
                     rad_[i] = np.sum(wtemp_)
                     pack_[i] = len(losrad_)
                 #########################
+                t3_ = datetime.now()
                 losrad_ = losrad[inview]
                 Apix = np.pi*(losrad_*np.sin(self.dphi))**2 * self.unit**2
                 wtemp = wt[inview]/Apix.to(u.cm**2).value
@@ -327,14 +342,25 @@ class LOSResult(ModelResult):
     
                     rad[i] = np.sum(wtemp)
                     pack[i] = np.sum(inview)
+                t4_ = datetime.now()
             else:
                 pass
 
             if len(data) > 10:
-                if (i%(len(data)//10)) == 0:
+                if (i % (len(data)//10)) == 0:
                     print(f'Completed {i+1} spectra')
+            t0 += (t1_-t0_).microseconds
+            t1 += (t1a_-t1_).microseconds
+            t2 += (t3_-t2_).microseconds
+            t3 += (t4_-t3_).microseconds
 
-        del output
+        print(t0/1e6, t1/1e6, t2/1e6, t3/1e6)
+        import matplotlib.pyplot as plt
+        plt.plot(rad_)
+        plt.plot(rad)
+        plt.show()
+        assert 0
+        # del output
         self.save(data, outfile, rad, pack)
 
         return rad, pack

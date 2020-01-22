@@ -38,7 +38,6 @@ from .database_connect import database_connect
 from .input_classes import (Geometry, SurfaceInteraction, Forces, SpatialDist,
                             SpeedDist, AngularDist, Options)
 from .produce_image import ModelImage
-from .LOSResult import LOSResult
 
 
 class Input:
@@ -286,7 +285,16 @@ class Input:
                           overwrite=overwrite)
     
     def line_of_sight(self, data, quantity, dphi=3*u.deg,
-                      filenames=None, overwrite=False):
+                      filenames=None, overwrite=False, version='new'):
+        if version == 'new':
+            from .LOSResult import LOSResult
+        elif version == 'old':
+            from .LOSResult_old import LOSResult
+        elif version == 'test':
+            from .LOSResult_test import LOSResult
+        else:
+            assert 0
+            
         return LOSResult(self, data, quantity, dphi=dphi, filenames=filenames,
                          overwrite=overwrite)
 
