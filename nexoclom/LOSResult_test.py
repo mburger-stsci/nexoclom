@@ -6,7 +6,7 @@ import pickle
 import random
 import astropy.units as u
 from datetime import datetime
-from sklearn.neighbors import KDTree
+from sklearn.neighbors import KDTree, BallTree
 from .ModelResults import ModelResult
 from .database_connect import database_connect
 from .Output import Output
@@ -225,7 +225,7 @@ class LOSResult(ModelResult):
         xpack = packets[['x', 'y', 'z']].values
         weight = packets['weight'].values
         ta_ = datetime.today()
-        tree = KDTree(xpack)
+        tree = BallTree(xpack)
         tb_ = datetime.today()
         print((tb_-ta_).microseconds)
         

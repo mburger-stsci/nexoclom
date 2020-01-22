@@ -6,6 +6,7 @@ import random
 import astropy.units as u
 from datetime import datetime
 from sklearn.neighbors import KDTree
+#from scipy.spatial import KDTree, cKDTree
 from .ModelResults import ModelResult
 from .database_connect import database_connect
 from .Output import Output
@@ -224,6 +225,7 @@ class LOSResult(ModelResult):
         xpack = packets[['x', 'y', 'z']].values
         weight = packets['weight'].values
         tree = KDTree(xpack)
+        # tree = BallTree(xpack)
 
         # This sets limits on regions where packets might be
         rad, pack = np.zeros(len(data)), np.zeros(len(data))
@@ -249,7 +251,6 @@ class LOSResult(ModelResult):
                 dd -= 0.1
                 x_far = x_sc+bore*dd
                 
-            ###########################
             t = [0.05]
             while t[-1] < dd:
                 t.append(t[-1] + t[-1]*np.sin(self.dphi))
@@ -258,75 +259,38 @@ class LOSResult(ModelResult):
 
             wid = t*np.sin(self.dphi)
             ind = np.concatenate(tree.query_radius(Xbore, wid))
-            indicies = np.unique(ind)
+            indicies = np.unique(ind).astype(int)
             subset = xpack[indicies, :]
-            wt_ = weight[indicies]
-            
+            wt = weight[indicies]
+        
             xpr = subset-x_sc[np.newaxis, :]
-            # rpr_ = np.sqrt(xpr[:,0]*xpr[:,0] + xpr[:,1]*xpr[:,1] +
-            #               xpr[:,2]*xpr[:,2])
-            losrad_ = np.sum(xpr*bore[np.newaxis, :], axis=1)
+            rpr = np.sqrt(xpr[:, 0]*xpr[:, 0]+xpr[:, 1]*xpr[:, 1]+
+                          xpr[:, 2]*xpr[:, 2])
+            losrad = np.sum(xpr*bore[np.newaxis, :], axis=1)
+            # costheta = losrad/rpr
+            # costheta[costheta > 1] = 1.
+            # costheta[costheta < -1] = -1.
 
-            #############################
-            x_far = x_sc + bore*oedge
-            b_min = np.minimum(x_sc, x_far)
-            b_max = np.maximum(x_sc, x_far)
+            # inview = ((costheta >= np.cos(self.dphi)) &
+            #           (rpr < dist_from_plan[i]))
+            inview = rpr < dist_from_plan[i]
             
-            wid = dd*np.sin(self.dphi + 0.5*np.pi/180)
-
-            mask = ((xpack[:,0] >= b_min[0]-wid) &
-                    (xpack[:,0] <= b_max[0]+wid) &
-                    (xpack[:,1] >= b_min[1]-wid) &
-                    (xpack[:,1] <= b_max[1]+wid) &
-                    (xpack[:,2] >= b_min[2]-wid) &
-                    (xpack[:,2] <= b_max[2]+wid)).nonzero()[0]
-            subset = xpack[mask]
-            wt = weight[mask]
-
-            # Distance of packets from spacecraft
-            xpr = subset - x_sc[np.newaxis,:]
-            rpr = np.sqrt(xpr[:,0]*xpr[:,0] + xpr[:,1]*xpr[:,1] +
-                          xpr[:,2]*xpr[:,2])
-
-            # Packet-s/c boresight angle
-            losrad = np.sum(xpr * bore[np.newaxis,:], axis=1)
-            costheta = losrad/rpr
-            costheta[costheta > 1] = 1.
-            costheta[costheta < -1] = -1.
-
-            inview = ((costheta >= np.cos(self.dphi)) &
-                      (rpr < dist_from_plan[i]))
-            #############################
             if np.any(inview):
-                Apix_ = np.pi*(losrad_*np.sin(self.dphi))**2 * self.unit**2
-                wtemp_ = wt_/Apix_.to(u.cm**2).value
-                if self.quantity == 'radiance':
-                    # Determine if any packets are in shadow
-                    # Projection of packet onto LOS
-                    # Point along LOS the packet represents
-                    hit = (x_sc[np.newaxis,:] +
-                           bore[np.newaxis,:] * losrad_[:,np.newaxis])
-                    rhohit_ = np.linalg.norm(hit[:,[0,2]], axis=1)
-                    out_of_shadow_ = (rhohit_ > 1) | (hit[:,1] < 0)
-                    wtemp_ *= out_of_shadow_
-
-                    rad_[i] = np.sum(wtemp_)
-                    pack_[i] = len(losrad_)
-                #########################
-                losrad_ = losrad[inview]
-                Apix = np.pi*(losrad_*np.sin(self.dphi))**2 * self.unit**2
+                Apix = np.pi*(rpr[inview]*np.sin(self.dphi))**2 * self.unit**2
                 wtemp = wt[inview]/Apix.to(u.cm**2).value
                 if self.quantity == 'radiance':
+                    losrad_ = losrad[inview]
                     # Determine if any packets are in shadow
+                    # Projection of packet onto LOS
                     # Point along LOS the packet represents
                     hit = (x_sc[np.newaxis,:] +
                            bore[np.newaxis,:] * losrad_[:,np.newaxis])
                     rhohit = np.linalg.norm(hit[:,[0,2]], axis=1)
                     out_of_shadow = (rhohit > 1) | (hit[:,1] < 0)
                     wtemp *= out_of_shadow
-    
+
                     rad[i] = np.sum(wtemp)
-                    pack[i] = np.sum(inview)
+                    pack[i] = len(losrad)
             else:
                 pass
 
