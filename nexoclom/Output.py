@@ -420,28 +420,17 @@ class Output:
         self.totalsource *= nsteps
         X = pd.DataFrame()
         index = np.mgrid[0:self.npackets, 0:nsteps]
-        self.npackets *= nsteps
-        # self.index = index[0,:,:].reshape(self.npackets)
-        # self.time = results[:,0,:].reshape(self.npackets)
-        # self.x = results[:,1,:].reshape(self.npackets)
-        # self.y = results[:,2,:].reshape(self.npackets)
-        # self.z = results[:,3,:].reshape(self.npackets)
-        # self.vx = results[:,4,:].reshape(self.npackets)
-        # self.vy = results[:,5,:].reshape(self.npackets)
-        # self.vz = results[:,6,:].reshape(self.npackets)
-        # self.frac = results[:,7,:].reshape(self.npackets)
-        # self.lossfrac = lossfrac.reshape(self.npackets)
-        
-        X['index'] = index[0,:,:].reshape(self.npackets)
-        X['time'] = results[:,0,:].reshape(self.npackets)
-        X['x'] = results[:,1,:].reshape(self.npackets)
-        X['y'] = results[:,2,:].reshape(self.npackets)
-        X['z'] = results[:,3,:].reshape(self.npackets)
-        X['vx'] = results[:,4,:].reshape(self.npackets)
-        X['vy'] = results[:,5,:].reshape(self.npackets)
-        X['vz'] = results[:,6,:].reshape(self.npackets)
-        X['frac'] = results[:,7,:].reshape(self.npackets)
-        X['lossfrac'] = lossfrac.reshape(self.npackets)
+        npackets = self.npackets * nsteps
+        X['index'] = index[0,:,:].reshape(npackets)
+        X['time'] = results[:,0,:].reshape(npackets)
+        X['x'] = results[:,1,:].reshape(npackets)
+        X['y'] = results[:,2,:].reshape(npackets)
+        X['z'] = results[:,3,:].reshape(npackets)
+        X['vx'] = results[:,4,:].reshape(npackets)
+        X['vy'] = results[:,5,:].reshape(npackets)
+        X['vz'] = results[:,6,:].reshape(npackets)
+        X['frac'] = results[:,7,:].reshape(npackets)
+        X['lossfrac'] = lossfrac.reshape(npackets)
         self.X = X
 
         # Add units back in
