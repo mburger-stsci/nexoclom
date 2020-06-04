@@ -95,9 +95,9 @@ def surface_distribution(outputs):
         else:
             assert 0, 'Mapfile is the wrong format.'
 
-        lat, lon = mathMB.random_deviates_2d(sourcemap['abundance'],
-                                             np.sin(sourcemap['latitude']),
+        lon, lat = mathMB.random_deviates_2d(sourcemap['abundance'],
                                              sourcemap['longitude'],
+                                             np.sin(sourcemap['latitude']),
                                              npack)
         lat = np.arcsin(lat)
         

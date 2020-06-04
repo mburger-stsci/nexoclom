@@ -605,16 +605,20 @@ class SpatialDist:
                              longitude = %s::DOUBLE PRECISION[2] and
                              latitude = %s::DOUBLE PRECISION[2]'''
         elif self.type == 'surface map':
-            sslon = (None
-                     if self.subsolarlon is None
-                     else self.subsolarlon.value)
-            params = [self.exobase, self.mapfile, sslon, self.coordinate_system]
-            query = '''SELECT idnum
-                       FROM spatdist_surfmap
-                       WHERE exobase = %s and
-                             mapfile = %s and
-                             subsolarlon = %s and
-                             coordinate_system = %s'''
+            params = [self.exobase, self.mapfile]
+            if self.subsolarlon is None:
+                sslon = 'subsolarlon is NULL'
+            else:
+                sslon = 'subsolarlon = %s'
+                params.append(sslon)
+                
+            params.append(self.coordinate_system)
+            query = f'''SELECT idnum
+                        FROM spatdist_surfmap
+                        WHERE exobase = %s and
+                              mapfile = %s and
+                              {sslon} and
+                              coordinate_system = %s'''
         elif self.type == 'surface spot':
             params = [self.exobase, self.longitude.value, self.latitude.value,
                       self.sigma.value]
@@ -630,6 +634,7 @@ class SpatialDist:
 
         with database_connect() as con:
             cur = con.cursor()
+            # print(cur.mogrify(query, tuple(params)))
             cur.execute(query, tuple(params))
     
             if cur.rowcount == 0:

@@ -30,11 +30,11 @@ from MESSENGERuvvs import MESSENGERdata
 inputfiles = [#'Na.Gaussian.3_1.no_accom_tempsticking.input']
               #'Na.Gaussian.3_1.no_accom.input',
               # 'Na.maxwellian.1200.accom.input',
-              'Ca.surfacemap.maxwellian.50000.input',
+              #'Ca.surfacemap.maxwellian.50000.input',
               'Ca.spot.maxwellian.input']
 
 orbit = 36
-overwrite = True
+overwrite = False
 
 def test_Input():
     for infile in inputfiles:
@@ -48,14 +48,20 @@ def test_Input():
         #                      'outputs', infile.replace('.input', '.html'))
         # image.display(show=True, savefile=sfile)
 
-        data.model(inputs, 1e5, overwrite=True)
-        
+        data.model(inputs, 1e5, overwrite=overwrite, fit_method='middle50',
+                   label='Middle 50')
+        data.model(inputs, 1e5, overwrite=overwrite, fit_method='middle10',
+                   label='Middle 10')
+        data.model(inputs, 1e5, overwrite=overwrite, fit_method='middle90',
+                   label='Middle 90')
+
         sfile = os.path.join(os.path.dirname(__file__), 'figures',
                              f'{infile}_Orbit{orbit:04d}.html')
         data.plot(filename=sfile)
 
 
     assert True
+    return data
 
 if __name__ == '__main__':
-    test_Input()
+    data = test_Input()

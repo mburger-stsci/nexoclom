@@ -9,19 +9,21 @@ from sklearn.neighbors import KDTree
 #from scipy.spatial import KDTree, cKDTree
 from .ModelResults import ModelResult
 from .database_connect import database_connect
+from .Input import Input
 from .Output import Output
 
 
 class LOSResult(ModelResult):
-    def __init__(self, inputs, data, quantity, dphi=3*u.deg,
-                 filenames=None, overwrite=False, **kwargs):
+    def __init__(self, start_from, data, quantity, dphi=3*u.deg,
+                 filenames=None, overwrite=False, savepackets=False,
+                 **kwargs):
         """Determine column or emission along lines of sight.
         This assumes the model has already been run.
         
         Parameters
         ==========
-        inputs
-            An Inputs object
+        start_from
+            Either an Input or Output object
         
         data
             A Pandas DataFrame object with information on the lines of sight.
@@ -34,15 +36,25 @@ class LOSResult(ModelResult):
             
         filenames
             A filename or list of filenames to use. Default = None is to
-            find all files created for the inputs.
+            find all files created for the inputs. Not used when start_from
+            is an Output object.
             
         overwrite
-            If True, deletes any images that have already been computed.
+            If True, deletes any images that have already been computed. Not
+            used when start_from is an Output object.
             Default = False
         """
         format_ = {'quantity':quantity}
-        super().__init__(inputs, format_, filenames=filenames)
-        
+        if isinstance(start_from, Input):
+            inputs = start_from
+            super().__init__(inputs, format_, filenames=filenames)
+        elif isinstance(start_from, Output):
+            output = start_from
+            inputs = output.inputs
+            super().__init__(inputs, format_, output=output)
+        else:
+            raise TypeError
+
         tstart = datetime.now()
         self.type = 'LineOfSight'
         self.species = inputs.options.species
@@ -57,20 +69,39 @@ class LOSResult(ModelResult):
         self.ninview = np.zeros(nspec, dtype=int)
 
         for j,outfile in enumerate(self.filenames):
-            # Search to see if it is already done
-            radiance_, packets_, idnum = self.restore(data, outfile)
-
-            if (radiance_ is None) or overwrite:
-                if (radiance_ is not None) and overwrite:
-                    self.delete_model(idnum)
-                radiance_, packets_, = self.create_model(data, outfile)
+            if outfile is None:
+                radiance_, packets_, saved_ = self.create_model(data, output,
+                                                    savepackets=savepackets)
                 print(f'Completed model {j+1} of {len(self.filenames)}')
             else:
-                print(f'Model {j+1} of {len(self.filenames)} '
-                      'previously completed.')
+                # Search to see if it is already done
+                radiance_, packets_, saved_, idnum = self.restore(data, outfile)
+
+                if (radiance_ is None) or overwrite:
+                    if (radiance_ is not None) and overwrite:
+                        self.delete_model(idnum)
+                    else:
+                        pass
+
+                    output = Output.restore(outfile)
+                    radiance_, packets_, saved_ = self.create_model(data,
+                                            output, savepackets=savepackets)
+                    self.save(data, outfile, radiance_, packets_, saved_)
+                    print(f'Completed model {j+1} of {len(self.filenames)}')
+                else:
+                    print(f'Model {j+1} of {len(self.filenames)} '
+                          'previously completed.')
 
             self.radiance += radiance_
             self.packets += packets_
+            if j == 0:
+                self.saved_packets = saved_
+            else:
+                for i in np.arange(nspec):
+                    self.saved_packets[i] = tuple((x, y)
+                                                  for x, y
+                                                  in zip(self.saved_packets, packets_))
+                assert 0, 'This need to be checked.'
 
         self.radiance *= self.atoms_per_packet
         self.radiance *= u.R
@@ -89,7 +120,7 @@ class LOSResult(ModelResult):
                 if os.path.exists(mfile):
                     os.remove(mfile)
 
-    def save(self, data, fname, radiance, packets):
+    def save(self, data, fname, radiance, packets, saved_packets):
         # Determine if the model can be saved.
         # Criteria: 1 complete orbit, nothing more.
         orbits = set(data.orbit)
@@ -139,7 +170,7 @@ class LOSResult(ModelResult):
                     savefile = os.path.join(os.path.dirname(fname),
                                         f'model.orbit{orb:04}.{idnum}.pkl')
                     with open(savefile, 'wb') as f:
-                        pickle.dump((radiance, packets), f)
+                        pickle.dump((radiance, packets, saved_packets), f)
                     cur.execute(f'''UPDATE uvvsmodels
                                     SET filename=%s
                                     WHERE idnum=%s''', (savefile, idnum))
@@ -187,18 +218,18 @@ class LOSResult(ModelResult):
                 savefile = result.filename[0]
 
                 with open(savefile, 'rb') as f:
-                    radiance, packets = pickle.load(f)
+                    radiance, packets, saved_ = pickle.load(f)
                 idnum = result.idnum[0]
                 if len(radiance) != len(data):
-                    radiance, packets, idnum = None, None, None
+                    radiance, packets, saved_, idnum = None, None, None, None
                 else:
                     pass
             else:
-                radiance, packets, idnum = None, None, None
+                radiance, packets, saved_, idnum = None, None, None, None
 
-        return radiance, packets, idnum
+        return radiance, packets, saved_, idnum
 
-    def create_model(self, data, outfile, **kwargs):
+    def create_model(self, data, output, savepackets, **kwargs):
         # distance of s/c from planet
         dist_from_plan = (np.sqrt(data.x**2 + data.y**2 + data.z**2)).values
 
@@ -213,7 +244,6 @@ class LOSResult(ModelResult):
         dist_from_plan[ang > asize_plan] = 1e30
 
         # Load the outputfile
-        output = Output.restore(outfile)
         packets = output.X
         packets['radvel_sun'] = (packets['vy'] +
                                  output.vrplanet.to(self.unit/u.s).value)
@@ -224,12 +254,16 @@ class LOSResult(ModelResult):
         
         xpack = packets[['x', 'y', 'z']].values
         weight = packets['weight'].values
+        index = packets['index'].values
         tree = KDTree(xpack)
         # tree = BallTree(xpack)
 
         # This sets limits on regions where packets might be
-        rad, pack = np.zeros(len(data)), np.zeros(len(data))
-        rad_, pack_ = np.zeros(len(data)), np.zeros(len(data))
+        rad, pack = np.zeros(data.shape[0]), np.zeros(data.shape[0])
+        if savepackets:
+            saved_packets = np.ndarray(data.shape[0], dtype='O')
+        else:
+            saved_packets = None
 
         xdata = data[['x', 'y', 'z']].values.astype(float)
         boresight = data[['xbore', 'ybore', 'zbore']].values.astype(float)
@@ -240,8 +274,8 @@ class LOSResult(ModelResult):
         else:
             oedge = output.inputs.options.outeredge*2
 
-        print(f'{len(data)} spectra taken.')
-        for i in range(len(data)):
+        print(f'{data.shape[0]} spectra taken.')
+        for i in range(data.shape[0]):
             x_sc = xdata[i,:]
             bore = boresight[i,:]
 
@@ -254,7 +288,7 @@ class LOSResult(ModelResult):
             t = [0.05]
             while t[-1] < dd:
                 t.append(t[-1] + t[-1]*np.sin(self.dphi))
-            t =  np.array(t)
+            t = np.array(t)
             Xbore = x_sc[np.newaxis, :]+bore[np.newaxis, :]*t[:, np.newaxis]
 
             wid = t*np.sin(self.dphi)
@@ -262,17 +296,12 @@ class LOSResult(ModelResult):
             indicies = np.unique(ind).astype(int)
             subset = xpack[indicies, :]
             wt = weight[indicies]
-        
+            subindex = index[indicies]
+
             xpr = subset-x_sc[np.newaxis, :]
             rpr = np.sqrt(xpr[:, 0]*xpr[:, 0]+xpr[:, 1]*xpr[:, 1]+
                           xpr[:, 2]*xpr[:, 2])
             losrad = np.sum(xpr*bore[np.newaxis, :], axis=1)
-            # costheta = losrad/rpr
-            # costheta[costheta > 1] = 1.
-            # costheta[costheta < -1] = -1.
-
-            # inview = ((costheta >= np.cos(self.dphi)) &
-            #           (rpr < dist_from_plan[i]))
             inview = rpr < dist_from_plan[i]
             
             if np.any(inview):
@@ -290,15 +319,17 @@ class LOSResult(ModelResult):
                     wtemp *= out_of_shadow
 
                     rad[i] = np.sum(wtemp)
-                    pack[i] = len(losrad)
+                    pack[i] = len(losrad_)
+                    if savepackets:
+                        saved_packets[i] = tuple(set(subindex[inview]))
+                    else:
+                        pass
             else:
                 pass
 
             if len(data) > 10:
                 if (i%(len(data)//10)) == 0:
                     print(f'Completed {i+1} spectra')
-
+                    
         del output
-        self.save(data, outfile, rad, pack)
-
-        return rad, pack
+        return rad, pack, saved_packets

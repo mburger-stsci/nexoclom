@@ -360,11 +360,11 @@ class Output:
         #  step size and counters
         step_size = np.zeros(self.npackets) + self.inputs.options.step_size
         
-        nsteps = int(np.ceil(self.inputs.options.endtime.value/step_size[0]
+        self.nsteps = int(np.ceil(self.inputs.options.endtime.value/step_size[0]
                              + 1))
-        results = np.zeros((self.npackets,8,nsteps))
+        results = np.zeros((self.npackets,8,self.nsteps))
         results[:,:,0] = self.X0[cols]
-        lossfrac = np.ndarray((self.npackets,nsteps))
+        lossfrac = np.ndarray((self.npackets,self.nsteps))
 
         curtime = self.inputs.options.endtime.value
         ct = 1
@@ -417,10 +417,10 @@ class Output:
             curtime -= step_size[0]
 
         # Put everything back into output
-        self.totalsource *= nsteps
+        self.totalsource *= self.nsteps
         X = pd.DataFrame()
-        index = np.mgrid[0:self.npackets, 0:nsteps]
-        npackets = self.npackets * nsteps
+        index = np.mgrid[:self.npackets, :self.nsteps]
+        npackets = self.npackets * self.nsteps
         X['index'] = index[0,:,:].reshape(npackets)
         X['time'] = results[:,0,:].reshape(npackets)
         X['x'] = results[:,1,:].reshape(npackets)
@@ -517,4 +517,4 @@ class Output:
     def restore(cls, filename):
         output = pickle.load(open(filename, 'rb'))
         return output
-    
+

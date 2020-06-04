@@ -6,13 +6,17 @@ import mathMB
 from atomicdataMB import gValue
 from .database_connect import database_connect
 from .input_classes import InputError
+from .Output import Output
 
 
 class ModelResult:
-    def __init__(self, inputs, format, filenames=None, overwrite=False):
+    def __init__(self, inputs, format, filenames=None, output=None):
         self.inputs = inputs
-        
-        if isinstance(filenames, str):
+        if isinstance(output, Output):
+            self.npackets = output.npackets
+            self.totalsource = output.totalsource
+            self.filenames = [None]
+        elif isinstance(filenames, str):
             self.filenames = [filenames]
             with database_connect() as con:
                 packs = pd.read_sql(f'''SELECT npackets, totalsource
@@ -21,6 +25,7 @@ class ModelResult:
             self.npackets = packs.npackets[0]
             self.totalsource = packs.totalsource[0]
         elif isinstance(filenames, list):
+            assert 0, 'This is set up wrong.'
             self.filenames = filenames
             with database_connect() as con:
                 packs = pd.read_sql(f'''SELECT SUM(npackets) npack,
@@ -33,76 +38,74 @@ class ModelResult:
             self.filenames, self.npackets, self.totalsource = inputs.search()
             
         if self.npackets == 0:
-            return None
-        else:
             pass
-            
-        self.mod_rate = self.totalsource/inputs.options.endtime.value
-        self.atoms_per_packet = 1e26/self.mod_rate
-        print(f'Total number of packets run = {self.npackets}')
-        print(f'Total source = {self.totalsource} packets')
-        print(f'1 packet represents {self.atoms_per_packet} atoms')
-        print(f'Model rate = {self.mod_rate} packets/sec')
-
-        if isinstance(format, str):
-            if os.path.exists(format):
-                self.format = {}
-                with open(format, 'r') as f:
-                    for line in f:
-                        if ';' in line:
-                            line = line[:line.find(';')]
-                        elif '#' in line:
-                            line = line[:line.find('#')]
-                        else:
-                            pass
-                        
-                        if '=' in line:
-                            p, v = line.split('=')
-                            self.format[p.strip().lower()] = v.strip()
-                        else:
-                            pass
-            else:
-                raise FileNotFoundError('ModelResult.__init__',
-                                        'Format file not found.')
-        elif isinstance(format, dict):
-            self.format = format
         else:
-            raise TypeError('ModelResult.__init__',
-                            'format must be a dict or filename.')
-        
-        # Do some validation
-        quantities = ['column', 'radiance', 'density']
+            self.mod_rate = self.totalsource/inputs.options.endtime.value
+            self.atoms_per_packet = 1e23/self.mod_rate
+            print(f'Total number of packets run = {self.npackets}')
+            print(f'Total source = {self.totalsource} packets')
+            print(f'1 packet represents {self.atoms_per_packet} atoms')
+            print(f'Model rate = {self.mod_rate} packets/sec')
 
-        if 'quantity' in self.format:
-            if self.format['quantity'] in quantities:
-                self.quantity = self.format['quantity']
+            if isinstance(format, str):
+                if os.path.exists(format):
+                    self.format = {}
+                    with open(format, 'r') as f:
+                        for line in f:
+                            if ';' in line:
+                                line = line[:line.find(';')]
+                            elif '#' in line:
+                                line = line[:line.find('#')]
+                            else:
+                                pass
+                            
+                            if '=' in line:
+                                p, v = line.split('=')
+                                self.format[p.strip().lower()] = v.strip()
+                            else:
+                                pass
+                else:
+                    raise FileNotFoundError('ModelResult.__init__',
+                                            'Format file not found.')
+            elif isinstance(format, dict):
+                self.format = format
+            else:
+                raise TypeError('ModelResult.__init__',
+                                'format must be a dict or filename.')
+            
+            # Do some validation
+            quantities = ['column', 'radiance', 'density']
+
+            if 'quantity' in self.format:
+                if self.format['quantity'] in quantities:
+                    self.quantity = self.format['quantity']
+                else:
+                    raise InputError('ModelImage.__init__',
+                                     "quantity must be 'column' or 'radiance'")
             else:
                 raise InputError('ModelImage.__init__',
-                                 "quantity must be 'column' or 'radiance'")
-        else:
-            raise InputError('ModelImage.__init__',
-                             'quantity must be specified.')
+                                 'quantity must be specified.')
 
-        if self.quantity == 'radiance':
-            # Note - only resonant scattering currently possible
-            self.mechanism = ['resonant scattering']
-    
-            if 'wavelength' in self.format:
-                self.wavelength = tuple(
-                    int(m.strip())*u.AA
-                    for m
-                    in self.format['wavelength'].split(','))
-            elif inputs.options.species == 'Na':
-                self.wavelength = (5891*u.AA, 5897*u.AA)
-            elif inputs.options.species == 'Ca':
-                self.wavelength = (4227*u.AA,)
-            elif inputs.options.species == 'Mg':
-                self.wavelength = (2852*u.AA,)
+            if self.quantity == 'radiance':
+                # Note - only resonant scattering currently possible
+                self.mechanism = ['resonant scattering']
+        
+                if 'wavelength' in self.format:
+                    self.wavelength = tuple(
+                        int(m.strip())*u.AA
+                        for m
+                        in self.format['wavelength'].split(','))
+                elif inputs.options.species == 'Na':
+                    self.wavelength = (5891*u.AA, 5897*u.AA)
+                elif inputs.options.species == 'Ca':
+                    self.wavelength = (4227*u.AA,)
+                elif inputs.options.species == 'Mg':
+                    self.wavelength = (2852*u.AA,)
+                else:
+                    raise InputError('ModelResult.__init__', ('Default wavelengths '
+                                  f'not available for {inputs.options.species}'))
             else:
-                raise InputError('ModelResult.__init__', ('Default wavelengths '
-                              f'not available for {inputs.options.species}'))
-        else:
-            pass
+                pass
 
     def transform_reference_frame(self, output):
         """If the image center is not the planet, transform to a

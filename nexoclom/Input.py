@@ -284,20 +284,6 @@ class Input:
         return ModelImage(self, format_, filenames=filenames,
                           overwrite=overwrite)
     
-    def line_of_sight(self, data, quantity, dphi=3*u.deg,
-                      filenames=None, overwrite=False, version='new'):
-        if version == 'new':
-            from .LOSResult import LOSResult
-        elif version == 'old':
-            from .LOSResult_old import LOSResult
-        elif version == 'test':
-            from .LOSResult_test import LOSResult
-        else:
-            assert 0
-            
-        return LOSResult(self, data, quantity, dphi=dphi, filenames=filenames,
-                         overwrite=overwrite)
-
     def delete_files(self):
         """Delete output files and remove them from the database.
 
