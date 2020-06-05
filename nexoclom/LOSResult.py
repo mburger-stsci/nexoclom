@@ -65,17 +65,16 @@ class LOSResult(ModelResult):
 
         nspec = len(data)
         self.radiance = np.zeros(nspec)
-        self.packets = np.zeros(nspec)
+        self.packets = pd.DataFrame()
         self.ninview = np.zeros(nspec, dtype=int)
-
         for j,outfile in enumerate(self.filenames):
             if outfile is None:
-                radiance_, packets_, saved_ = self.create_model(data, output,
+                radiance_, npackets_, saved_ = self.create_model(data, output,
                                                     savepackets=savepackets)
                 print(f'Completed model {j+1} of {len(self.filenames)}')
             else:
                 # Search to see if it is already done
-                radiance_, packets_, saved_, idnum = self.restore(data, outfile)
+                radiance_, npackets_, saved_, idnum = self.restore(data, outfile)
 
                 if (radiance_ is None) or overwrite:
                     if (radiance_ is not None) and overwrite:
@@ -84,24 +83,17 @@ class LOSResult(ModelResult):
                         pass
 
                     output = Output.restore(outfile)
-                    radiance_, packets_, saved_ = self.create_model(data,
+                    radiance_, npackets_, saved_ = self.create_model(data,
                                             output, savepackets=savepackets)
-                    self.save(data, outfile, radiance_, packets_, saved_)
+                    self.save(data, outfile, radiance_, npackets_, saved_)
                     print(f'Completed model {j+1} of {len(self.filenames)}')
                 else:
                     print(f'Model {j+1} of {len(self.filenames)} '
                           'previously completed.')
 
             self.radiance += radiance_
-            self.packets += packets_
-            if j == 0:
-                self.saved_packets = saved_
-            else:
-                for i in np.arange(nspec):
-                    self.saved_packets[i] = tuple((x, y)
-                                                  for x, y
-                                                  in zip(self.saved_packets, packets_))
-                assert 0, 'This need to be checked.'
+            self.ninview += npackets_.astype(int)
+            self.packets[j] = saved_
 
         self.radiance *= self.atoms_per_packet
         self.radiance *= u.R
