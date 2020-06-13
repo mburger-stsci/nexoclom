@@ -163,6 +163,7 @@ CREATE TABLE uvvsmodels (
     dphi DOUBLE PRECISION NOT NULL,
     mechanism TEXT,
     wavelength TEXT,
+    fitted BOOLEAN NOT NULL,
     filename TEXT NOT NULL)
 
 DONE

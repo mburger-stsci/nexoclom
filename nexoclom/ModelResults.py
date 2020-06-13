@@ -24,18 +24,10 @@ class ModelResult:
                                         WHERE filename={filenames}''', con)
             self.npackets = packs.npackets[0]
             self.totalsource = packs.totalsource[0]
-        elif isinstance(filenames, list):
-            assert 0, 'This is set up wrong.'
-            self.filenames = filenames
-            with database_connect() as con:
-                packs = pd.read_sql(f'''SELECT SUM(npackets) npack,
-                                               SUM(totalsource) source
-                                        FROM outputfile
-                                        WHERE filename={filenames}''', con)
-            self.npackets = packs.npack[0]
-            self.totalsource = packs.source[0]
         elif filenames is None:
             self.filenames, self.npackets, self.totalsource = inputs.search()
+        else:
+            raise Exception
             
         if self.npackets == 0:
             pass

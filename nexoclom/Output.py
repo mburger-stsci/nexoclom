@@ -45,7 +45,7 @@ class Output:
         phi0, lat0, lon0
         
         time, x, y, z, vx, vy, vz
-        index, npackets, totalsource
+        Index, npackets, totalsource
         
         inputs
             The inputs used for the simulation
@@ -174,13 +174,13 @@ class Output:
         
         # Reorder the dataframe columns
         cols = ['time', 'x', 'y', 'z', 'vx', 'vy', 'vz', 'frac', 'v',
-                'longitude', 'latitude']
+                'longitude', 'latitude', 'local_time']
         self.X0 = self.X0[cols]
         
         # Integrate the packets forward
         if self.inputs.options.step_size == 0:
             print('Running variable step size integrator.')
-            self.X = self.X0.drop(['longitude', 'latitude'], axis=1)
+            self.X = self.X0.drop(['longitude', 'latitude', 'localtime'], axis=1)
             self.X['lossfrac'] = np.zeros(npackets)
             self.variable_step_size_driver()
         else:
@@ -421,7 +421,7 @@ class Output:
         X = pd.DataFrame()
         index = np.mgrid[:self.npackets, :self.nsteps]
         npackets = self.npackets * self.nsteps
-        X['index'] = index[0,:,:].reshape(npackets)
+        X['Index'] = index[0,:,:].reshape(npackets)
         X['time'] = results[:,0,:].reshape(npackets)
         X['x'] = results[:,1,:].reshape(npackets)
         X['y'] = results[:,2,:].reshape(npackets)
