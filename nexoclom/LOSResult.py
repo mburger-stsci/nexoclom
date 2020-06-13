@@ -456,7 +456,7 @@ class LOSResult(ModelResult):
                 
                     rad.loc[i] = wtemp.sum()
                     npack.loc[i] = sum(inview)
-                    if wtemp.sum() > 0:
+                    if (wtemp.sum() > 0) and mask[i]:
                         ratio = spectrum.radiance/wtemp.sum()
                 
                         # Save which packets are used for each spectrum
