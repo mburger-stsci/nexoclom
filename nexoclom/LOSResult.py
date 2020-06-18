@@ -86,6 +86,7 @@ class LOSResult(ModelResult):
                     radiance_, npackets_ = self.create_model(data,
                         output, savepackets=savepackets)
                 print(f'Completed model {j+1} of {len(self.filenames)}')
+                del output
             else:
                 # Search to see if it is already done
                 radiance_, npackets_, idnum, output = self.restore(data, outfile)
@@ -101,11 +102,13 @@ class LOSResult(ModelResult):
                         radiance_, npackets_, output_ = self.fit_model_to_data(
                                 data, output, masking=masking)
                         self.save(data, outfile, radiance_, npackets_, output_)
+                        del output_
                     else:
                         radiance_, npackets_ = self.create_model(data,
                                             output, savepackets=savepackets)
                         self.save(data, outfile, radiance_, npackets_)
                     print(f'Completed model {j+1} of {len(self.filenames)}')
+                    del output
                 else:
                     print(f'Model {j+1} of {len(self.filenames)} '
                           'previously completed.')
@@ -345,8 +348,6 @@ class LOSResult(ModelResult):
                 if (ind%(len(data)//10)) == 0:
                     print(f'Completed {ind+1} spectra')
 
-
-        del output
         return rad, npack
     
     def fit_model_to_data(self, data, output, masking=None, makeplots=False):
