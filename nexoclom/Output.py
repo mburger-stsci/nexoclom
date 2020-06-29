@@ -504,6 +504,23 @@ class Output:
             self.X = self.X[self.X.frac > 0]
         else:
             pass
+        
+        # Convert to 32 bit
+        for column in self.X0:
+            if self.X0[column].dtype == np.int64:
+                self.X0[column] = self.X0[column].astype(np.int32)
+            elif self.X0[column].dtype == np.float64:
+                self.X0[column] = self.X0[column].astype(np.float32)
+            else:
+                pass
+
+        for column in self.X:
+            if self.X[column].dtype == np.int64:
+                self.X[column] = self.X[column].astype(np.int32)
+            elif self.X[column].dtype == np.float64:
+                self.X[column] = self.X[column].astype(np.float32)
+            else:
+                pass
 
         # Save output as a pickle
         print(f'Saving file {self.filename}')

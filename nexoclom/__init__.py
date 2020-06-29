@@ -12,6 +12,6 @@ from .database_connect import database_connect
 name = 'nexoclom'
 __author__ = 'Matthew Burger'
 __email__ = 'mburger@stsci.edu'
-__version__ = '2.1.2'
+__version__ = '2.1.3'
 
 configure_model()
