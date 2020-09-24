@@ -18,8 +18,7 @@ from .Output import Output
 class LOSResult(ModelResult):
     '''Class to contain the LOS result from multiple outputfiles.'''
     def __init__(self, start_from, mdata, quantity, dphi=3*u.deg,
-                 filenames=None, overwrite=False, savepackets=False,
-                 fit_to_data=False, **kwargs):
+                 filenames=None, overwrite=False, fit_to_data=False, **kwargs):
         """Determine column or emission along lines of sight.
         This assumes the model has already been run.
         
@@ -49,10 +48,12 @@ class LOSResult(ModelResult):
         """
         format_ = {'quantity':quantity}
         if isinstance(start_from, Input):
+            # Given inputs: Will need to search for and/or compute outputs
             inputs = start_from
             output = None
             super().__init__(inputs, format_, filenames=filenames)
         elif isinstance(start_from, Output):
+            # Starting from an precomputed output
             output = start_from
             inputs = output.inputs
             super().__init__(inputs, format_, output=output)
@@ -70,26 +71,32 @@ class LOSResult(ModelResult):
         self.unit = u.def_unit('R_' + self.origin.object,
                                self.origin.radius)
         self.dphi = dphi.to(u.rad).value
+        # Just compute lines of sight or also try to fit
         self.fitted = fit_to_data
 
         nspec = len(data)
         self.radiance = np.zeros(nspec)
         self.packets = pd.DataFrame()
         self.ninview = np.zeros(nspec, dtype=int)
+        saved_files = {}
         for j,outfile in enumerate(self.filenames):
-            if outfile is None:  # Output was provided
+            if outfile is None:
+                # Output was provided - outfile not known
                 if self.fitted:
+                    # Fit the outputs to the data
                     masking = kwargs['masking'] if 'masking' in kwargs else None
-                    radiance_, npackets_, output = self.fit_model_to_data(
+                    radiance_, npackets_, weighting, packets = self.fit_model_to_data(
                             data, output, masking=masking)
                 else:
-                    radiance_, npackets_ = self.create_model(data,
-                        output, savepackets=savepackets)
+                    # Just compute lines of sight
+                    radiance_, npackets_ = self.create_model(data, output)
+                    weighting, packets  = None, None
                 print(f'Completed model {j+1} of {len(self.filenames)}')
                 del output
             else:
                 # Search to see if it is already done
-                radiance_, npackets_, idnum, output = self.restore(data, outfile)
+                restored = self.restore(data, outfile)
+                radiance_, npackets_, idnum, weighting, packets, saved_file = restored
                 if (radiance_ is None) or overwrite:
                     if (radiance_ is not None) and overwrite:
                         self.delete_model(idnum)
@@ -99,23 +106,31 @@ class LOSResult(ModelResult):
                     output = Output.restore(outfile)
                     if self.fitted:
                         masking = kwargs['masking'] if 'masking' in kwargs else None
-                        radiance_, npackets_, output_ = self.fit_model_to_data(
+                        radiance_, npackets_, weighting_, packets = self.fit_model_to_data(
                                 data, output, masking=masking)
-                        self.save(data, outfile, radiance_, npackets_, output_)
-                        del output_
+                        saved_file = self.save(data, outfile, radiance_,
+                                               npackets_, weighting_, packets)
                     else:
-                        radiance_, npackets_ = self.create_model(data,
-                                            output, savepackets=savepackets)
-                        self.save(data, outfile, radiance_, npackets_)
+                        radiance_, npackets_ = self.create_model(data, output)
+                        saved_file = self.save(data, outfile, radiance_,
+                                               npackets_)
+                    saved_files[outfile] = saved_file
                     print(f'Completed model {j+1} of {len(self.filenames)}')
                     del output
                 else:
+                    saved_files[outfile] = saved_file
                     print(f'Model {j+1} of {len(self.filenames)} '
                           'previously completed.')
 
             self.radiance += radiance_.values
             self.ninview += npackets_.astype(int).values
+            if weighting is not None:
+                self.weighting = weighting
+                self.packets = packets
+            else:
+                pass
 
+        self.savefiles = saved_files
         self.radiance *= u.R
         tend = datetime.now()
         print(f'Total time = {tend-tstart}')
@@ -132,12 +147,14 @@ class LOSResult(ModelResult):
                 if os.path.exists(mfile):
                     os.remove(mfile)
 
-    def save(self, data, fname, radiance, packets, output=None):
+    def save(self, data, fname, radiance, npackets,
+             weighting=None, packets=None):
         # Determine if the model can be saved.
         # Criteria: 1 complete orbit, nothing more.
         orbits = set(data.orbit)
         orb = orbits.pop()
 
+        savefile = None
         if len(orbits) != 0:
             print('Model spans more than one orbit. Cannot be saved.')
         else:
@@ -184,13 +201,15 @@ class LOSResult(ModelResult):
                                         f'model.orbit{orb:04}.{idnum}.pkl')
                     if self.fitted:
                         with open(savefile, 'wb') as f:
-                            pickle.dump((radiance, packets, output), f)
+                            pickle.dump((radiance, npackets, weighting, packets), f)
                     else:
                         with open(savefile, 'wb') as f:
-                            pickle.dump((radiance, packets), f)
+                            pickle.dump((radiance, npackets), f)
                     cur.execute(f'''UPDATE uvvsmodels
                                     SET filename=%s
                                     WHERE idnum=%s''', (savefile, idnum))
+        
+        return savefile
 
     def restore(self, data, fname):
         # Determine if the model can be restored.
@@ -200,7 +219,9 @@ class LOSResult(ModelResult):
 
         if len(orbits) != 0:
             print('Model spans more than one orbit. Cannot be saved.')
-            radiance, packets, idnum = None, None, None
+            savefile = None
+            radiance, npackets, idnum = None, None, None
+            weighting, packets = None, None
         else:
             with database_connect() as con:
                 # Determine the id of the outputfile
@@ -237,23 +258,25 @@ class LOSResult(ModelResult):
 
                 if self.fitted:
                     with open(savefile, 'rb') as f:
-                        radiance, packets, output = pickle.load(f)
+                        radiance, npackets, weighting, packets = pickle.load(f)
                 else:
                     with open(savefile, 'rb') as f:
-                        radiance, packets = pickle.load(f)
-                    output = None
+                        radiance, npackets = pickle.load(f)
+                    weighting, packets = None, None
                 idnum = result.idnum[0]
                 
                 if len(radiance) != len(data):
-                    radiance, packets, idnum, output = None, None, None, None
+                    radiance, npackets, idnum, weighting = None, None, None, None
                 else:
                     pass
             else:
-                radiance, packets, idnum, output = None, None, None, None
+                savefile = None
+                radiance, npackets, idnum = None, None, None
+                weighting, packets = None, None
 
-        return radiance, packets, idnum, output
+        return radiance, npackets, idnum, weighting, packets, savefile
     
-    def create_model(self, data, output, savepackets=False, **kwargs):
+    def create_model(self, data, output):
         # distance of s/c from planet
         dist_from_plan = np.sqrt(data.x**2 + data.y**2 + data.z**2)
 
@@ -357,6 +380,9 @@ class LOSResult(ModelResult):
 
         def add_weight(x, ratio):
             return np.append(x, ratio)
+        
+        def add_index(x, i):
+            return np.append(x, i)
 
         # distance of s/c from planet
         dist_from_plan = np.sqrt(data.x**2+data.y**2+data.z**2)
@@ -403,7 +429,9 @@ class LOSResult(ModelResult):
         ind0 = packets.Index.unique()
         weighting = pd.Series((np.ndarray((0,)) for _ in range(ind0.shape[0])),
                               index=ind0)
-    
+        included = pd.Series((np.ndarray((0,), dtype=np.int)
+                              for _ in range(ind0.shape[0])), index=ind0)
+
         # Determine which points should be used for the fit
         _, _, mask = fit_model(data.radiance, None, data.sigma,
                                masking=masking, mask_only=True,
@@ -466,11 +494,10 @@ class LOSResult(ModelResult):
                                 should_add_weight, args=(saved_packets[i],))
                         weighting.loc[should] = weighting.loc[should].apply(
                                 add_weight, args=(ratio,))
+                        included.loc[should] = included.loc[should].apply(
+                                add_index, args=(i,))
                     else:
                         pass
-            
-                    # lon, lat = output.X0[should].longitude, output.X0[should].latitude
-                    # plot_radiance_source(data, i, lon*180/np.pi, lat*180/np.pi)
                 else:
                     assert False, 'Other quantities not set up.'
             else:
@@ -482,7 +509,7 @@ class LOSResult(ModelResult):
                     print(f'Completed {ind+1} spectra')
 
         # Determine the proper weightings
-        new_weight = weighting.apply(lambda x:x.mean() if x.shape[0] > 0 else 0.)
+        new_weight = weighting.apply(lambda x: x.mean() if x.shape[0] > 0 else 0.)
         assert np.all(np.isfinite(new_weight))
         if np.any(new_weight > 0):
             multiplier = new_weight.loc[packets['Index']].values
@@ -495,5 +522,8 @@ class LOSResult(ModelResult):
             rad = pd.Series(np.zeros(data.shape[0]), index=data.index)
             npack = pd.Series(np.zeros(data.shape[0]), index=data.index)
 
-        return rad, npack, output
+        assert np.all(weighting.apply(len) == included.apply(len))
+        weighting = pd.DataFrame({'weight': weighting.values,
+                                  'included': included.values.astype(np.int)})
 
+        return rad, npack, weighting, saved_packets

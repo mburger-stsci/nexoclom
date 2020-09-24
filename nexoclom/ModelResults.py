@@ -13,6 +13,7 @@ class ModelResult:
     def __init__(self, inputs, format, filenames=None, output=None):
         self.inputs = inputs
         if isinstance(output, Output):
+            # Output is given
             self.npackets = output.npackets
             self.totalsource = output.totalsource
             self.filenames = [None]
