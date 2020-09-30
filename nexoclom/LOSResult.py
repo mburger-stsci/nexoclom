@@ -349,10 +349,10 @@ class LOSResult(ModelResult):
                     self.unit.to(u.cm))**2
                 wtemp = subset.loc[inview, 'weight']/Apix*self.atoms_per_packet
                 if self.quantity == 'radiance':
-                    losrad_ = losrad[inview]
                     # Determine if any packets are in shadow
                     # Projection of packet onto LOS
                     # Point along LOS the packet represents
+                    losrad_ = losrad[inview].values
                     hit = (x_sc[np.newaxis,:] +
                            bore[np.newaxis,:] * losrad_[:,np.newaxis])
                     rhohit = np.linalg.norm(hit[:,[0,2]], axis=1)
