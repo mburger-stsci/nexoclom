@@ -524,6 +524,6 @@ class LOSResult(ModelResult):
 
         assert np.all(weighting.apply(len) == included.apply(len))
         weighting = pd.DataFrame({'weight': weighting.values,
-                                  'included': included.values.astype(np.int)})
+                                  'included': included.values})
 
         return rad, npack, weighting, saved_packets
