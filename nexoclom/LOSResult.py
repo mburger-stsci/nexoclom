@@ -8,7 +8,6 @@ from datetime import datetime
 from sklearn.neighbors import KDTree
 
 from mathMB import fit_model
-from MESSENGERuvvs import MESSENGERdata
 
 from .ModelResults import ModelResult
 from .database_connect import database_connect
@@ -16,11 +15,12 @@ from .Input import Input
 from .Output import Output
 
 
-def determine_model_type(data):
-    # Determins whether model is one complete orbit or a more complicated query
+def determine_model_type(data, species):
+    # Determine whether model is one complete orbit or a more complicated query
+    from MESSENGERuvvs import MESSENGERdata
     if len(data.data.orbit.unique() == 1):
-        orb = data.data.orbit.unqiue()[0]
-        mdata = MESSENGERdata(data.species, f'orbit = {orb}')
+        orb = data.data.orbit.unique()[0]
+        mdata = MESSENGERdata(species, f'orbit = {orb}')
         if len(mdata) == len(data):
             tempname = f'temp_{orb}_{str(random.randint(0, 1000000))}'
             field = 'orbit'
@@ -84,7 +84,6 @@ class LOSResult(ModelResult):
         
         # Make sure data is in the right reference frame
         mdata.set_frame('Model')
-        data = mdata.data
 
         tstart = datetime.now()
         self.type = 'LineOfSight'
@@ -96,7 +95,7 @@ class LOSResult(ModelResult):
         # Just compute lines of sight or also try to fit
         self.fitted = fit_to_data
 
-        nspec = len(data)
+        nspec = len(mdata)
         self.radiance = np.zeros(nspec)
         self.packets = pd.DataFrame()
         self.ninview = np.zeros(nspec, dtype=int)
@@ -108,20 +107,20 @@ class LOSResult(ModelResult):
                     # Fit the outputs to the data
                     masking = kwargs['masking'] if 'masking' in kwargs else None
                     radiance_, npackets_, weighting, packets = self.fit_model_to_data(
-                            data, output, masking=masking)
+                            mdata.data, output, masking=masking)
                 else:
                     # Just compute lines of sight
-                    radiance_, npackets_ = self.create_model(data, output)
+                    radiance_, npackets_ = self.create_model(mdata.data, output)
                     weighting, packets  = None, None
                 print(f'Completed model {j+1} of {len(self.filenames)}')
                 del output
             else:
                 # Search to see if it is already done
-                restored = self.restore(data, outfile)
+                restored = self.restore(mdata, outfile)
                 radiance_, npackets_, idnum, weighting, packets, saved_file = restored
                 if (radiance_ is None) or overwrite:
                     if (radiance_ is not None) and overwrite:
-                        self.delete_model(idnum, data)
+                        self.delete_model(idnum, mdata)
                     else:
                         pass
 
@@ -129,12 +128,12 @@ class LOSResult(ModelResult):
                     if self.fitted:
                         masking = kwargs['masking'] if 'masking' in kwargs else None
                         radiance_, npackets_, weighting_, packets = self.fit_model_to_data(
-                                data, output, masking=masking)
-                        saved_file = self.save(data, outfile, radiance_,
+                                mdata.data, output, masking=masking)
+                        saved_file = self.save(mdata, outfile, radiance_,
                                                npackets_, weighting_, packets)
                     else:
-                        radiance_, npackets_ = self.create_model(data, output)
-                        saved_file = self.save(data, outfile, radiance_,
+                        radiance_, npackets_ = self.create_model(mdata.data, output)
+                        saved_file = self.save(mdata, outfile, radiance_,
                                                npackets_)
                     saved_files[outfile] = saved_file
                     print(f'Completed model {j+1} of {len(self.filenames)}')
@@ -158,7 +157,7 @@ class LOSResult(ModelResult):
         print(f'Total time = {tend-tstart}')
 
     def delete_model(self, data, idnum):
-        _, field, _ = determine_model_type(data)
+        _, field, _ = determine_model_type(data, self.species)
     
         with database_connect() as con:
             cur = con.cursor()
@@ -192,7 +191,7 @@ class LOSResult(ModelResult):
                 wave = None
 
             # Determine if model represents a single complete orbit
-            tempname, field, quant = determine_model_type(data)
+            tempname, field, quant = determine_model_type(data, self.species)
 
             cur.execute(f'''INSERT into uvvsmodels_{field} (out_idnum, quantity,
                             {field}, dphi, mechanism, wavelength,
@@ -223,7 +222,7 @@ class LOSResult(ModelResult):
         return savefile
 
     def restore(self, data, fname):
-        tempname, field, quant = determine_model_type(data)
+        tempname, field, quant = determine_model_type(data, self.species)
         
         with database_connect() as con:
             # Determine the id of the outputfile
