@@ -8,11 +8,33 @@ from datetime import datetime
 from sklearn.neighbors import KDTree
 
 from mathMB import fit_model
+from MESSENGERuvvs import MESSENGERdata
 
 from .ModelResults import ModelResult
 from .database_connect import database_connect
 from .Input import Input
 from .Output import Output
+
+
+def determine_model_type(data):
+    # Determins whether model is one complete orbit or a more complicated query
+    if len(data.data.orbit.unique() == 1):
+        orb = data.data.orbit.unqiue()[0]
+        mdata = MESSENGERdata(data.species, f'orbit = {orb}')
+        if len(mdata) == len(data):
+            tempname = f'temp_{orb}_{str(random.randint(0, 1000000))}'
+            field = 'orbit'
+            quant = orb
+        else:
+            tempname = f'temp_query_{str(random.randint(0, 1000000))}'
+            field = 'query'
+            quant = data.query
+    else:
+        tempname = f'temp_query_{str(random.randint(0, 1000000))}'
+        field = 'query'
+        quant = data.query
+        
+    return tempname, field, quant
 
 
 class LOSResult(ModelResult):
@@ -99,7 +121,7 @@ class LOSResult(ModelResult):
                 radiance_, npackets_, idnum, weighting, packets, saved_file = restored
                 if (radiance_ is None) or overwrite:
                     if (radiance_ is not None) and overwrite:
-                        self.delete_model(idnum)
+                        self.delete_model(idnum, data)
                     else:
                         pass
 
@@ -135,122 +157,106 @@ class LOSResult(ModelResult):
         tend = datetime.now()
         print(f'Total time = {tend-tstart}')
 
-    def delete_model(self, idnum):
+    def delete_model(self, data, idnum):
+        _, field, _ = determine_model_type(data)
+    
         with database_connect() as con:
             cur = con.cursor()
-            cur.execute('''SELECT idnum, filename FROM uvvsmodels
+            cur.execute(f'''SELECT idnum, filename FROM uvvsmodels_{field}
                            WHERE out_idnum = %s''', (int(idnum), ))
             assert cur.rowcount in (0, 1)
             for mid, mfile in cur.fetchall():
-                cur.execute('''DELETE from uvvsmodels
+                cur.execute(f'''DELETE from uvvsmodels_{field}
                                WHERE idnum = %s''', (mid, ))
                 if os.path.exists(mfile):
                     os.remove(mfile)
 
     def save(self, data, fname, radiance, npackets,
              weighting=None, packets=None):
-        # Determine if the model can be saved.
-        # Criteria: 1 complete orbit, nothing more.
-        orbits = set(data.orbit)
-        orb = orbits.pop()
+        with database_connect() as con:
+            cur = con.cursor()
 
-        savefile = None
-        if len(orbits) != 0:
-            print('Model spans more than one orbit. Cannot be saved.')
-        else:
-            from MESSENGERuvvs import MESSENGERdata
-            mdata = MESSENGERdata(self.species, f'orbit = {orb}')
-            if len(mdata) != len(data):
-                print('Model does not contain the complete orbit. '
-                      'Cannot be saved.')
+            # Determine the id of the outputfile
+            idnum_ = pd.read_sql(f'''SELECT idnum
+                                    FROM outputfile
+                                    WHERE filename='{fname}' ''', con)
+            idnum = int(idnum_.idnum[0])
+
+            # Insert the model into the database
+            if self.quantity == 'radiance':
+                mech = ', '.join(sorted([m for m in self.mechanism]))
+                wave_ = sorted([w.value for w in self.wavelength])
+                wave = ', '.join([str(w) for w in wave_])
             else:
-                with database_connect() as con:
-                    cur = con.cursor()
+                mech = None
+                wave = None
 
-                    # Determine the id of the outputfile
-                    idnum_ = pd.read_sql(f'''SELECT idnum
-                                            FROM outputfile
-                                            WHERE filename='{fname}' ''', con)
-                    idnum = int(idnum_.idnum[0])
+            # Determine if model represents a single complete orbit
+            tempname, field, quant = determine_model_type(data)
 
-                    # Insert the model into the database
-                    if self.quantity == 'radiance':
-                        mech = ', '.join(sorted([m for m in self.mechanism]))
-                        wave_ = sorted([w.value for w in self.wavelength])
-                        wave = ', '.join([str(w) for w in wave_])
-                    else:
-                        mech = None
-                        wave = None
+            cur.execute(f'''INSERT into uvvsmodels_{field} (out_idnum, quantity,
+                            {field}, dphi, mechanism, wavelength,
+                            fitted, filename)
+                            values (%s, %s, %s, %s, %s, %s, %s, %s)''',
+                        (idnum, self.quantity, quant, self.dphi,
+                         mech, wave, self.fitted, tempname))
 
-                    tempname = f'temp_{orb}_{str(random.randint(0, 1000000))}'
-                    cur.execute(f'''INSERT into uvvsmodels (out_idnum, quantity,
-                                    orbit, dphi, mechanism, wavelength,
-                                    fitted, filename)
-                                    values (%s, %s, %s, %s, %s, %s, %s, %s)''',
-                                (idnum, self.quantity, orb, self.dphi,
-                                 mech, wave, self.fitted, tempname))
+            # Determine the savefile name
+            idnum_ = pd.read_sql(f'''SELECT idnum
+                                     FROM uvvsmodels_{field}
+                                     WHERE filename='{tempname}';''', con)
+            assert len(idnum_) == 1
+            idnum = int(idnum_.idnum[0])
 
-                    # Determine the savefile name
-                    idnum_ = pd.read_sql(f'''SELECT idnum
-                                             FROM uvvsmodels
-                                             WHERE filename='{tempname}';''', con)
-                    assert len(idnum_) == 1
-                    idnum = int(idnum_.idnum[0])
-
-                    savefile = os.path.join(os.path.dirname(fname),
-                                        f'model.orbit{orb:04}.{idnum}.pkl')
-                    if self.fitted:
-                        with open(savefile, 'wb') as f:
-                            pickle.dump((radiance, npackets, weighting, packets), f)
-                    else:
-                        with open(savefile, 'wb') as f:
-                            pickle.dump((radiance, npackets), f)
-                    cur.execute(f'''UPDATE uvvsmodels
-                                    SET filename=%s
-                                    WHERE idnum=%s''', (savefile, idnum))
-        
+            savefile = os.path.join(os.path.dirname(fname),
+                                    f'model.{idnum}.pkl')
+            if self.fitted:
+                with open(savefile, 'wb') as f:
+                    pickle.dump((radiance, npackets, weighting, packets), f)
+            else:
+                with open(savefile, 'wb') as f:
+                    pickle.dump((radiance, npackets), f)
+            cur.execute(f'''UPDATE uvvsmodels_{field}
+                            SET filename=%s
+                            WHERE idnum=%s''', (savefile, idnum))
+    
         return savefile
 
     def restore(self, data, fname):
-        # Determine if the model can be restored.
-        # Criteria: 1 complete orbit, nothing more.
-        orbits = set(data.orbit)
-        orb = orbits.pop()
+        tempname, field, quant = determine_model_type(data)
+        
+        with database_connect() as con:
+            # Determine the id of the outputfile
+            idnum_ = pd.read_sql(f'''SELECT idnum
+                                    FROM outputfile
+                                    WHERE filename='{fname}' ''', con)
+            oid = idnum_.idnum[0]
 
-        if len(orbits) != 0:
-            print('Model spans more than one orbit. Cannot be saved.')
-            savefile = None
-            radiance, npackets, idnum = None, None, None
-            weighting, packets = None, None
-        else:
-            with database_connect() as con:
-                # Determine the id of the outputfile
-                idnum_ = pd.read_sql(f'''SELECT idnum
-                                        FROM outputfile
-                                        WHERE filename='{fname}' ''', con)
-                oid = idnum_.idnum[0]
+            if self.quantity == 'radiance':
+                mech = ("mechanism = '" +
+                        ", ".join(sorted([m for m in self.mechanism])) +
+                        "'")
+                wave_ = sorted([w.value for w in self.wavelength])
+                wave = ("wavelength = '" +
+                        ", ".join([str(w) for w in wave_]) +
+                        "'")
+            else:
+                mech = 'mechanism is NULL'
+                wave = 'wavelength is NULL'
 
-                if self.quantity == 'radiance':
-                    mech = ("mechanism = '" +
-                            ", ".join(sorted([m for m in self.mechanism])) +
-                            "'")
-                    wave_ = sorted([w.value for w in self.wavelength])
-                    wave = ("wavelength = '" +
-                            ", ".join([str(w) for w in wave_]) +
-                            "'")
-                else:
-                    mech = 'mechanism is NULL'
-                    wave = 'wavelength is NULL'
-
-                result = pd.read_sql(
-                    f'''SELECT idnum, filename FROM uvvsmodels
-                        WHERE out_idnum={oid} and
-                              quantity = '{self.quantity}' and
-                              orbit = {orb} and
-                              dphi = {self.dphi} and
-                              {mech} and
-                              {wave} and
-                              fitted = {self.fitted}''', con)
+            if field == 'query':
+                quant = f"'{quant}'"
+            else:
+                pass
+            result = pd.read_sql(
+                f'''SELECT idnum, filename FROM uvvsmodels_{field}
+                    WHERE out_idnum={oid} and
+                          quantity = '{self.quantity}' and
+                          {field} = {quant} and
+                          dphi = {self.dphi} and
+                          {mech} and
+                          {wave} and
+                          fitted = {self.fitted}''', con)
 
             assert len(result) <= 1
             if len(result) == 1:

@@ -155,11 +155,22 @@ CREATE TABLE modelimages (
     wavelength TEXT,
     filename TEXT NOT NULL)
 
-CREATE TABLE uvvsmodels (
+CREATE TABLE uvvsmodels_orbit (
     idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     out_idnum INT NOT NULL,
     quantity TEXT NOT NULL,
     orbit INT NOT NULL,
+    dphi DOUBLE PRECISION NOT NULL,
+    mechanism TEXT,
+    wavelength TEXT,
+    fitted BOOLEAN NOT NULL,
+    filename TEXT NOT NULL)
+
+CREATE TABLE uvvsmodels_query (
+    idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    out_idnum INT NOT NULL,
+    quantity TEXT NOT NULL,
+    query TEXT NOT NULL,
     dphi DOUBLE PRECISION NOT NULL,
     mechanism TEXT,
     wavelength TEXT,

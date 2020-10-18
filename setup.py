@@ -124,11 +124,10 @@ setup(name=PACKAGENAME,
       install_requires= [s.strip() for s in
                  metadata.get('install_requires', 'astropy').split(',')],
       python_requires='>={}'.format(__minimum_python_version__),
-          tests_require=['pytest'],
-          packages=find_packages(),
-          package_data={PACKAGENAME: ['data/*']},
-          include_package_data=True,
-          cmdclass={
-              'test': PyTest,
-              'build_sphinx': BuildSphinx},
+      tests_require=['pytest'],
+      packages=find_packages(),
+      package_data={PACKAGENAME: ['data/*']},
+      include_package_data=True,
+      cmdclass={'test': PyTest,
+                'build_sphinx': BuildSphinx},
 )

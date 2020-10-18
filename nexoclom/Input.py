@@ -322,11 +322,3 @@ class Input:
                                    WHERE idnum = %s''', (mid,))
                     if os.path.exists(mfile):
                         os.remove(mfile)
-                
-                # cur.execute('''SELECT idnum, filename FROM uvvsmodels
-                #                WHERE out_idnum = %s''', (idnum,))
-                # for mid, mfile in cur.fetchall():
-                #     cur.execute('''DELETE from uvvsmodels
-                #                    WHERE idnum = %s''', (mid,))
-                #     if os.path.exists(mfile):
-                #         os.remove(mfile)
