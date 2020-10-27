@@ -24,7 +24,7 @@ def determine_model_type(data, species):
         if len(mdata) == len(data):
             tempname = f'temp_{orb}_{str(random.randint(0, 1000000))}'
             field = 'orbit'
-            quant = orb
+            quant = int(orb)
         else:
             tempname = f'temp_query_{str(random.randint(0, 1000000))}'
             field = 'query'
@@ -69,6 +69,7 @@ class LOSResult(ModelResult):
             Default = False
         """
         format_ = {'quantity':quantity}
+        # super().__init__ sets npackets, totalsource, output filenames
         if isinstance(start_from, Input):
             # Given inputs: Will need to search for and/or compute outputs
             inputs = start_from
@@ -86,12 +87,15 @@ class LOSResult(ModelResult):
         mdata.set_frame('Model')
 
         tstart = datetime.now()
+        
+        # Basic information
         self.type = 'LineOfSight'
         self.species = inputs.options.species
         self.origin = inputs.geometry.planet
         self.unit = u.def_unit('R_' + self.origin.object,
                                self.origin.radius)
         self.dphi = dphi.to(u.rad).value
+        
         # Just compute lines of sight or also try to fit
         self.fitted = fit_to_data
 
@@ -100,6 +104,8 @@ class LOSResult(ModelResult):
         self.packets = pd.DataFrame()
         self.ninview = np.zeros(nspec, dtype=int)
         saved_files = {}
+        
+        # self.filenames are the output files appropriate for this dataset
         for j,outfile in enumerate(self.filenames):
             if outfile is None:
                 # Output was provided - outfile not known
@@ -118,6 +124,7 @@ class LOSResult(ModelResult):
                 # Search to see if it is already done
                 restored = self.restore(mdata, outfile)
                 radiance_, npackets_, idnum, weighting, packets, saved_file = restored
+
                 if (radiance_ is None) or overwrite:
                     if (radiance_ is not None) and overwrite:
                         self.delete_model(idnum, mdata)
@@ -170,7 +177,7 @@ class LOSResult(ModelResult):
                 if os.path.exists(mfile):
                     os.remove(mfile)
 
-    def save(self, data, fname, radiance, npackets,
+    def save(self, data, fname, radiance, npackets, totalsource,
              weighting=None, packets=None):
         with database_connect() as con:
             cur = con.cursor()
@@ -378,8 +385,10 @@ class LOSResult(ModelResult):
 
         return rad, npack
     
-    def fit_model_to_data(self, data, output, masking=None, makeplots=False):
+    def fit_model_to_data(self, data, output, masking=None):
+        '''Determine the source distribution that best fits the data'''
 
+        # Helper functions
         def should_add_weight(index, saved):
             return index in saved
 
@@ -518,9 +527,9 @@ class LOSResult(ModelResult):
         assert np.all(np.isfinite(new_weight))
         if np.any(new_weight > 0):
             multiplier = new_weight.loc[packets['Index']].values
-            output.X.loc[:, 'frac'] = packets.loc[:, 'frac']*multiplier
-            output.X0.loc[:, 'frac'] = output.X0.loc[:, 'frac']*new_weight
-            output.totalsource = np.sum(output.X0.frac)
+            # output.X.loc[:, 'frac'] = packets.loc[:, 'frac']*multiplier
+            # output.X0.loc[:, 'frac'] = output.X0.loc[:, 'frac']*new_weight
+            model_total_source = np.sum(output.X0.loc[:, 'frac']*new_weight)
             
             rad, npack = self.create_model(data, output)
         else:
