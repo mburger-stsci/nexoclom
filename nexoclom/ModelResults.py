@@ -14,28 +14,28 @@ class ModelResult:
         self.inputs = inputs
         if isinstance(output, Output):
             # Output is given
-            self.npackets = output.npackets
             self.totalsource = output.totalsource
             self.filenames = [None]
+            npackets = len(output)
         elif isinstance(filenames, str):
             self.filenames = [filenames]
             with database_connect() as con:
                 packs = pd.read_sql(f'''SELECT npackets, totalsource
                                         FROM outputfile
                                         WHERE filename={filenames}''', con)
-            self.npackets = packs.npackets[0]
+            npackets = packs.npackets[0]
             self.totalsource = packs.totalsource[0]
         elif filenames is None:
-            self.filenames, self.npackets, self.totalsource = inputs.search()
+            self.filenames, npackets, self.totalsource = inputs.search()
         else:
             raise Exception
             
-        if self.npackets == 0:
+        if npackets == 0:
             pass
         else:
             self.mod_rate = self.totalsource/inputs.options.endtime.value
             self.atoms_per_packet = 1e23/self.mod_rate
-            print(f'Total number of packets run = {self.npackets}')
+            print(f'Total number of packets run = {npackets}')
             print(f'Total source = {self.totalsource} packets')
             print(f'1 packet represents {self.atoms_per_packet} atoms')
             print(f'Model rate = {self.mod_rate} packets/sec')

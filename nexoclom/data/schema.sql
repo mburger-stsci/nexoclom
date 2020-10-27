@@ -164,7 +164,6 @@ CREATE TABLE uvvsmodels_orbit (
     mechanism TEXT,
     wavelength TEXT,
     fitted BOOLEAN NOT NULL,
-    model_total_source DOUBLE PRECISION NOT NULL,
     filename TEXT NOT NULL)
 
 CREATE TABLE uvvsmodels_query (
@@ -176,7 +175,6 @@ CREATE TABLE uvvsmodels_query (
     mechanism TEXT,
     wavelength TEXT,
     fitted BOOLEAN NOT NULL,
-    model_total_source DOUBLE PRECISION NOT NULL,
     filename TEXT NOT NULL)
 
 DONE

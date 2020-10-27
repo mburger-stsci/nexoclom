@@ -69,7 +69,7 @@ class LOSResult(ModelResult):
             Default = False
         """
         format_ = {'quantity':quantity}
-        # super().__init__ sets npackets, totalsource, output filenames
+        # super().__init__ sets totalsource, output filenames
         if isinstance(start_from, Input):
             # Given inputs: Will need to search for and/or compute outputs
             inputs = start_from
@@ -103,6 +103,7 @@ class LOSResult(ModelResult):
         self.radiance = np.zeros(nspec)
         self.packets = pd.DataFrame()
         self.ninview = np.zeros(nspec, dtype=int)
+        new_total_source = 0.
         saved_files = {}
         
         # self.filenames are the output files appropriate for this dataset
@@ -112,51 +113,62 @@ class LOSResult(ModelResult):
                 if self.fitted:
                     # Fit the outputs to the data
                     masking = kwargs['masking'] if 'masking' in kwargs else None
-                    radiance_, npackets_, weighting, packets = self.fit_model_to_data(
-                            mdata.data, output, masking=masking)
+                    model_result = self.fit_model_to_data(mdata.data, output,
+                                                          masking=masking)
                 else:
                     # Just compute lines of sight
-                    radiance_, npackets_ = self.create_model(mdata.data, output)
-                    weighting, packets  = None, None
+                    model_result = self.create_model(mdata.data, output)
                 print(f'Completed model {j+1} of {len(self.filenames)}')
                 del output
             else:
                 # Search to see if it is already done
-                restored = self.restore(mdata, outfile)
-                radiance_, npackets_, idnum, weighting, packets, saved_file = restored
+                model_result = self.restore(mdata, outfile)
 
-                if (radiance_ is None) or overwrite:
-                    if (radiance_ is not None) and overwrite:
-                        self.delete_model(idnum, mdata)
+                if (model_result['radiance'] is None) or overwrite:
+                    if (model_result['radiance'] is not None) and overwrite:
+                        self.delete_model(mdata, model_result['idnum'])
                     else:
                         pass
 
                     output = Output.restore(outfile)
                     if self.fitted:
                         masking = kwargs['masking'] if 'masking' in kwargs else None
-                        radiance_, npackets_, weighting_, packets = self.fit_model_to_data(
-                                mdata.data, output, masking=masking)
-                        saved_file = self.save(mdata, outfile, radiance_,
-                                               npackets_, weighting_, packets)
+                        model_result = self.fit_model_to_data(mdata.data,
+                                                       output, masking=masking)
+                        saved_file = self.save(mdata, outfile, model_result)
                     else:
-                        radiance_, npackets_ = self.create_model(mdata.data, output)
-                        saved_file = self.save(mdata, outfile, radiance_,
-                                               npackets_)
+                        model_result = self.create_model(mdata.data, output)
+                        saved_file = self.save(mdata, outfile, model_result)
                     saved_files[outfile] = saved_file
                     print(f'Completed model {j+1} of {len(self.filenames)}')
                     del output
                 else:
-                    saved_files[outfile] = saved_file
+                    saved_files[outfile] = model_result['savefile']
                     print(f'Model {j+1} of {len(self.filenames)} '
                           'previously completed.')
 
-            self.radiance += radiance_.values
-            self.ninview += npackets_.astype(int).values
-            if weighting is not None:
-                self.weighting = weighting
-                self.packets = packets
-            else:
-                pass
+            self.radiance += model_result['radiance'].values
+            new_total_source += model_result['model_total_source']
+            # if model_result['weighting'] is not None:
+            #     if self.weighting is not None:
+            #         from IPython import embed; embed()  # drop into an IPython session.
+            #         import sys; sys.exit()
+            #
+                # self.weighting = model_result['weighting']
+                # self.packets = model_result['packets']
+            # else:
+            #     pass
+           
+        if self.fitted:
+            # Update atoms per packet and radiance
+            new_mod_rate = new_total_source/self.totalsource
+            new_atoms_per_packet = 1e23/new_mod_rate
+            self.radiance *= new_atoms_per_packet/self.atoms_per_packet
+            self.totalsource = new_total_source
+            self.atoms_per_packet = new_atoms_per_packet
+            self.mod_rate = new_mod_rate
+        else:
+            pass
 
         self.savefiles = saved_files
         self.radiance *= u.R
@@ -177,8 +189,7 @@ class LOSResult(ModelResult):
                 if os.path.exists(mfile):
                     os.remove(mfile)
 
-    def save(self, data, fname, radiance, npackets, totalsource,
-             weighting=None, packets=None):
+    def save(self, data, fname, model_result):
         with database_connect() as con:
             cur = con.cursor()
 
@@ -216,12 +227,9 @@ class LOSResult(ModelResult):
 
             savefile = os.path.join(os.path.dirname(fname),
                                     f'model.{idnum}.pkl')
-            if self.fitted:
-                with open(savefile, 'wb') as f:
-                    pickle.dump((radiance, npackets, weighting, packets), f)
-            else:
-                with open(savefile, 'wb') as f:
-                    pickle.dump((radiance, npackets), f)
+            with open(savefile, 'wb') as f:
+                pickle.dump(model_result, f)
+                
             cur.execute(f'''UPDATE uvvsmodels_{field}
                             SET filename=%s
                             WHERE idnum=%s''', (savefile, idnum))
@@ -268,25 +276,30 @@ class LOSResult(ModelResult):
             if len(result) == 1:
                 savefile = result.filename[0]
 
-                if self.fitted:
-                    with open(savefile, 'rb') as f:
-                        radiance, npackets, weighting, packets = pickle.load(f)
-                else:
-                    with open(savefile, 'rb') as f:
-                        radiance, npackets = pickle.load(f)
-                    weighting, packets = None, None
-                idnum = result.idnum[0]
+                with open(savefile, 'rb') as f:
+                    model_result = pickle.load(f)
+                model_result['idnum'] = result.idnum[0]
+                model_result['savefile'] = savefile
                 
-                if len(radiance) != len(data):
-                    radiance, npackets, idnum, weighting = None, None, None, None
+                # This is a check -- I don't think it will ever happen
+                if len(model_result['radiance']) != len(data):
+                    model_result = {'radiance': None,
+                                    'model_total_source': None,
+                                    'weighting': None,
+                                    'packets': None,
+                                    'idnum': None,
+                                    'savefile': None}
                 else:
                     pass
             else:
-                savefile = None
-                radiance, npackets, idnum = None, None, None
-                weighting, packets = None, None
+                model_result = {'radiance':None,
+                                'model_total_source':None,
+                                'weighting':None,
+                                'packets':None,
+                                'idnum':None,
+                                'savefile': None}
 
-        return radiance, npackets, idnum, weighting, packets, savefile
+        return model_result
     
     def create_model(self, data, output):
         # distance of s/c from planet
@@ -323,7 +336,6 @@ class LOSResult(ModelResult):
         
         # This sets limits on regions where packets might be
         rad = pd.Series(np.zeros(data.shape[0]), index=data.index)
-        npack = pd.Series(np.zeros(data.shape[0]), index=data.index)
 
         print(f'{data.shape[0]} spectra taken.')
         for i, spectrum in data.iterrows():
@@ -372,7 +384,6 @@ class LOSResult(ModelResult):
                     wtemp *= out_of_shadow
 
                     rad.loc[i] = wtemp.sum()
-                    npack.loc[i] = sum(inview)
                 else:
                     assert False, 'Other quantities not set up.'
             else:
@@ -383,7 +394,12 @@ class LOSResult(ModelResult):
                 if (ind%(len(data)//10)) == 0:
                     print(f'Completed {ind+1} spectra')
 
-        return rad, npack
+        result = {'radiance': rad,
+                  'model_total_source': output.totalsource,
+                  'weighting': None,
+                  'packets': None}
+
+        return result
     
     def fit_model_to_data(self, data, output, masking=None):
         '''Determine the source distribution that best fits the data'''
@@ -431,12 +447,10 @@ class LOSResult(ModelResult):
         oedge = output.inputs.options.outeredge*2
     
         # rad = modeled radiance
-        # npack = number of packets used to compute radiance
         # saved_packets = list of indicies of the packets used for each spectrum
         # weighting = list of the weights that should be applied
         #   - Final weighting for each packet is mean of weights
         rad = pd.Series(np.zeros(data.shape[0]), index=data.index)
-        npack = pd.Series(np.zeros(data.shape[0]), index=data.index)
         saved_packets = pd.Series((np.ndarray((0,), dtype=int)
                                    for _ in range(data.shape[0])),
                                   index=data.index)
@@ -498,7 +512,6 @@ class LOSResult(ModelResult):
                     wtemp *= out_of_shadow
                 
                     rad.loc[i] = wtemp.sum()
-                    npack.loc[i] = sum(inview)
                     if (wtemp.sum() > 0) and mask[i]:
                         ratio = spectrum.radiance/wtemp.sum()
                 
@@ -523,21 +536,30 @@ class LOSResult(ModelResult):
                     print(f'Completed {ind+1} spectra')
 
         # Determine the proper weightings
+        assert np.all(weighting.apply(len) == included.apply(len))
         new_weight = weighting.apply(lambda x: x.mean() if x.shape[0] > 0 else 0.)
         assert np.all(np.isfinite(new_weight))
         if np.any(new_weight > 0):
             multiplier = new_weight.loc[packets['Index']].values
-            # output.X.loc[:, 'frac'] = packets.loc[:, 'frac']*multiplier
-            # output.X0.loc[:, 'frac'] = output.X0.loc[:, 'frac']*new_weight
-            model_total_source = np.sum(output.X0.loc[:, 'frac']*new_weight)
+            output.X.loc[:, 'frac'] = packets.loc[:, 'frac']*multiplier
+            output.X0.loc[:, 'frac'] = output.X0.loc[:, 'frac']*new_weight
             
-            rad, npack = self.create_model(data, output)
+            new_total_source = np.sum(output.X0.loc[:, 'frac'])
+
+            # Run the model with updated source
+            result_with_fitted = self.create_model(data, output)
+            
+            weighting = pd.DataFrame({'weight':weighting.values,
+                                      'included':included.values})
+            result = {'radiance':result_with_fitted['radiance'],
+                      'model_total_source': new_total_source,
+                      'weighting':weighting,
+                      'packets':saved_packets}
         else:
-            rad = pd.Series(np.zeros(data.shape[0]), index=data.index)
-            npack = pd.Series(np.zeros(data.shape[0]), index=data.index)
+            result = {'radiance': pd.Series(np.zeros(data.shape[0]),
+                                            index=data.index),
+                      'model_total_source': 0,
+                      'weighting': None,
+                      'packets': None}
 
-        assert np.all(weighting.apply(len) == included.apply(len))
-        weighting = pd.DataFrame({'weight': weighting.values,
-                                  'included': included.values})
-
-        return rad, npack, weighting, saved_packets
+        return result
