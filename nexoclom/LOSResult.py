@@ -159,16 +159,21 @@ class LOSResult(ModelResult):
             # else:
             #     pass
            
-        if self.fitted:
-            # Update atoms per packet and radiance
-            new_mod_rate = new_total_source/self.totalsource
-            new_atoms_per_packet = 1e23/new_mod_rate
-            self.radiance *= new_atoms_per_packet/self.atoms_per_packet
-            self.totalsource = new_total_source
-            self.atoms_per_packet = new_atoms_per_packet
-            self.mod_rate = new_mod_rate
-        else:
-            pass
+        # from IPython import embed
+        # embed()
+        # import sys
+        # sys.exit()
+
+        # if self.fitted:
+        #     # Update atoms per packet and radiance
+        #     new_mod_rate = new_total_source/inputs.options.endtime.value
+        #     new_atoms_per_packet = 1e23/new_mod_rate
+        #     self.radiance *= new_atoms_per_packet/self.atoms_per_packet
+        #     self.totalsource = new_total_source
+        #     self.atoms_per_packet = new_atoms_per_packet
+        #     self.mod_rate = new_mod_rate
+        # else:
+        #     pass
 
         self.savefiles = saved_files
         self.radiance *= u.R
@@ -361,8 +366,8 @@ class LOSResult(ModelResult):
             subset = packets.loc[indicies]
 
             xpr = subset[xcols]-x_sc[np.newaxis, :]
-            rpr = np.sqrt(xpr['x']*xpr['x']+
-                          xpr['y']*xpr['y']+
+            rpr = np.sqrt(xpr['x']*xpr['x'] +
+                          xpr['y']*xpr['y'] +
                           xpr['z']*xpr['z'])
 
             losrad = np.sum(xpr*bore[np.newaxis, :], axis=1)
@@ -428,7 +433,7 @@ class LOSResult(ModelResult):
         dist_from_plan.loc[ang > asize_plan] = 1e30
 
         # Load the outputfile
-        packets = output.X
+        packets = output.X.copy()
         packets['radvel_sun'] = (packets['vy']+
                                  output.vrplanet.to(self.unit/u.s).value)
     
@@ -538,13 +543,29 @@ class LOSResult(ModelResult):
         # Determine the proper weightings
         assert np.all(weighting.apply(len) == included.apply(len))
         new_weight = weighting.apply(lambda x: x.mean() if x.shape[0] > 0 else 0.)
+        new_weight /= new_weight[new_weight > 0].mean()
+        # from IPython import embed
+        # embed()
+        # import sys; sys.exit()
+
         assert np.all(np.isfinite(new_weight))
         if np.any(new_weight > 0):
             multiplier = new_weight.loc[packets['Index']].values
             output.X.loc[:, 'frac'] = packets.loc[:, 'frac']*multiplier
             output.X0.loc[:, 'frac'] = output.X0.loc[:, 'frac']*new_weight
             
-            new_total_source = np.sum(output.X0.loc[:, 'frac'])
+            output.X = output.X[output.X.frac > 0]
+            output.X0 = output.X0[output.X0.frac > 0]
+
+            # Update the LOSResult and output objects with new values
+            output.totalsource = output.X0['frac'].sum()
+            self.totalsource = output.totalsource
+            self.mod_rate = self.totalsource/self.inputs.options.endtime.value
+            self.atoms_per_packet = 1e23/self.mod_rate
+            print('In fiited model:')
+            print(f'Total source = {self.totalsource} packets')
+            print(f'1 packet represents {self.atoms_per_packet} atoms')
+            print(f'Model rate = {self.mod_rate} packets/sec')
 
             # Run the model with updated source
             result_with_fitted = self.create_model(data, output)
@@ -552,7 +573,7 @@ class LOSResult(ModelResult):
             weighting = pd.DataFrame({'weight':weighting.values,
                                       'included':included.values})
             result = {'radiance':result_with_fitted['radiance'],
-                      'model_total_source': new_total_source,
+                      'model_total_source': self.totalsource,
                       'weighting':weighting,
                       'packets':saved_packets}
         else:
