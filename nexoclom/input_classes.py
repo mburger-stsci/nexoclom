@@ -269,17 +269,7 @@ class SurfaceInteraction:
                 self.A = [1.57014, -0.006262, 0.1614157]
         elif sticktype == 'surface map':
             self.sticktype = sticktype
-            if 'stick_mapfile' in sparam:
-                self.stick_mapfile = sparam['stick_mapfile']
-            else:
-                raise InputError('SurfaceInteraction.__init__',
-                                 'surfaceinteraction.stick_mapfile not given.')
-            
-            if not os.path.exists(self.stick_mapfile):
-                raise InputError('SurfaceInteraction.__init__',
-                                 f'File Not Found: {self.stick_mapfile}')
-            else:
-                pass
+            self.stick_mapfile = sparam.get('stick_mapfile', 'default')
             
             if 'accomfactor' in sparam:
                 self.accomfactor = float(sparam['accomfactor'])
@@ -489,18 +479,8 @@ class SpatialDist:
                             if 'exobase' in sparam
                             else 1.)  # Unit gets set later
             
-            if 'mapfile' in sparam:
-                self.mapfile = sparam['mapfile']
-                # Check that the mapfile exists
-                if not os.path.exists(self.mapfile):
-                    raise InputError('SpatialDist.__init__',
-                                     f'File Not Found: {self.mapfile}')
-                else:
-                    pass
-            else:
-                # Default mapfile = saved surface composition map
-                self.mapfile = 'default'
-                
+            self.mapfile = sparam.get('mapfile', 'default')
+            
             if self.mapfile == 'default':
                 self.coordinate_system = 'planet-fixed'
             else:
@@ -610,7 +590,7 @@ class SpatialDist:
                 sslon = 'subsolarlon is NULL'
             else:
                 sslon = 'subsolarlon = %s'
-                params.append(sslon)
+                params.append(self.subsolarlon.value)
                 
             params.append(self.coordinate_system)
             query = f'''SELECT idnum
@@ -700,7 +680,8 @@ class SpeedDist:
             else:
                 raise InputError('SpatialDist.__init__',
                                  'SpeedDist.delv not given.')
-
+        elif self.type == 'user defined':
+            self.vdistfile = sparam.get('vdistfile', 'default')
         else:
             assert 0, f'SpeedDist.type = {self.type} not available'
 
@@ -737,6 +718,12 @@ class SpeedDist:
                     cur.execute('''INSERT INTO speeddist_flat (
                                        vprob, delv) VALUES (%s, %s)''',
                                 (self.vprob.value, self.delv.value))
+            elif self.type == 'user defined':
+                with database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO speeddist_user (
+                                       vdistfile) VALUES (%s)''',
+                                (self.vdistfile,))
             else:
                 raise InputError('SpeedDist.search()',
                                  f'speeddist.type = {self.type} not allowed.')
@@ -773,6 +760,11 @@ class SpeedDist:
                        FROM speeddist_flat
                        WHERE vprob = %s and
                              delv = %s'''
+        elif self.type == 'user defined':
+            params = [self.vdistfile]
+            query = '''SELECT idnum
+                       FROM speeddist_user
+                       WHERE vdistfile = %s'''
         else:
             raise InputError('SpeedDist.__init__',
                              f'SpeedDist.type = {self.type} not defined.')

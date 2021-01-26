@@ -100,6 +100,10 @@ CREATE TABLE speeddist_flat (
     check (delv >= 0.)
 );
 
+CREATE TABLE speeddist_user (
+    idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    vdistfile TEXT NOT NULL)
+
 CREATE TABLE angdist_isotropic (
     idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     altitude DOUBLE PRECISION[2] NOT NULL,
