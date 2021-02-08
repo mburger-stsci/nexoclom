@@ -292,7 +292,7 @@ class LOSResult(ModelResult):
         
         # Run a uniform source model
         uniform_file = os.path.join(os.path.dirname(__file__),
-                                    'data', 'inputfiles',
+                                    'data', 'InputFiles',
                                     f'{self.scdata.species}.isotropic.flat.input')
         self.inputs = Input(uniform_file)
         self.inputs.geometry.taa = self.scdata.taa

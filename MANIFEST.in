@@ -3,6 +3,8 @@ include CODE_OF_CONDUCT.rst
 
 include setup.cfg
 include nexoclom/tests/
+include nexoclom/data/
+include nexoclom/data/InputFiles
 
 recursive-include nexoclom *.pyx *.c *.pxd
 recursive-include docs *
