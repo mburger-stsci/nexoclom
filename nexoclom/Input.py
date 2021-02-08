@@ -194,36 +194,15 @@ class Input:
         
         Nothing is returned, but model runs are saved and cataloged.
         """
-        # Configure the logger
-        # Note: The logfile name will be changed to match the outputfile name
-        #       and stored in the Output object.
-        # logger = logging.getLogger()
-        # logger.setLevel(logging.INFO)
-        # log_file_handler = logging.FileHandler('log.out', 'w')
-        # logger.addHandler(log_file_handler)
-        # out_handler = logging.StreamHandler(sys.stdout)
-        # logger.addHandler(out_handler)
-        # fmt = logging.Formatter('%(levelname)s: %(msg)s')
-        # log_file_handler.setFormatter(fmt)
-        # out_handler.setFormatter(fmt)
-
         t0_ = Time.now()
-        # logger.info(f'Starting at {t0_}')
         print(f'Starting at {t0_}')
 
-        if len(self.geometry.planet) != 1:
-            # logger.error('Gravity and impact check not working for '
-            #               'planets with moons.')
-            sys.exit()
-            
         # Determine how many packets have already been run
         if overwrite:
             self.delete_files()
             totalpackets = 0
         else:
             outputfiles, totalpackets, _ = self.search()
-            # logger.info(f'Found {len(outputfiles)} files with {totalpackets} '
-            #              'packets.')
             print(f'Found {len(outputfiles)} files with {totalpackets} '
                   'packets.')
 
@@ -243,26 +222,16 @@ class Input:
             # Determine how many iterations are needed
             nits = int(np.ceil(ntodo/packs_per_it))
             
-            # logger.info('Running Model')
-            # logger.info(f'Will complete {nits} iterations of {packs_per_it} '
-            #              'packets.')
             print('Running Model')
             print(f'Will complete {nits} iterations of {packs_per_it} packets.')
 
             for _ in range(nits):
                 tit0_ = Time.now()
-             #    logger.info(f'Starting iteration #{_+1} of {nits}')
                 print(f'Starting iteration #{_+1} of {nits}')
 
                 # Create an output object
                 Output(self, packs_per_it, compress=compress)
-                       #logger=logger)
-                # Just run and save the model when output is created
-                # No reason to explicitly call run
-                
                 tit1_ = Time.now()
-                # logger.info(f'Completed iteration #{_+1} in '
-                #             f'{(tit1_ - tit0_).sec} seconds.')
                 print(f'Completed iteration #{_+1} in '
                       f'{(tit1_ - tit0_).sec} seconds.')
         else:
@@ -276,8 +245,6 @@ class Input:
             dt_ = f'{dt_/60} min'
         else:
             dt_ = f'{dt_/3600} hr'
-        # logger.info(f'Model run completed in {dt_} at {t2_}.')
-        # out_handler.close()
         print(f'Model run completed in {dt_} at {t2_}.')
 
     def produce_image(self, format_, filenames=None, overwrite=False):
@@ -315,10 +282,18 @@ class Input:
                 cur.execute('''DELETE FROM outputfile
                                WHERE idnum = %s''', (idnum,))
                 
-                cur.execute('''SELECT idnum, filename FROM modelimages
-                               WHERE out_idnum = %s''', (idnum,))
-                for mid, mfile in cur.fetchall():
-                    cur.execute('''DELETE from modelimages
-                                   WHERE idnum = %s''', (mid,))
-                    if os.path.exists(mfile):
-                        os.remove(mfile)
+                # cur.execute('''SELECT idnum, filename FROM modelimages
+                #                WHERE out_idnum = %s''', (idnum,))
+                # for mid, mfile in cur.fetchall():
+                #     cur.execute('''DELETE from modelimages
+                #                    WHERE idnum = %s''', (mid,))
+                #     if os.path.exists(mfile):
+                #         os.remove(mfile)
+                
+                # cur.execute('''SELECT idnum, filename FROM uvvsmodels
+                #                WHERE out_idnum = %s''', (idnum,))
+                # for mid, mfile in cur.fetchall():
+                #     cur.execute('''DELETE from modelimages
+                #                    WHERE idnum = %s''', (mid,))
+                #     if os.path.exists(mfile):
+                #         os.remove(mfile)

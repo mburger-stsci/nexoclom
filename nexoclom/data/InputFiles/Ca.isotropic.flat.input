@@ -1,0 +1,17 @@
+geometry.planet = Mercury
+geometry.taa = 0
+
+surfaceinteraction.stickcoef = 1.
+
+SpatialDist.type = uniform
+
+SpeedDist.type = flat
+SpeedDist.vprob = 4.
+SpeedDist.delv = 4.
+
+options.endtime = 10800.
+options.lifetime = 0.
+options.species = Ca
+options.outeredge = 15
+options.step_size = 30.
+

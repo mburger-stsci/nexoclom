@@ -1,0 +1,16 @@
+geometry.planet = Mercury
+geometry.taa = 1.3
+
+SpatialDist.type = uniform
+
+SpeedDist.type = flat
+SpeedDist.vprob = 3.
+SpeedDist.delv = 3.
+
+AngularDist.type = isotropic
+
+options.endtime = 50000
+options.species = Na
+options.outeredge = 15
+options.step_size = 30
+
