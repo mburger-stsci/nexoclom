@@ -113,6 +113,10 @@ else:
     package = sys.modules[PACKAGENAME]
     LONG_DESCRIPTION = package.__doc__
 
+print('*****')
+print(find_packages())
+print('*****')
+
 setup(name=PACKAGENAME,
       version=version,
       author=AUTHOR,
@@ -126,8 +130,8 @@ setup(name=PACKAGENAME,
       python_requires='>={}'.format(__minimum_python_version__),
       tests_require=['pytest'],
       packages=find_packages(),
-#      package_dir = {'': 'nexoclom/data'},
-      package_data={PACKAGENAME: ['data']},
+#      package_dir = {'': 'nexoclom'},
+#      package_data={PACKAGENAME: ['data']},
       include_package_data=True,
       cmdclass={'test': PyTest,
                 'build_sphinx': BuildSphinx},

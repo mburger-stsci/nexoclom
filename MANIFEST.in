@@ -2,16 +2,11 @@ include README.rst
 include CODE_OF_CONDUCT.rst
 
 include setup.cfg
-include nexoclom/tests/
-include nexoclom/data/
-include nexoclom/data/InputFiles
 
-recursive-include nexoclom *.pyx *.c *.pxd
+recursive-include nexoclom * 
 recursive-include docs *
 recursive-include licenses *
 
-prune build
 prune docs/_build
-prune docs/api
 
-global-exclude *.pyc *.o
+global-exclude *.pyc 
