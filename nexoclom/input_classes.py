@@ -521,6 +521,11 @@ class SpatialDist:
             else:
                 raise InputError('SpatialDist.__init__',
                                  'SpatialDist.sigma not given.')
+        elif self.type == 'from fit':
+            self.fitted_outid = -1
+            self.unfit_outid = -1
+        elif self.type == 'fitted output':
+            self.unfit_outid = None
         else:
             raise InputError('SpatialDist.__init__',
                              f'SpatialDist.type = {self.type} not defined.')
@@ -564,6 +569,18 @@ class SpatialDist:
                                        %s, %s, %s, %s)''',
                                 (self.exobase, self.longitude.value,
                                  self.latitude.value, self.sigma.value))
+            elif self.type == 'from fit':
+                with database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO spatdist_fromfit (fitted_outid)
+                                       VALUES (%s, %s))''',
+                                (self.fitted_outid, self.unfit_outid))
+            elif self.type == 'fitted output':
+                with database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO spatdist_fittedoutput (unfit_outid)
+                                       VALUES (%s)''',
+                                (self.unfit_outid,))
             else:
                 raise InputError('SpatialDist.search()',
                                  f'SpatialDist.type = {self.type} not allowed.')
@@ -608,6 +625,17 @@ class SpatialDist:
                              longitude = %s and
                              latitude = %s and
                              sigma = %s'''
+        elif self.type == 'from fit':
+            params = [self.fitted_outid, self.unfit_outid]
+            query = '''SELECT idnum
+                       FROM spatdist_fromfit
+                       WHERE fitted_id = %s or
+                             unfit_id = %s'''
+        elif self.type == 'fitted output':
+            params = [self.unfit_outid]
+            query = '''SELECT idnum
+                           FROM spatdist_fittedoutput
+                           WHERE unfit_outid = %s'''
         else:
             raise InputError('SpatialDist.__init__',
                              f'SpatialDist.type = {self.type} not defined.')
@@ -682,6 +710,11 @@ class SpeedDist:
                                  'SpeedDist.delv not given.')
         elif self.type == 'user defined':
             self.vdistfile = sparam.get('vdistfile', 'default')
+        elif self.type == 'from fit':
+            self.fitted_outid = -1
+            self.unfit_outid = -1
+        elif self.type == 'fitted output':
+            self.unfit_outid = None
         else:
             assert 0, f'SpeedDist.type = {self.type} not available'
 
@@ -724,6 +757,19 @@ class SpeedDist:
                     cur.execute('''INSERT INTO speeddist_user (
                                        vdistfile) VALUES (%s)''',
                                 (self.vdistfile,))
+            elif self.type == 'from fit':
+                with database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO speeddist_fromfit (
+                                       fitted_outid, unfit_outid) VALUES (
+                                       %s, %s))''',
+                                (self.fitted_outid, self.unfit_outid))
+            elif self.type == 'fitted output':
+                with database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO speeddist_fittedoutput (unfit_outid)
+                                                       VALUES (%s)''',
+                                (self.unfit_outid,))
             else:
                 raise InputError('SpeedDist.search()',
                                  f'speeddist.type = {self.type} not allowed.')
@@ -765,6 +811,17 @@ class SpeedDist:
             query = '''SELECT idnum
                        FROM speeddist_user
                        WHERE vdistfile = %s'''
+        elif self.type == 'from fit':
+            params = [self.fitted_outid, self.unfit_outid]
+            query = '''SELECT idnum
+                       FROM speeddist_fromfit
+                       WHERE fittted_outid= %s or
+                             unfit_outid=%s'''
+        elif self.type == 'fitted output':
+            params = [self.unfit_outid]
+            query = '''SELECT idnum
+                           FROM speeddist_fittedoutput
+                           WHERE unfit_outid = %s'''
         else:
             raise InputError('SpeedDist.__init__',
                              f'SpeedDist.type = {self.type} not defined.')
@@ -904,14 +961,12 @@ class Options:
             raise InputError('Options.__init__',
                              'options.species not specified.')
 
-        self.lifetime = (float(oparam['lifetime'])*u.s
-                         if 'lifetime' in oparam
-                         else 0.*u.s)
+        self.lifetime = float(oparam.get('lifetime', 0))*u.s
         
         if 'outeredge' in oparam:
             self.outeredge = float(oparam['outeredge'])
         elif 'outer_edge' in oparam:
-            self.outeredge = float(oparam['outeredge'])
+            self.outeredge = float(oparam['outer_edge'])
         else:
             self.outeredge = 1e30
             
@@ -923,10 +978,11 @@ class Options:
             self.step_size = 0.
 
         if self.step_size == 0:
-            self.resolution = (float(oparam['resolution'])
-                               if 'resolution' in oparam else 1e-4)
+            self.resolution = oparam.get('resolution', 1e-4)
         else:
             self.resolution = None
+            
+        self.fitted = oparam.get('fitted', False)
 
     def __str__(self):
         result = ''
@@ -940,11 +996,11 @@ class Options:
             with database_connect() as con:
                 cur = con.cursor()
                 cur.execute('''INSERT into options (endtime, species, lifetime,
-                                   outer_edge, step_size, resolution) VALUES (
-                                   %s, %s, %s, %s, %s, %s)''',
+                                   outer_edge, step_size, resolution, fitted) VALUES (
+                                   %s, %s, %s, %s, %s, %s, %s)''',
                             (self.endtime.value, self.species,
                              self.lifetime.value, self.outeredge,
-                             self.step_size, self.resolution))
+                             self.step_size, self.resolution, self.fitted))
             ids = self.search()
             assert ids is not None
         else:
@@ -954,7 +1010,7 @@ class Options:
 
     def search(self):
         params = [self.endtime.value, self.species, self.lifetime.value,
-                  self.outeredge, self.step_size]
+                  self.outeredge, self.step_size, self.fitted]
         
         if self.resolution is None:
             resol = 'resolution is NULL'
@@ -969,7 +1025,8 @@ class Options:
                           lifetime = %s and
                           outer_edge = %s and
                           step_size = %s and
-                          {resol}'''
+                          {resol} and
+                          fitted = %s'''
         
         with database_connect() as con:
             cur = con.cursor()

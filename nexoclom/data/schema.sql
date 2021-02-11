@@ -73,6 +73,17 @@ CREATE TABLE spatdist_spot (
     check(exobase >= 1)
 );
 
+CREATE TABLE spatdist_fromfit (
+    idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    fitted_outid INT NOT NULL,
+    unfit_outid INT NOT NULL
+)
+
+CREATE TABLE spatdist_fittedoutput (
+    idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    unfit_outid INT NOT NULL
+)
+
 CREATE TABLE speeddist_gaussian (
     idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     vprob DOUBLE PRECISION NOT NULL,
@@ -100,6 +111,17 @@ CREATE TABLE speeddist_flat (
     check (delv >= 0.)
 );
 
+CREATE TABLE speeddist_fromfit (
+    idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    fitted_outid INT NOT NULL,
+    unfit_outid INT NOT NULL
+)
+
+CREATE TABLE speeddist_fittedoutput (
+    idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    unfit_outid INT NOT NULL
+)
+
 CREATE TABLE speeddist_user (
     idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     vdistfile TEXT NOT NULL)
@@ -118,6 +140,7 @@ CREATE TABLE options (
     outer_edge DOUBLE PRECISION NOT NULL,
     step_size DOUBLE PRECISION NOT NULL,
     resolution DOUBLE PRECISION,
+    fitted BOOLEAN NOT NULL,
     check (endtime > 0),
     check (outer_edge > 0),
     check (step_size >= 0)

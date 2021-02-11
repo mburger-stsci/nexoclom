@@ -37,6 +37,7 @@ class ModelResult:
             raise TypeError('ModelResult.__init__',
                             'format must be a dict or filename.')
             
+        self.totalsource = 0.
         # Do some validation
         quantities = ['column', 'radiance', 'density']
 
@@ -72,17 +73,9 @@ class ModelResult:
             pass
     
     def search_for_outputs(self):
-        self.outputfiles, self.npackets, self.totalsource = self.inputs.search()
-
-    def calibration(self):
+        self.outputfiles, self.outputpackets, self.outputsource = self.inputs.search()
         self.unit = u.def_unit('R_' + self.inputs.geometry.planet.object,
                                self.inputs.geometry.planet.radius)
-        self.mod_rate = self.totalsource / self.inputs.options.endtime.value
-        self.atoms_per_packet = 1e23 / self.mod_rate
-        print(f'Total number of packets run = {self.npackets}')
-        print(f'Total source = {self.totalsource} packets')
-        print(f'1 packet represents {self.atoms_per_packet} atoms')
-        print(f'Model rate = {self.mod_rate} packets/sec')
 
     def transform_reference_frame(self, output):
         """If the image center is not the planet, transform to a

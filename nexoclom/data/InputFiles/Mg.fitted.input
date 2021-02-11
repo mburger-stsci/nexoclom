@@ -5,18 +5,13 @@ surfaceinteraction.stickcoef = 1.
 
 forces.radpres = True
 
-SpatialDist.type = surface spot
-SpatialDist.longitude = 4.71238898038469
-SpatialDist.latitude = 0.
-SpatialDist.sigma = 0.8726646259971648
-
-SpeedDist.type = flat
-SpeedDist.vprob = 4
-SpeedDist.delv = 4
+SpatialDist.type = fitted output
+SpeedDist.type = fitted output
 
 options.endtime = 1000000
 options.lifetime = 0.
 options.species = Mg
 options.outeredge = 15
 options.step_size = 30.
+options.fitted = True
 
