@@ -318,6 +318,7 @@ class LOSResult(ModelResult):
                                      'InputFiles',
                                      f'{self.scdata.species}.fitted.input')
         self.inputs = Input(fitinput_file)
+        self.inputs.geometry.taa = self.scdata.taa
         self.unit = u.def_unit('R_' + self.inputs.geometry.planet.object,
                                self.inputs.geometry.planet.radius)
 
