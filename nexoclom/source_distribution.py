@@ -147,6 +147,8 @@ def surface_distribution(outputs):
     outputs.X0['latitude'] = lat
     local_time = (lon.value * 12/np.pi + 12) % 24
     outputs.X0['local_time'] = local_time
+    
+    
 
 
 def speed_distribution(outputs):

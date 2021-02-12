@@ -73,12 +73,6 @@ CREATE TABLE spatdist_spot (
     check(exobase >= 1)
 );
 
-CREATE TABLE spatdist_fromfit (
-    idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-    fitted_outid INT NOT NULL,
-    unfit_outid INT NOT NULL
-)
-
 CREATE TABLE spatdist_fittedoutput (
     idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     unfit_outid INT NOT NULL
@@ -110,12 +104,6 @@ CREATE TABLE speeddist_flat (
     delv DOUBLE PRECISION NOT NULL,
     check (delv >= 0.)
 );
-
-CREATE TABLE speeddist_fromfit (
-    idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-    fitted_outid INT NOT NULL,
-    unfit_outid INT NOT NULL
-)
 
 CREATE TABLE speeddist_fittedoutput (
     idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,

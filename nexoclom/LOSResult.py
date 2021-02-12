@@ -345,7 +345,7 @@ class LOSResult(ModelResult):
                 mod_rate = output.totalsource / self.inputs.options.endtime.value
                 atoms_per_packet = 1e23 / mod_rate
 
-                packets = output.X
+                packets = copy.deepcopy(output.X)
                 packets['radvel_sun'] = (packets['vy'] +
                                          output.vrplanet.to(self.unit / u.s).value)
                 self.oedge = output.inputs.options.outeredge * 2
@@ -400,8 +400,8 @@ class LOSResult(ModelResult):
                 assert np.all(np.isfinite(new_weight))
                 
                 if np.any(new_weight > 0):
-                    multiplier = new_weight.loc[packets['Index']].values
-                    output.X.loc[:, 'frac'] = packets.loc[:, 'frac'] * multiplier
+                    multiplier = new_weight.loc[output.X['Index']].values
+                    output.X.loc[:, 'frac'] = output.X.loc[:, 'frac'] * multiplier
                     output.X0.loc[:, 'frac'] = output.X0.loc[:, 'frac'] * new_weight
     
                     output.X = output.X[output.X.frac > 0]
@@ -476,6 +476,7 @@ class LOSResult(ModelResult):
         source, xx, yy = np.histogram2d(longitude, latitude, weights=weight,
                                         range=[[0, 2*np.pi], [-np.pi/2, np.pi/2]],
                                         bins=(NLONBINS, NLATBINS))
+        source = source/np.cos(yy+(yy[1]-yy[0]/2.))[np.newaxis,:-1]
         v_source, v = np.histogram(velocity, bins=NVELBINS,
                                    range=[0, velocity.max()], weights=weight)
         v_source /= np.max(v_source)
@@ -487,11 +488,11 @@ class LOSResult(ModelResult):
         v_packets, _ = np.histogram(velocity, bins=NVELBINS, range=[0, velocity.max()])
         v_packets = v_packets / np.max(v_packets)
         
-        sourcemap = {'longitude': xx[:-1]*u.rad,
-                     'latitude': yy[:-1]*u.rad,
+        sourcemap = {'longitude': xx*u.rad,
+                     'latitude': yy*u.rad,
                      'abundance': source,
                      'p_available': packets,
-                     'velocity': v[:-1]*u.km/u.s,
+                     'velocity': v*u.km/u.s,
                      'vdist': v_source,
                      'v_available': v_packets,
                      'coordinate_system': 'solar-fixed'}
@@ -551,7 +552,7 @@ class LOSResult(ModelResult):
                 mod_rate = output.totalsource / self.inputs.options.endtime.value
                 atoms_per_packet = 1e23 / mod_rate
 
-                packets = output.X
+                packets = copy.deepcopy(output.X)
                 packets['radvel_sun'] = (packets['vy'] +
                                          output.vrplanet.to(self.unit / u.s).value)
                 self.oedge = output.inputs.options.outeredge * 2
@@ -617,9 +618,7 @@ class LOSResult(ModelResult):
         atoms_per_packet = 1e23 / mod_rate
 
         dist_from_plan = self._data_setup()
-        packets = output.X
-        packets = packets.drop(columns=['radvel_sun', 'weight'])
-
+        packets = copy.deepcopy(output.X)
         packets['radvel_sun'] = (packets['vy'] +
                                  output.vrplanet.to(self.unit / u.s).value)
         self.oedge = output.inputs.options.outeredge * 2

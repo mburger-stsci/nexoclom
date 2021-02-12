@@ -521,11 +521,8 @@ class SpatialDist:
             else:
                 raise InputError('SpatialDist.__init__',
                                  'SpatialDist.sigma not given.')
-        elif self.type == 'from fit':
-            self.fitted_outid = -1
-            self.unfit_outid = -1
         elif self.type == 'fitted output':
-            self.unfit_outid = None
+            self.unfit_outid = -1
         else:
             raise InputError('SpatialDist.__init__',
                              f'SpatialDist.type = {self.type} not defined.')
@@ -569,12 +566,6 @@ class SpatialDist:
                                        %s, %s, %s, %s)''',
                                 (self.exobase, self.longitude.value,
                                  self.latitude.value, self.sigma.value))
-            elif self.type == 'from fit':
-                with database_connect() as con:
-                    cur = con.cursor()
-                    cur.execute('''INSERT INTO spatdist_fromfit (fitted_outid)
-                                       VALUES (%s, %s))''',
-                                (self.fitted_outid, self.unfit_outid))
             elif self.type == 'fitted output':
                 with database_connect() as con:
                     cur = con.cursor()
@@ -625,12 +616,6 @@ class SpatialDist:
                              longitude = %s and
                              latitude = %s and
                              sigma = %s'''
-        elif self.type == 'from fit':
-            params = [self.fitted_outid, self.unfit_outid]
-            query = '''SELECT idnum
-                       FROM spatdist_fromfit
-                       WHERE fitted_id = %s or
-                             unfit_id = %s'''
         elif self.type == 'fitted output':
             params = [self.unfit_outid]
             query = '''SELECT idnum
@@ -710,11 +695,8 @@ class SpeedDist:
                                  'SpeedDist.delv not given.')
         elif self.type == 'user defined':
             self.vdistfile = sparam.get('vdistfile', 'default')
-        elif self.type == 'from fit':
-            self.fitted_outid = -1
-            self.unfit_outid = -1
         elif self.type == 'fitted output':
-            self.unfit_outid = None
+            self.unfit_outid = -1
         else:
             assert 0, f'SpeedDist.type = {self.type} not available'
 
@@ -757,13 +739,6 @@ class SpeedDist:
                     cur.execute('''INSERT INTO speeddist_user (
                                        vdistfile) VALUES (%s)''',
                                 (self.vdistfile,))
-            elif self.type == 'from fit':
-                with database_connect() as con:
-                    cur = con.cursor()
-                    cur.execute('''INSERT INTO speeddist_fromfit (
-                                       fitted_outid, unfit_outid) VALUES (
-                                       %s, %s))''',
-                                (self.fitted_outid, self.unfit_outid))
             elif self.type == 'fitted output':
                 with database_connect() as con:
                     cur = con.cursor()
@@ -811,12 +786,6 @@ class SpeedDist:
             query = '''SELECT idnum
                        FROM speeddist_user
                        WHERE vdistfile = %s'''
-        elif self.type == 'from fit':
-            params = [self.fitted_outid, self.unfit_outid]
-            query = '''SELECT idnum
-                       FROM speeddist_fromfit
-                       WHERE fittted_outid= %s or
-                             unfit_outid=%s'''
         elif self.type == 'fitted output':
             params = [self.unfit_outid]
             query = '''SELECT idnum
