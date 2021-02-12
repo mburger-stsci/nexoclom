@@ -476,7 +476,8 @@ class LOSResult(ModelResult):
         source, xx, yy = np.histogram2d(longitude, latitude, weights=weight,
                                         range=[[0, 2*np.pi], [-np.pi/2, np.pi/2]],
                                         bins=(NLONBINS, NLATBINS))
-        source = source/np.cos(yy+(yy[1]-yy[0]/2.))[np.newaxis,:-1]
+        source = source/np.cos(yy+(yy[1]-yy[0])/2.)[np.newaxis,:-1]
+        source[:,[0,-1]] = 0
         v_source, v = np.histogram(velocity, bins=NVELBINS,
                                    range=[0, velocity.max()], weights=weight)
         v_source /= np.max(v_source)
@@ -485,6 +486,8 @@ class LOSResult(ModelResult):
         packets, _, _ = np.histogram2d(longitude, latitude,
                                        range=[[0, 2*np.pi], [-np.pi/2, np.pi/2]],
                                        bins=(NLONBINS, NLATBINS))
+        packets = packets/np.cos(yy+(yy[1]-yy[0])/2.)[np.newaxis,:-1]
+        packets[:,[0,-1]] = 0
         v_packets, _ = np.histogram(velocity, bins=NVELBINS, range=[0, velocity.max()])
         v_packets = v_packets / np.max(v_packets)
         

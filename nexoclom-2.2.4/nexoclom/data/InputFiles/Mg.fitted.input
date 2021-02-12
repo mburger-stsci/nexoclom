@@ -1,0 +1,17 @@
+geometry.planet = Mercury
+geometry.taa = 0
+
+surfaceinteraction.stickcoef = 1.
+
+forces.radpres = True
+
+SpatialDist.type = fitted output
+SpeedDist.type = fitted output
+
+options.endtime = 1000000
+options.lifetime = 0.
+options.species = Mg
+options.outeredge = 15
+options.step_size = 30.
+options.fitted = True
+
