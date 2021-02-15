@@ -15,8 +15,11 @@ def database_connect(database=None, port=None, return_con=True):
     config = {}
     if os.path.isfile(configfile):
         for line in open(configfile, 'r').readlines():
-            key, value = line.split('=')
-            config[key.strip()] = value.strip()
+            if '=' in line:
+                key, value = line.split('=')
+                config[key.strip()] = value.strip()
+            else:
+                pass
 
         if (database is None) and ('database' in config):
             database = config['database']

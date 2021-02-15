@@ -179,6 +179,7 @@ class LOSResult(ModelResult):
             
                 # Should only have one match per outputfile
                 assert len(result) <= 1
+                # from IPython import embed; embed()
                 
                 if len(result) == 0:
                     search_results[outputfile] = None
@@ -329,7 +330,6 @@ class LOSResult(ModelResult):
         data = self.scdata.data
         search_results = self.search()
         iteration_results = []
-        modelfiles = []
 
         dist_from_plan = (self._data_setup()
                           if None in search_results.values()
@@ -448,15 +448,15 @@ class LOSResult(ModelResult):
                                         'outputfile': outputfile,
                                         'out_idnum': output.idnum}
 
-                iteration_results.append(iteration_result)
                 modelfile = self.save(iteration_result)
-                modelfiles.append(modelfile)
+                iteration_result['modelfile'] = modelfile
+                iteration_results.append(iteration_result)
             else:
                 # Restore saved result
                 iteration_result = self.restore(search_result)
                 assert len(iteration_result['radiance']) == len(data)
+                iteration_result['modelfile'] = search_result[1]
                 iteration_results.append(iteration_result)
-                modelfiles.append(search_result[1])
                 
                 output = Output.restore(outputfile)
                 longitude = np.append(longitude, output.X0.longitude)
@@ -503,8 +503,10 @@ class LOSResult(ModelResult):
 
         self.radiance /= self.totalsource
         self.radiance *= u.R
-        self.modelfiles = modelfiles
-        
+        self.modelfiles = {}
+        for iteration_result in iteration_results:
+            self.modelfiles[iteration_result['outputfile']] = iteration_result['modelfile']
+
     def simulate_data_from_inputs(self, inputs_, npackets, overwrite=False,
                                   packs_per_it=None):
         """Given a set of inputs, determine what the spacecraft should see.
@@ -541,7 +543,6 @@ class LOSResult(ModelResult):
         data = self.scdata.data
         search_results = self.search()
         iteration_results = []
-        modelfiles = []
 
         dist_from_plan = (self._data_setup()
                           if None in search_results.values()
@@ -590,25 +591,26 @@ class LOSResult(ModelResult):
                                     'weighting': None,
                                     'outputfile': outputfile,
                                     'out_idnum': output.idnum}
-                iteration_results.append(iteration_result)
                 modelfile = self.save(iteration_result)
-                modelfiles.append(modelfile)
+                iteration_result['modelfile'] = modelfile
+                iteration_results.append(iteration_result)
             else:
                 iteration_result = self.restore(search_result)
+                iteration_result['modelfile'] = search_result[1]
                 assert len(iteration_result['radiance']) == len(data)
                 iteration_results.append(iteration_result)
-                modelfiles.append(search_result[1])
 
         # combine iteration_results
+        self.modelfiles = {}
         for iteration_result in iteration_results:
             self.radiance += (iteration_result['radiance'] *
                               iteration_result['total_source'])
             self.npackets += iteration_result['npackets']
             self.totalsource += iteration_result['total_source']
+            self.modelfiles[iteration_result['outputfile']] = iteration_result['modelfile']
         
         self.radiance /= self.totalsource
         self.radiance *= u.R
-        self.modelfiles = modelfiles
         
     def simulate_data_from_outputs(self, output):
         # TAA needs to match the data
@@ -655,8 +657,9 @@ class LOSResult(ModelResult):
                             'packets': None,
                             'outputfile': output.filename,
                             'out_idnum': output.idnum}
-        
-        self.save(iteration_result)
+        # from IPython import embed; embed()
+        # savefile = self.save(iteration_result)
+        # iteration_result['savefile'] = savefile
         
         return iteration_result
         
