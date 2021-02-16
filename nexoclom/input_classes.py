@@ -10,8 +10,7 @@ from .database_connect import database_connect
 
 dtor = np.pi/180.
 # Tolerances for floating point values
-dtaa = 5.*dtor
-
+dtaa = 2.*dtor
 
 class InputError(Exception):
     """Raised when a required parameter is not included in the inputfile."""
@@ -951,7 +950,11 @@ class Options:
         else:
             self.resolution = None
             
-        self.fitted = oparam.get('fitted', False)
+        if 'fitted' in oparam:
+            self.fitted = (True if oparam['fitted'].casefold() == 'True'.casefold()
+                           else False)
+        else:
+            self.fitted = False
 
     def __str__(self):
         result = ''
