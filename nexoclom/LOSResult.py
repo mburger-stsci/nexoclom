@@ -131,6 +131,7 @@ class LOSResult(ModelResult):
 
             savefile = os.path.join(os.path.dirname(iteration_result['outputfile']),
                                     f'model.{idnum}.pkl')
+
             cur.execute(f'''UPDATE uvvsmodels
                             SET filename=%s
                             WHERE idnum=%s''', (savefile, idnum))
@@ -179,7 +180,6 @@ class LOSResult(ModelResult):
             
                 # Should only have one match per outputfile
                 assert len(result) <= 1
-                # from IPython import embed; embed()
                 
                 if len(result) == 0:
                     search_results[outputfile] = None
@@ -444,7 +444,7 @@ class LOSResult(ModelResult):
                                                 result_with_fitted['atoms_per_packet'],
                                             'weighting':weighting,
                                             'packets':self.saved_packets,
-                                            'outputfile': fit_outputfile,
+                                            'outputfile': output.filename,
                                             'out_idnum': output.idnum}
                     else:
                         iteration_result = {'radiance':pd.Series(np.zeros(data.shape[0]),
@@ -453,7 +453,7 @@ class LOSResult(ModelResult):
                                             'model_total_source':0,
                                             'weighting':None,
                                             'packets':None,
-                                            'outputfile': fit_outputfile,
+                                            'outputfile': output.filename,
                                             'out_idnum': output.idnum}
 
                     print(iteration_result['outputfile'])
