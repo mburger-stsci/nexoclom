@@ -336,8 +336,10 @@ class LOSResult(ModelResult):
             output = Output.restore(unfit_outputfile)
             assert output.idnum is not None
             self.inputs.spatialdist.unfit_outid = output.idnum
+            self.inputs.spatialdist.query = self.scdata.query
             self.inputs.speeddist.unfit_outid = output.idnum
-            
+            self.inputs.speeddist.query = self.scdata.query
+
             # Check to see if this file has already been used
             fit_outputfile, _, _ = self.inputs.search()
             assert len(fit_outputfile) <= 1

@@ -76,6 +76,7 @@ CREATE TABLE spatdist_spot (
 CREATE TABLE spatdist_fittedoutput (
     idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     unfit_outid INT NOT NULL
+    query TEXT NOT NULL
 )
 
 CREATE TABLE speeddist_gaussian (
@@ -107,7 +108,8 @@ CREATE TABLE speeddist_flat (
 
 CREATE TABLE speeddist_fittedoutput (
     idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-    unfit_outid INT NOT NULL
+    unfit_outid INT NOT NULL,
+    query TEXT NOT NULL
 )
 
 CREATE TABLE speeddist_user (
