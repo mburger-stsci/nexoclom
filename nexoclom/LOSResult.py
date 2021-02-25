@@ -246,8 +246,11 @@ class LOSResult(ModelResult):
     
         losrad = np.sum(xpr * bore[np.newaxis, :], axis=1)
         inview = rpr < dist
-
+        
         if np.any(inview):
+            # used_packets = inview.index
+            # used_packets0 = packets.Index[inview.index].unique()
+            
             Apix = np.pi * (rpr[inview] * np.sin(self.dphi))**2 * (
                 self.unit.to(u.cm))**2
             wtemp = subset.loc[inview, 'weight'] / Apix * atoms_per_packet
@@ -281,7 +284,7 @@ class LOSResult(ModelResult):
             else:
                 assert False, 'Other quantities not set up.'
         else:
-            rad, pack = 0., 0
+            rad, pack, used_packets0, used_packets = 0., 0, [], []
             
         return rad, pack
 

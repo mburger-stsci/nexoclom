@@ -491,7 +491,8 @@ class SpatialDist:
                         'source map must be in planet-fixed or solar-fixed coordinates.')
                     self.coordinate_system = sourcemap['coordinate_system']
                 else:
-                    assert 0, 'Not set up yet'
+                    self.coordinate_system = 'solar-fixed'
+                    # assert 0, 'Not set up yet'
                 
             if ((self.coordinate_system == 'planet-fixed') and
                 ('subsolarlon' in sparam)):
