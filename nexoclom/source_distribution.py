@@ -91,7 +91,7 @@ def surface_distribution(outputs):
             sourcemap = {'longitude':sourcemap_['longitude'][0]*u.rad,
                          'latitude':sourcemap_['latitude'][0]*u.rad,
                          'abundance':sourcemap_['map'][0].transpose(),
-                         'coordinate_system':sourcemap_['coordinate_system'][0]}
+                         'coordinate_system':str(sourcemap_['coordinate_system'][0])}
         else:
             assert 0, 'Mapfile is the wrong format.'
 
