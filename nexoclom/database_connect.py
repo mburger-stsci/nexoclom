@@ -2,6 +2,18 @@ import os
 import psycopg2
 
 
+nexoclom_tables = ['geometry_with_time', 'geometry_without_time',
+                   'surface_int_constant', 'surface_int_map',
+                   'surface_int_tempdependent', 'forces',
+                   'spatdist_uniform', 'spatdist_surfmap',
+                   'spatdist_spot', 'spatdist_fittedoutput',
+                   'speeddist_gaussian', 'speeddist_maxwellian',
+                   'speeddist_sputtering', 'speeddist_flat',
+                   'speeddist_fittedoutput', 'speeddist_user',
+                   'angdist_isotropic', 'options', 'outputfile',
+                   'modelimages', 'uvvsmodels']
+
+
 def database_connect(database=None, port=None, return_con=True):
     """Wrapper for psycopg2.connect() that determines which database and port to use.
 
@@ -50,3 +62,27 @@ def database_connect(database=None, port=None, return_con=True):
         return con
     else:
         return database, port
+
+def export_database():
+    # Get database name and port
+    database, port = database_connect(return_con=False)
+
+    if not os.path.exists('backup'):
+        os.makedirs('backup')
+    else:
+        pass
+    
+    for table in nexoclom_tables:
+        print(f'Backup up {table}')
+        savef = os.path.join('backup', f'nexoclom_{table}.sql')
+        os.system(f'pg_dump -p {port} -t {table} {database} > {savef}')
+        
+def import_database():
+    # Get database name and port
+    database, port = database_connect(return_con=False)
+    
+    for table in nexoclom_tables:
+        print(f'Importing {table}')
+        savef = os.path.join('backup', f'nexoclom_{table}.sql')
+        os.system(f'psql -c "drop table {table};" thesolarsystemmb')
+        os.system(f'psql {database} < {savef}')
