@@ -27,8 +27,7 @@ Options
 import os
 import os.path
 import numpy as np
-#import pandas as pd
-import modin.pandas as pd
+import pandas as pd
 from astropy.time import Time
 from .Output import Output
 from .configure_model import configfile

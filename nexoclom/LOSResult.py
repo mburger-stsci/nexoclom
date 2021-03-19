@@ -1,7 +1,6 @@
 import os.path
 import numpy as np
-# import pandas as pd
-import modin.pandas as pd
+import pandas as pd
 import pickle
 import random
 import copy
