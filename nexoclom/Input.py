@@ -27,11 +27,9 @@ Options
 import os
 import os.path
 import numpy as np
-import sys
-import pandas as pd
-import logging
+#import pandas as pd
+import modin.pandas as pd
 from astropy.time import Time
-import astropy.units as u
 from .Output import Output
 from .configure_model import configfile
 from .database_connect import database_connect
