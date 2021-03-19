@@ -210,8 +210,8 @@ def angular_distribution(outputs):
         return
     elif angulardist.type == 'radial':
         # All packets going radially outward
-        alt = np.zeros(npackets) + np.pi/2.
-        az = np.zeros(npackets)
+        alt = (np.zeros(npackets) + np.pi/2.) * u.rad
+        az = np.zeros(npackets) * u.rad
     elif angulardist.type == 'isotropic':
         # Choose the altitude -- f(alt) = cos(alt)
         alt0 = angulardist.altitude
