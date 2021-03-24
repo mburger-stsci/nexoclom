@@ -183,4 +183,17 @@ CREATE TABLE uvvsmodels (
     fitted BOOLEAN NOT NULL,
     filename TEXT NOT NULL)
 
+CREATE TABLE savedpackets (
+    idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    query TEXT NOT NULL,
+    outputfile TEXT NOT NULL,
+    specind INT NOT NULL,
+    oint INT NOT NULL,
+    weight DOUBLE PRECISION NOT NULL,
+    frac0 DOUBLE PRECISION NOT NULL,
+    index0 INT NOT NULL,
+    ratio DOUBLE PRECISION NOT NULL,
+    scale_factor DOUBLE PRECISION)
+
+
 DONE

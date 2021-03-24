@@ -3,9 +3,7 @@ import numpy as np
 import astropy.units as u
 import mathMB
 from atomicdataMB import gValue
-from .database_connect import database_connect
 from .input_classes import InputError
-from .Output import Output
 
 
 class ModelResult:

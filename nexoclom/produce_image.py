@@ -1,6 +1,5 @@
 import os.path
 import numpy as np
-import numpy.matlib as npmat
 import pandas as pd
 import pickle
 import astropy.units as u
@@ -8,8 +7,14 @@ from solarsystemMB import SSObject
 from mathMB import rotation_matrix
 from .ModelResults import ModelResult
 from .database_connect import database_connect
-from .input_classes import InputError
 from .Output import Output
+
+import bokeh.plotting as bkp
+from bokeh.palettes import Inferno256
+from bokeh.models import (HoverTool, ColumnDataSource, ColorBar,
+                          LogColorMapper, LogTicker, LinearColorMapper)
+from bokeh.io import curdoc
+from bokeh.themes import Theme
 
 
 class ModelImage(ModelResult):
@@ -33,8 +38,10 @@ class ModelImage(ModelResult):
             If True, deletes any images that have already been computed.
             Default = False
         """
-        super().__init__(inputs, format, filenames=filenames)
+        super().__init__(format, species=inputs.options.species)
+        self.inputs = inputs
         self.type = 'image'
+        self.search_for_outputs()
         
         if 'origin' in self.format:
             self.origin = SSObject(self.format['origin'])
@@ -85,21 +92,26 @@ class ModelImage(ModelResult):
         self.xaxis = np.linspace(immin[0], immax[0], self.dims[0])
         self.zaxis = np.linspace(immin[1], immax[1], self.dims[1])
 
-        for i, fname in enumerate(self.filenames):
+        for i, fname in enumerate(self.outputfiles):
             # Search to see if its already been done
             print(f'Output filename: {fname}')
             image_, packets_ = self.restore(fname, overwrite=overwrite)
+            output = Output.restore(fname)
 
             if image_ is None:
-                image_, packets_ = self.create_image(fname)
-                print(f'Completed image {i+1} of {len(self.filenames)}')
+                image_, packets_, = self.create_image(output)
+                print(f'Completed image {i+1} of {len(self.outputfiles)}')
             else:
-                print(f'Image {i+1} of {len(self.filenames)} '
+                print(f'Image {i+1} of {len(self.outputfiles)} '
                        'previously completed.')
 
             self.image += image_
             self.packet_image += packets_
+            self.totalsource += output.totalsource
+            del output
 
+        mod_rate = self.totalsource / self.inputs.options.endtime.value
+        self.atoms_per_packet = 1e23 / mod_rate
         self.image *= self.atoms_per_packet
 
     def save(self, fname, image, packets):
@@ -201,12 +213,11 @@ class ModelImage(ModelResult):
 
         return image, packets
 
-    def create_image(self, fname):
+    def create_image(self, output):
         # Determine the proper frame rotation
         M = self.image_rotation()
 
         # Load data in solar reference frame
-        output = Output.restore(fname)
         packets = output.X
         if self.origin != self.inputs.geometry.planet:
             super().transform_reference_frame(packets)
@@ -238,6 +249,7 @@ class ModelImage(ModelResult):
         bx = np.append(self.xaxis-dx, self.xaxis[-1]+dx)
         dz = (self.zaxis[1]-self.zaxis[0])/2.
         bz = np.append(self.zaxis-dz, self.zaxis[-1]+dz)
+        bx, bz = bx.value, bz.value
 
         pts_obs = pts_obs.transpose()
         image, _, _ = np.histogram2d(pts_obs[0,:], pts_obs[2,:],
@@ -245,19 +257,11 @@ class ModelImage(ModelResult):
         packim, _, _ = np.histogram2d(pts_obs[0,:], pts_obs[2,:],
                                        bins=(bx, bz))
 
-        self.save(fname, image, packim)
-        del output
+        self.save(output.filename, image, packim)
 
         return image, packim
 
-    def display(self, savefile='image.png', limits=None, show=True):
-        import bokeh.plotting as bkp
-        from bokeh.palettes import Inferno256
-        from bokeh.models import (HoverTool, ColumnDataSource, ColorBar,
-                                  LogColorMapper, LogTicker)
-        from bokeh.io import curdoc
-        from bokeh.themes import Theme
-
+    def display(self, savefile='image.png', limits=None, show=True, log=True):
         if self.unit.__str__() == 'R_Mercury':
             ustr = 'R_M'
         else:
@@ -279,9 +283,20 @@ class ModelImage(ModelResult):
         curdoc().theme = Theme(os.path.join(os.path.dirname(__file__),
                                             'data', 'bokeh.yml'))
 
-        low = np.min(self.image[self.image > 0])
-        color_mapper = LogColorMapper(palette=Inferno256, low=low,
-                                      high=np.max(self.image))
+        if log:
+            if limits is None:
+                limits = (self.image[self.image > 0].min(), self.image.max())
+            else:
+                pass
+            color_mapper = LogColorMapper(palette=Inferno256, low=limits[0],
+                                          high=limits[1])
+        else:
+            if limits is None:
+                limits = (0, self.image.max())
+            else:
+                pass
+            color_mapper = LinearColorMapper(palette=Inferno256, low=limits[0],
+                                             high=limits[1])
 
         x0 = np.min(self.xaxis.value)
         y0 = np.min(self.zaxis.value)
@@ -310,10 +325,6 @@ class ModelImage(ModelResult):
         else:
             bkp.save(fig)
             
-        assert 0
-
-        # from astropy.visualization import (PercentileInterval, LogStretch,
-        #                                    ImageNormalize)
         #
         # # Determine limits if none given
         # if limits is None:
@@ -350,7 +361,7 @@ class ModelImage(ModelResult):
                          -np.cos(slong)*np.cos(slat),
                          np.sin(slat)])
         if np.array_equal(pSun, pObs):
-            M = npmat.identity(3)
+            M = np.eye(3)
         else:
             costh = np.dot(pSun, pObs)/np.linalg.norm(pSun)/np.linalg.norm(pObs)
             theta = np.arccos(np.clip(costh, -1, 1))
