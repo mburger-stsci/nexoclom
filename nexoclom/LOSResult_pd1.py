@@ -1,16 +1,15 @@
+'''Version of LOS that saves infomration in dataframes but won't work if too
+many spectra'''
 import os.path
 import numpy as np
 import pandas as pd
-import dask as dd
 import pickle
 import random
 import copy
 import astropy.units as u
-from astropy.time import Time
 from sklearn.neighbors import KDTree, BallTree
 from scipy.interpolate import RectBivariateSpline
 import scipy.linalg as lin
-from psycopg2.extras import execute_batch
 from mathMB import fit_model
 
 from .ModelResults import ModelResult
@@ -24,18 +23,16 @@ borecols = ['xbore', 'ybore', 'zbore']
 NLONBINS, NLATBINS, NVELBINS = 72, 36, 100
 
 
-# Helper functions
-def _should_add_weight(index, saved):
-    return index in saved
-
-
-def _add_weight(x, ratio):
-    return np.append(x, ratio)
-
-
-def _add_index(x, i):
-    return np.append(x, i)
-
+class DataPackets:
+    def __init__(self, *args, **kwargs):
+        self.data = pd.DataFrame(*args, columns=['outputfile', 'specind',
+                                                 'oind', 'weight', 'frac0',
+                                                 'Index0'], *kwargs)
+        self.totalsource = 0.
+        self.atoms_per_packet = 0.
+        self.outputfile = None
+        self.out_idnum = None
+        
 
 class InputError(Exception):
     """Raised when a required parameter is not included."""
@@ -82,6 +79,7 @@ class LOSResult(ModelResult):
         self.totalsource = 0.
         self.sourcemap = None
         self.modelfiles = {}
+        self.data_packets = DataPackets()
 
     def delete_models(self):
         """Deletes any LOSResult models associated with this data and input
@@ -272,32 +270,21 @@ class LOSResult(ModelResult):
                 rad = wtemp.sum()
                 # Save the weight information
                 rat = spectrum.radiance/rad if rad > 0 else 0.
-                
-                params = []
-                for U, w, f0, u0 in zip(used_packets, wtemp.values,
-                                        packets.loc[used_packets, 'frac0'].values,
-                                        used_packets0.values):
-                    params.append((self.scdata.query, ofile, int(i), int(U), w,
-                                   float(f0), int(u0), rat))
-                # params = list(zip(used_packets, wtemp.values,
-                #                   packets.loc[used_packets, 'frac0'].values.astype('float'),
-                #                   used_packets0.values.astype('float')))
-
-                statement = '''INSERT into savedpackets (
-                                   query, outputfile, specind, oint,
-                                   weight, frac0, index0, ratio) VALUES (
-                                   %s, %s, %s, %s, %s::DOUBLE PRECISION,
-                                   %s::DOUBLE PRECISION, %s,
-                                   %s::DOUBLE PRECISION)'''
-                with database_connect() as con:
-                    cur = con.cursor()
-                    execute_batch(cur, statement, params)
-                del params
+                processed = pd.DataFrame(
+                    {'outputfile': [ofile for _ in used_packets],
+                     'specind': [i for _ in used_packets],
+                     'oind': used_packets,
+                     'weight': wtemp.values,
+                     'frac0': packets.loc[used_packets, 'frac0'].values,
+                     'Index0': used_packets0.values,
+                     'ratio': [rat for _ in used_packets]})
             else:
                 assert False, 'Other quantities not set up.'
         else:
-            pass
+            processed = None
         
+        return processed
+
     @staticmethod
     def _tree(values, treetype='KDTree'):
         if treetype == 'KDTree':
@@ -310,130 +297,103 @@ class LOSResult(ModelResult):
         maskkey = f'mask{modnum:02d}'
         mask = self.scdata.data[maskkey]
         
-        self.outputfiles = self.scdata.model_info[modkey]['outputfiles']
+        self.modelfiles = self.scdata.model_info[modkey]['modelfiles']
+        assert len(self.modelfiles) > 0
+        self.outputfiles = self.modelfiles.keys()
         surface_source = pd.DataFrame(columns=['outputfile', 'Index', 'longitude',
                                                'latitude', 'velocity'])
+        data = self.scdata.data
+
+        self.data_packets = DataPackets()
         nsteps, endtime = 0, 0
-        index0 = {}
-        for outputfile in self.outputfiles:
+        for outputfile, modefile in self.modelfiles.items():
             # Restore the unfit output file
             output = Output.restore(outputfile)
             self.totalsource += output.totalsource
             endtime = output.inputs.options.endtime
             nsteps = output.nsteps
+            data_packets_it = self.restore(modefile)
             
-            with database_connect() as con:
-                ind0 = pd.read_sql(
-                    f'''SELECT DISTINCT index0 FROM savedpackets
-                        WHERE query='{self.scdata.query}' and
-                              outputfile='{outputfile}';''', con)
-            index0[outputfile] = ind0.index0.to_list()
+            self.data_packets.data = self.data_packets.data.append(
+                data_packets_it.data)
+            self.data_packets.totalsource += data_packets_it.totalsource
+            
+            vel_ = np.sqrt(output.X0.vx**2 + output.X0.vy**2 +
+                           output.X0.vz**2) * output.inputs.geometry.planet.radius
+            ind0 = data_packets_it.data.Index0.unique()
+            surface_source = surface_source.append(pd.DataFrame(
+                {'outputfile': [outputfile for _ in range(len(ind0))],
+                 'Index': ind0,
+                 'longitude': output.X0.loc[ind0, 'longitude'].values,
+                 'latitude': output.X0.loc[ind0, 'latitude'].values,
+                 'velocity': vel_.loc[ind0]}), ignore_index=True)
             del output
-
-            # vel_ = np.sqrt(output.X0.vx**2 + output.X0.vy**2 +
-            #                output.X0.vz**2) * output.inputs.geometry.planet.radius
-            # surface_source = surface_source.append(pd.DataFrame(
-            #     {'outputfile': [outputfile for _ in range(len(ind0))],
-            #      'Index': ind0,
-            #      'longitude': output.X0.loc[ind0, 'longitude'].values,
-            #      'latitude': output.X0.loc[ind0, 'latitude'].values,
-            #      'velocity': vel_.loc[ind0]}), ignore_index = True)
+            del data_packets_it
             
         if weight_method == 'scaling':
             # Determine the proper weightings
-            outputfile_str = self.outputfiles.__str__().replace('[', '(').replace(']', ')')
-            statement = f'''UPDATE savedpackets
-                            SET scale_factor=%s::DOUBLE PRECISION
-                            WHERE query='{self.scdata.query}' and
-                                outputfile=%s and
-                                index0=%s'''
-            with database_connect() as con:
-                cur = con.cursor()
-                scale_factor = pd.read_sql(
-                    f'''SELECT outputfile, index0, AVG(ratio) from savedpackets
-                        WHERE query='{self.scdata.query}' and
-                              outputfile in {outputfile_str}
-                        GROUP BY outputfile, index0''', con)
-                
-                scale_factor_ind = scale_factor.set_index(['outputfile', 'index0'])
-                params = list(zip(scale_factor_ind['avg'].values,
-                              [ind[0] for ind in scale_factor_ind.index],
-                              [ind[1] for ind in scale_factor_ind.index]))
-                execute_batch(cur, statement, params)
-                # for ind, scfactor in scale_factor_ind.iterrows():
-                    # cur.execute(f'''UPDATE savedpackets
-                    #                 SET scale_factor=%s::DOUBLE PRECISION
-                    #                 WHERE query='{self.scdata.query}' and
-                    #                       outputfile=%s and
-                    #                       index0=%s''',
-                    #             (scfactor, ind[0], ind[1]))
-
-                weight = pd.read_sql(
-                    f'''SELECT outputfile, oint, index0, weight*scale_factor fit_weight
-                        FROM savedpackets
-                        WHERE query='{self.scdata.query}' and
-                              outputfile in {outputfile_str};''', con)
-            
-            from IPython import embed; embed()
-            import sys; sys.exit()
-            
-            # ind = pd.MultiIndex.from_arrays([weight.outputfile.to_list(),
-            #                                  weight.index0.to_list()])
-            # scale_factor_ = scale_factor_ind.loc[ind, 'avg'].reset_index()
-            # fit_weight = weight.weight * scale_factor_['avg']
-            
-            # Determine surface weighting
-            # surface_ind = surface_source.set_index(['outputfile', 'Index'])
-            # surface_ind.loc[scale_factor_.index, 'weight'] = scale_factor_
-            # surface_ind.dropna(inplace=True)
-            # surface_source = surface_ind.reset_index()
-        elif weight_method == 'leastsq':
-            # This method produces too many scale_factors < 0
-            assert 0
-            
-            # Solve linear equations to get best fit
-            temp = self.data_packets.data.set_index('specind')
-            temp = temp.loc[mask]
-            temp.reset_index(inplace=True)
-            
-            W = np.zeros((len(data), len(self.modelfiles),
-                          self.data_packets.data.Index0.max()+1))
-            
-            spec_ind = [data.index.get_loc(i) for i in temp.specind.values]
-            pack_ind = temp.index.to_list()
-            
-            outputfiles = {ofile: i for i, ofile
-                           in enumerate(self.modelfiles.keys())}
-            oo = [outputfiles[ofile] for ofile in temp.outputfile]
-            W[spec_ind, oo, temp.Index0.to_list()] = temp.weight
-            
-            W2 = W.squeeze(axis=1)/W.mean()
-            # assert np.all(W == W2.reshape(W.shape))
-            assert W.shape[1] == 1
-            scale_factor_, r, rank, s = lin.lstsq(W2, data.loc[:, 'radiance'].values)
+            spec_ind = self.data_packets.data.set_index('specind')
+            spec_ind = spec_ind.loc[mask]
+            scale_factor_ = spec_ind.groupby(['outputfile', 'Index0'])['ratio'].mean()
             scale_factor_ /= scale_factor_[scale_factor_ > 0].mean()
-            self.data_packets.data['scale_factor'] = (
-                scale_factor_[self.data_packets.data.Index0.to_list()])
+    
+            self.data_packets.data['scale_factor'] = np.zeros(len(self.data_packets.data))
+            ind0_ind = self.data_packets.data.set_index(['outputfile', 'Index0'])
+            ind0_ind.loc[scale_factor_.index, 'scale_factor'] = scale_factor_
+            self.data_packets.data = ind0_ind.reset_index()
             self.data_packets.data['fit_weight'] = (self.data_packets.data.weight *
                                                     self.data_packets.data.scale_factor)
-
-            surface_source['weight'] = scale_factor_[surface_source.Index.to_list()]
-            
-            scaled = pd.read_pickle('surface_source_scaled.pkl')
-
-            from IPython import embed; embed()
-            import sys; sys.exit()
-            
     
-            self.data_packets.data['scale_factor'] = (
-                scale_factor_[self.data_packets.data['Index0'].to_list()])
-
             # Determine surface weighting
-            
-            
-            
-            surface_source.dropna(inplace=True)
-            # surface_source = surface_source[surface_source.weight > 0]
+            surface_ind = surface_source.set_index(['outputfile', 'Index'])
+            surface_ind.loc[scale_factor_.index, 'weight'] = scale_factor_
+            surface_ind.dropna(inplace=True)
+            surface_source = surface_ind.reset_index()
+        # elif weight_method == 'leastsq':
+        #     # This method produces too many scale_factors < 0
+        #     assert 0
+        #
+        #     # Solve linear equations to get best fit
+        #     temp = self.data_packets.data.set_index('specind')
+        #     temp = temp.loc[mask]
+        #     temp.reset_index(inplace=True)
+        #
+        #     W = np.zeros((len(data), len(self.modelfiles),
+        #                   self.data_packets.data.Index0.max()+1))
+        #
+        #     spec_ind = [data.index.get_loc(i) for i in temp.specind.values]
+        #     pack_ind = temp.index.to_list()
+        #
+        #     outputfiles = {ofile: i for i, ofile
+        #                    in enumerate(self.modelfiles.keys())}
+        #     oo = [outputfiles[ofile] for ofile in temp.outputfile]
+        #     W[spec_ind, oo, temp.Index0.to_list()] = temp.weight
+        #
+        #     W2 = W.squeeze(axis=1)/W.mean()
+        #     # assert np.all(W == W2.reshape(W.shape))
+        #     assert W.shape[1] == 1
+        #     scale_factor_, r, rank, s = lin.lstsq(W2, data.loc[:, 'radiance'].values)
+        #     scale_factor_ /= scale_factor_[scale_factor_ > 0].mean()
+        #     self.data_packets.data['scale_factor'] = (
+        #         scale_factor_[self.data_packets.data.Index0.to_list()])
+        #     self.data_packets.data['fit_weight'] = (self.data_packets.data.weight *
+        #                                             self.data_packets.data.scale_factor)
+        #
+        #     surface_source['weight'] = scale_factor_[surface_source.Index.to_list()]
+        #
+        #     scaled = pd.read_pickle('surface_source_scaled.pkl')
+        #
+        #     from IPython import embed; embed()
+        #     import sys; sys.exit()
+        #
+        #
+        #     self.data_packets.data['scale_factor'] = (
+        #         scale_factor_[self.data_packets.data['Index0'].to_list()])
+        #
+        #     # Determine surface weighting
+        #
+        #     surface_source.dropna(inplace=True)
+        #     # surface_source = surface_source[surface_source.weight > 0]
         else:
             raise InputError('LOSResult.determine_source_from_data: '
                              'Not a valid weighting method')
@@ -520,19 +480,22 @@ class LOSResult(ModelResult):
         self.fitted = False
         self.inputs.run(npackets, packs_per_it=packs_per_it, overwrite=overwrite)
         self.search_for_outputs()
-        
-        dist_from_plan = self._data_setup()
+        search_results = self.search()
+    
+        dist_from_plan = (self._data_setup()
+                          if None in search_results.values()
+                          else None)
+
         data = self.scdata.data
-        
-        for outputfile in self.outputfiles:
-            with database_connect() as con:
-                ct = pd.read_sql(
-                    f'''SELECT count(*) FROM savedpackets
-                        WHERE query='{self.scdata.query}' and
-                              outputfile='{outputfile}';''', con)
-            output = Output.restore(outputfile)
-            self.totalsource += output.totalsource
-            if ct.loc[0, 'count'] == 0:
+        for outputfile, search_result in search_results.items():
+            if search_result is None:
+                # simulate the data
+                output = Output.restore(outputfile)
+                data_packets_it = DataPackets()
+                data_packets_it.outputfile = outputfile
+                data_packets_it.out_idnum = output.idnum
+                data_packets_it.totalsource = output.totalsource
+
                 packets = copy.deepcopy(output.X)
                 packets['frac0'] = output.X0.loc[packets['Index'], 'frac'].values
                 packets['radvel_sun'] = (packets['vy'] +
@@ -548,9 +511,14 @@ class LOSResult(ModelResult):
         
                 print(f'{data.shape[0]} spectra taken.')
                 for i, spectrum in data.iterrows():
-                    self._spectrum_process(spectrum, packets, tree,
-                                           dist_from_plan[i],
-                                           i, outputfile)
+                    processed = self._spectrum_process(spectrum, packets, tree,
+                                                       dist_from_plan[i],
+                                                       i, outputfile)
+                    if processed is not None:
+                        data_packets_it.data = data_packets_it.data.append(
+                            processed, ignore_index=True)
+                    else:
+                        pass
                     
                     ind = data.index.get_loc(i)
                     if (ind % (len(data)//10)) == 0:
@@ -558,19 +526,29 @@ class LOSResult(ModelResult):
                     else:
                         pass
 
-            del output
+                self.data_packets.data = self.data_packets.data.append(
+                    data_packets_it.data)
+                self.data_packets.totalsource += data_packets_it.totalsource
+                
+                modelfile = self.save(data_packets_it)
+                self.modelfiles[outputfile] = modelfile
+                
+                del output
+                del data_packets_it
+            else:
+                data_packets_it = self.restore(search_result[1])
+                self.data_packets.data = self.data_packets.data.append(
+                    data_packets_it.data)
+                self.data_packets.totalsource += data_packets_it.totalsource
+                self.modelfiles[outputfile] = search_result[1]
+                del data_packets_it
 
-        mod_rate = self.totalsource / self.inputs.options.endtime.value
+        mod_rate = self.data_packets.totalsource / self.inputs.options.endtime.value
         atoms_per_packet = 1e23 / mod_rate
         
-        outputfile_str = self.outputfiles.__str__().replace('[', '(').replace(']',')')
-        with database_connect() as con:
-            rad_ = pd.read_sql(
-                f'''SELECT specind, sum(weight) from savedpackets
-                    WHERE query='{self.scdata.query}' and
-                          outputfile in {outputfile_str}
-                    GROUP BY specind''', con)
-        self.radiance.loc[rad_.specind.to_list()] = rad_['sum'].values * atoms_per_packet
+        spec_group = self.data_packets.data.groupby('specind')
+        rad_ = spec_group['weight'].sum() * atoms_per_packet
+        self.radiance.loc[rad_.index] = rad_
         self.radiance *= u.R
 
     def recompute_radiance(self, modnum, new_source):
@@ -646,27 +624,27 @@ class LOSResult(ModelResult):
         self.radiance *= u.R
 
 
-# if __name__ == '__main__':
-#     import matplotlib.pyplot as plt
-#     hist, xx, yy = np.histogram2d(surface_ind.longitude, surface_ind.latitude,
-#                                   weights=surface_ind.scale_factor,
-#                                   range=[[0, 2*np.pi], [-np.pi/2, np.pi/2]],
-#                                   bins=(NLONBINS, NLATBINS))
-#     hist = hist / np.cos(yy + (yy[1] - yy[0]) / 2.)[np.newaxis, :-1]
-#     hist *= new_source['abundance'].mean()/hist.mean()
-#
-#     fig, ax = plt.subplots(1, 2)
-#     ax[0].imshow(new_source['abundance'], vmin=0, vmax=100)
-#     ax[1].imshow(hist, vmin=0, vmax=100)
-#     plt.show()
-#     #
-#
-#     plt.plot(np.sum(new_source['abundance'], axis=0))
-#     plt.plot(np.sum(hist, axis=0))
-#     plt.show()
-#     plt.plot(np.sum(new_source['abundance'], axis=1))
-#     plt.plot(np.sum(hist, axis=1))
-#     plt.show()
-#     #
-#     # from IPython import embed; embed()
-#     # import sys; sys.exit()
+if __name__ == '__main__':
+    import matplotlib.pyplot as plt
+    hist, xx, yy = np.histogram2d(surface_ind.longitude, surface_ind.latitude,
+                                  weights=surface_ind.scale_factor,
+                                  range=[[0, 2*np.pi], [-np.pi/2, np.pi/2]],
+                                  bins=(NLONBINS, NLATBINS))
+    hist = hist / np.cos(yy + (yy[1] - yy[0]) / 2.)[np.newaxis, :-1]
+    hist *= new_source['abundance'].mean()/hist.mean()
+
+    fig, ax = plt.subplots(1, 2)
+    ax[0].imshow(new_source['abundance'], vmin=0, vmax=100)
+    ax[1].imshow(hist, vmin=0, vmax=100)
+    plt.show()
+    #
+
+    plt.plot(np.sum(new_source['abundance'], axis=0))
+    plt.plot(np.sum(hist, axis=0))
+    plt.show()
+    plt.plot(np.sum(new_source['abundance'], axis=1))
+    plt.plot(np.sum(hist, axis=1))
+    plt.show()
+    #
+    # from IPython import embed; embed()
+    # import sys; sys.exit()

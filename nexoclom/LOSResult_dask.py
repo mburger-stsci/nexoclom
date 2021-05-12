@@ -1,6 +1,8 @@
+"""Version of LOSResult_pd1.py using dask to handle large dataframes"""
 import os.path
 import numpy as np
 import pandas as pd
+import dask.dataframe as dd
 import pickle
 import random
 import copy
@@ -20,17 +22,6 @@ xcols = ['x', 'y', 'z']
 borecols = ['xbore', 'ybore', 'zbore']
 NLONBINS, NLATBINS, NVELBINS = 72, 36, 100
 
-
-class DataPackets:
-    def __init__(self, *args, **kwargs):
-        self.data = pd.DataFrame(*args, columns=['outputfile', 'specind',
-                                                 'oind', 'weight', 'frac0',
-                                                 'Index0'], *kwargs)
-        self.totalsource = 0.
-        self.atoms_per_packet = 0.
-        self.outputfile = None
-        self.out_idnum = None
-        
 
 class InputError(Exception):
     """Raised when a required parameter is not included."""
@@ -77,7 +68,9 @@ class LOSResult(ModelResult):
         self.totalsource = 0.
         self.sourcemap = None
         self.modelfiles = {}
-        self.data_packets = DataPackets()
+        self.surfacefiles = {}
+        self.data_packets = {'datafiles': [],
+                             'totalsource': 0.}
 
     def delete_models(self):
         """Deletes any LOSResult models associated with this data and input
@@ -100,8 +93,14 @@ class LOSResult(ModelResult):
                         os.remove(modelfile)
         else:
             pass
+        
+    def surfacefile_name(self, modelfile):
+        surf_file = os.path.join(os.path.dirname(modelfile),
+                                 os.path.basename(modelfile).replace(
+                                     'model', 'surface').replace('.pkl', '.parquet'))
+        return surf_file
 
-    def save(self, data_packets):
+    def save(self, data_packets, surface):
         # Insert the model into the database
         # Save is on an outputfile basis
         if self.quantity == 'radiance':
@@ -121,7 +120,7 @@ class LOSResult(ModelResult):
                             query, dphi, mechanism, wavelength,
                             fitted, filename)
                             values (%s, %s, %s, %s, %s, %s, %s, %s)''',
-                        (data_packets.out_idnum, self.quantity,
+                        (data_packets['out_idnum'], self.quantity,
                          self.scdata.query, self.dphi, mech, wave, self.fitted,
                          tempname))
 
@@ -132,7 +131,7 @@ class LOSResult(ModelResult):
             assert len(idnum_) == 1
             idnum = int(idnum_.idnum[0])
 
-            savefile = os.path.join(os.path.dirname(data_packets.outputfile),
+            savefile = os.path.join(os.path.dirname(data_packets['outputfile']),
                                     f'model.{idnum}.pkl')
 
             cur.execute(f'''UPDATE uvvsmodels
@@ -141,8 +140,13 @@ class LOSResult(ModelResult):
             
         with open(savefile, 'wb') as f:
             pickle.dump(data_packets, f)
-            
-        return savefile
+        if surface is None:
+            savefile_surf = None
+        else:
+            savefile_surf = self.surfacefile_name(savefile)
+            surface.to_parquet(savefile_surf)
+        
+        return savefile, savefile_surf
 
     def search(self):
         """
@@ -187,8 +191,10 @@ class LOSResult(ModelResult):
                 if len(result) == 0:
                     search_results[outputfile] = None
                 else:
+                    surffile = self.surfacefile_name(result.iloc[0,1])
                     search_results[outputfile] = (result.iloc[0, 0],
-                                                  result.iloc[0, 1])
+                                                  result.iloc[0, 1],
+                                                  surffile)
                 
         return search_results
     
@@ -217,72 +223,6 @@ class LOSResult(ModelResult):
         
         return dist_from_plan
     
-    def _spectrum_process(self, spectrum, packets, tree, dist, i, ofile):
-        x_sc = spectrum[xcols].values.astype(float)
-        bore = spectrum[borecols].values.astype(float)
-    
-        dd = 30  # Furthest distance we need to look
-        x_far = x_sc + bore * dd
-        while np.linalg.norm(x_far) > self.oedge:
-            dd -= 0.1
-            x_far = x_sc + bore * dd
-    
-        t = [0.05]
-        while t[-1] < dd:
-            t.append(t[-1] + t[-1] * np.sin(self.dphi))
-        t = np.array(t)
-        Xbore = x_sc[np.newaxis, :] + bore[np.newaxis, :] * t[:, np.newaxis]
-    
-        wid = t * np.sin(self.dphi)
-        ind = np.concatenate(tree.query_radius(Xbore, wid))
-        ilocs = np.unique(ind).astype(int)
-        indicies = packets.iloc[ilocs].index
-        subset = packets.loc[indicies]
-    
-        xpr = subset[xcols] - x_sc[np.newaxis, :]
-        rpr = np.sqrt(xpr['x'] * xpr['x'] +
-                      xpr['y'] * xpr['y'] +
-                      xpr['z'] * xpr['z'])
-    
-        losrad = np.sum(xpr * bore[np.newaxis, :], axis=1)
-        inview = rpr < dist
-        
-        if np.any(inview):
-            used_packets = subset[inview].index.to_list()
-            used_packets0 = subset.loc[inview, 'Index']
-
-            Apix = np.pi * (rpr[inview] * np.sin(self.dphi))**2 * (
-                self.unit.to(u.cm))**2
-            wtemp = subset.loc[inview, 'weight'] / Apix
-            if self.quantity == 'radiance':
-                # Determine if any packets are in shadow
-                # Projection of packet onto LOS
-                # Point along LOS the packet represents
-                losrad_ = losrad[inview].values
-                hit = (x_sc[np.newaxis, :] +
-                       bore[np.newaxis, :] * losrad_[:, np.newaxis])
-                rhohit = np.linalg.norm(hit[:, [0, 2]], axis=1)
-                out_of_shadow = (rhohit > 1) | (hit[:, 1] < 0)
-                wtemp *= out_of_shadow
-
-                rad = wtemp.sum()
-                # Save the weight information
-                rat = spectrum.radiance/rad if rad > 0 else 0.
-                processed = pd.DataFrame(
-                    {'outputfile': [ofile for _ in used_packets],
-                     'specind': [i for _ in used_packets],
-                     'oind': used_packets,
-                     'weight': wtemp.values,
-                     'frac0': packets.loc[used_packets, 'frac0'].values,
-                     'Index0': used_packets0.values,
-                     'ratio': [rat for _ in used_packets]})
-            else:
-                assert False, 'Other quantities not set up.'
-        else:
-            processed = None
-        
-        return processed
-
     @staticmethod
     def _tree(values, treetype='KDTree'):
         if treetype == 'KDTree':
@@ -298,104 +238,92 @@ class LOSResult(ModelResult):
         self.modelfiles = self.scdata.model_info[modkey]['modelfiles']
         assert len(self.modelfiles) > 0
         self.outputfiles = self.modelfiles.keys()
-        surface_source = pd.DataFrame(columns=['outputfile', 'Index', 'longitude',
-                                               'latitude', 'velocity'])
         data = self.scdata.data
-
-        self.data_packets = DataPackets()
-        nsteps, endtime = 0, 0
-        for outputfile, modefile in self.modelfiles.items():
+        totalsource, nsteps, endtime = 0, 0, 0
+        datafiles, surfacefiles = [], []
+        for outputfile, modelfile in self.modelfiles.items():
             # Restore the unfit output file
-            output = Output.restore(outputfile)
-            self.totalsource += output.totalsource
-            endtime = output.inputs.options.endtime
-            nsteps = output.nsteps
-            data_packets_it = self.restore(modefile)
+            data_packets_it = self.restore(modelfile)
             
-            self.data_packets.data = self.data_packets.data.append(
-                data_packets_it.data)
-            self.data_packets.totalsource += data_packets_it.totalsource
-            
-            vel_ = np.sqrt(output.X0.vx**2 + output.X0.vy**2 +
-                           output.X0.vz**2) * output.inputs.geometry.planet.radius
-            ind0 = data_packets_it.data.Index0.unique()
-            surface_source = surface_source.append(pd.DataFrame(
-                {'outputfile': [outputfile for _ in range(len(ind0))],
-                 'Index': ind0,
-                 'longitude': output.X0.loc[ind0, 'longitude'].values,
-                 'latitude': output.X0.loc[ind0, 'latitude'].values,
-                 'velocity': vel_.loc[ind0]}), ignore_index = True)
-            del output
-            del data_packets_it
+            print('Preparing dask dataframe')
+            datafiles.extend(data_packets_it['datafiles'])
+            surfacefiles.extend(self.surfacefile_name(modelfile))
+            totalsource += data_packets_it['totalsource']
+            endtime = data_packets_it['endtime']
+            nsteps = data_packets_it['nsteps']
             
         if weight_method == 'scaling':
             # Determine the proper weightings
-            spec_ind = self.data_packets.data.set_index('specind')
-            spec_ind = spec_ind.loc[mask]
+            data_df = dd.read_parquet(datafiles)
+            mask_ = mask[mask].index
+            data_df = data_df[data_df.specind.isin(mask_)]
+            
+            spec_ind = data_df.set_index('specind')
             scale_factor_ = spec_ind.groupby(['outputfile', 'Index0'])['ratio'].mean()
             scale_factor_ /= scale_factor_[scale_factor_ > 0].mean()
-    
-            self.data_packets.data['scale_factor'] = np.zeros(len(self.data_packets.data))
+            
+            data_df['scale_factor'] = np.zeros(len(self.data_packets.data))
             ind0_ind = self.data_packets.data.set_index(['outputfile', 'Index0'])
             ind0_ind.loc[scale_factor_.index, 'scale_factor'] = scale_factor_
             self.data_packets.data = ind0_ind.reset_index()
             self.data_packets.data['fit_weight'] = (self.data_packets.data.weight *
                                                     self.data_packets.data.scale_factor)
+            from IPython import embed; embed()
+            import sys; sys.exit()
     
             # Determine surface weighting
+            surface_df = dd.read_parquet(surfacefiles)
             surface_ind = surface_source.set_index(['outputfile', 'Index'])
             surface_ind.loc[scale_factor_.index, 'weight'] = scale_factor_
             surface_ind.dropna(inplace=True)
             surface_source = surface_ind.reset_index()
-        elif weight_method == 'leastsq':
-            # This method produces too many scale_factors < 0
-            assert 0
-            
-            # Solve linear equations to get best fit
-            temp = self.data_packets.data.set_index('specind')
-            temp = temp.loc[mask]
-            temp.reset_index(inplace=True)
-            
-            W = np.zeros((len(data), len(self.modelfiles),
-                          self.data_packets.data.Index0.max()+1))
-            
-            spec_ind = [data.index.get_loc(i) for i in temp.specind.values]
-            pack_ind = temp.index.to_list()
-            
-            outputfiles = {ofile: i for i, ofile
-                           in enumerate(self.modelfiles.keys())}
-            oo = [outputfiles[ofile] for ofile in temp.outputfile]
-            W[spec_ind, oo, temp.Index0.to_list()] = temp.weight
-            
-            W2 = W.squeeze(axis=1)/W.mean()
-            # assert np.all(W == W2.reshape(W.shape))
-            assert W.shape[1] == 1
-            scale_factor_, r, rank, s = lin.lstsq(W2, data.loc[:, 'radiance'].values)
-            scale_factor_ /= scale_factor_[scale_factor_ > 0].mean()
-            self.data_packets.data['scale_factor'] = (
-                scale_factor_[self.data_packets.data.Index0.to_list()])
-            self.data_packets.data['fit_weight'] = (self.data_packets.data.weight *
-                                                    self.data_packets.data.scale_factor)
-
-            surface_source['weight'] = scale_factor_[surface_source.Index.to_list()]
-            
-            scaled = pd.read_pickle('surface_source_scaled.pkl')
-
-            from IPython import embed; embed()
-            import sys; sys.exit()
-            
-    
-            self.data_packets.data['scale_factor'] = (
-                scale_factor_[self.data_packets.data['Index0'].to_list()])
-
-            # Determine surface weighting
-            
-            
-            
-            surface_source.dropna(inplace=True)
-            # surface_source = surface_source[surface_source.weight > 0]
+        # elif weight_method == 'leastsq':
+        #     # This method produces too many scale_factors < 0
+        #     assert 0
+        #
+        #     # Solve linear equations to get best fit
+        #     temp = self.data_packets.data.set_index('specind')
+        #     temp = temp.loc[mask]
+        #     temp.reset_index(inplace=True)
+        #
+        #     W = np.zeros((len(data), len(self.modelfiles),
+        #                   self.data_packets.data.Index0.max()+1))
+        #
+        #     spec_ind = [data.index.get_loc(i) for i in temp.specind.values]
+        #     pack_ind = temp.index.to_list()
+        #
+        #     outputfiles = {ofile: i for i, ofile
+        #                    in enumerate(self.modelfiles.keys())}
+        #     oo = [outputfiles[ofile] for ofile in temp.outputfile]
+        #     W[spec_ind, oo, temp.Index0.to_list()] = temp.weight
+        #
+        #     W2 = W.squeeze(axis=1)/W.mean()
+        #     # assert np.all(W == W2.reshape(W.shape))
+        #     assert W.shape[1] == 1
+        #     scale_factor_, r, rank, s = lin.lstsq(W2, data.loc[:, 'radiance'].values)
+        #     scale_factor_ /= scale_factor_[scale_factor_ > 0].mean()
+        #     self.data_packets.data['scale_factor'] = (
+        #         scale_factor_[self.data_packets.data.Index0.to_list()])
+        #     self.data_packets.data['fit_weight'] = (self.data_packets.data.weight *
+        #                                             self.data_packets.data.scale_factor)
+        #
+        #     surface_source['weight'] = scale_factor_[surface_source.Index.to_list()]
+        #
+        #     scaled = pd.read_pickle('surface_source_scaled.pkl')
+        #
+        #     from IPython import embed; embed()
+        #     import sys; sys.exit()
+        #
+        #
+        #     self.data_packets.data['scale_factor'] = (
+        #         scale_factor_[self.data_packets.data['Index0'].to_list()])
+        #
+        #     # Determine surface weighting
+        #
+        #     surface_source.dropna(inplace=True)
+        #     # surface_source = surface_source[surface_source.weight > 0]
         else:
-            raise InputError('LOSResult.determine_source_from_data: '
+            raise InputError('LOSResult.determine_source_from_data',
                              'Not a valid weighting method')
 
         initial = set(zip(self.data_packets.data.outputfile.to_list(),
@@ -449,7 +377,7 @@ class LOSResult(ModelResult):
         self.sourcemap = sourcemap
         
     def simulate_data_from_inputs(self, inputs_, npackets, overwrite=False,
-                                  packs_per_it=None):
+                                  packs_per_it=None, save_packets=False):
         """Given a set of inputs, determine what the spacecraft should see.
         
         Parameters
@@ -488,13 +416,17 @@ class LOSResult(ModelResult):
 
         data = self.scdata.data
         for outputfile, search_result in search_results.items():
+            data_packets_it = {'datafiles':[],
+                               'totalsource':0.,
+                               'radiance': pd.Series(index=self.scdata.data.index)}
             if search_result is None:
                 # simulate the data
                 output = Output.restore(outputfile)
-                data_packets_it = DataPackets()
-                data_packets_it.outputfile = outputfile
-                data_packets_it.out_idnum = output.idnum
-                data_packets_it.totalsource = output.totalsource
+                data_packets_it['totalsource'] = output.totalsource
+                data_packets_it['out_idnum'] = output.idnum
+                data_packets_it['outputfile'] = outputfile
+                data_packets_it['endtime'] = output.inputs.options.endtime
+                data_packets_it['nsteps'] = output.nsteps
 
                 packets = copy.deepcopy(output.X)
                 packets['frac0'] = output.X0.loc[packets['Index'], 'frac'].values
@@ -509,14 +441,82 @@ class LOSResult(ModelResult):
                 # This sets limits on regions where packets might be
                 tree = self._tree(packets[xcols].values)
         
+                vel_ = np.sqrt(output.X0.vx**2 + output.X0.vy**2 +
+                               output.X0.vz**2) * output.inputs.geometry.planet.radius
                 print(f'{data.shape[0]} spectra taken.')
                 for i, spectrum in data.iterrows():
-                    processed = self._spectrum_process(spectrum, packets, tree,
-                                                       dist_from_plan[i],
-                                                       i, outputfile)
-                    if processed is not None:
-                        data_packets_it.data = data_packets_it.data.append(
-                            processed, ignore_index=True)
+                    x_sc = spectrum[xcols].values.astype(float)
+                    bore = spectrum[borecols].values.astype(float)
+    
+                    d_far = 30  # Furthest distance we need to look
+                    x_far = x_sc + bore * d_far
+                    while np.linalg.norm(x_far) > self.oedge:
+                        d_far -= 0.1
+                        x_far = x_sc + bore * d_far
+    
+                    t = [0.05]
+                    while t[-1] < d_far:
+                        t.append(t[-1] + t[-1] * np.sin(self.dphi))
+                    t = np.array(t)
+                    Xbore = x_sc[np.newaxis, :] + bore[np.newaxis, :] * t[:, np.newaxis]
+    
+                    wid = t * np.sin(self.dphi)
+                    ind = np.concatenate(tree.query_radius(Xbore, wid))
+                    ilocs = np.unique(ind).astype(int)
+                    indicies = packets.iloc[ilocs].index
+                    subset = packets.loc[indicies]
+    
+                    xpr = subset[xcols] - x_sc[np.newaxis, :]
+                    rpr = np.sqrt(xpr['x'] * xpr['x'] +
+                                  xpr['y'] * xpr['y'] +
+                                  xpr['z'] * xpr['z'])
+    
+                    losrad = np.sum(xpr * bore[np.newaxis, :], axis=1)
+                    inview = rpr < dist_from_plan[i]
+    
+                    if np.any(inview):
+                        used_packets = subset[inview].index.to_list()
+                        used_packets0 = subset.loc[inview, 'Index']
+        
+                        Apix = np.pi * (rpr[inview] * np.sin(self.dphi))**2 * (
+                            self.unit.to(u.cm))**2
+                        wtemp = subset.loc[inview, 'weight'] / Apix
+                        if self.quantity == 'radiance':
+                            # Determine if any packets are in shadow
+                            # Projection of packet onto LOS
+                            # Point along LOS the packet represents
+                            losrad_ = losrad[inview].values
+                            hit = (x_sc[np.newaxis, :] +
+                                   bore[np.newaxis, :] * losrad_[:, np.newaxis])
+                            rhohit = np.linalg.norm(hit[:, [0, 2]], axis=1)
+                            out_of_shadow = (rhohit > 1) | (hit[:, 1] < 0)
+                            wtemp *= out_of_shadow
+            
+                            rad = wtemp.sum()
+                            data_packets_it['radiance'].loc[i] = rad
+                            if save_packets:
+                                # Save the weight information
+                                rat = spectrum.radiance / rad if rad > 0 else 0.
+                                processed = pd.DataFrame(
+                                    {'outputfile':[outputfile for _ in used_packets],
+                                     'specind':[i for _ in used_packets],
+                                     'oind':used_packets,
+                                     'weight':wtemp.values,
+                                     'frac0':packets.loc[used_packets, 'frac0'].values,
+                                     'Index0':used_packets0.values,
+                                     'ratio':[rat for _ in used_packets]})
+                                datafilename = f'temp/{os.path.basename(outputfile)}_{i}.parquet'
+                                processed.to_parquet(datafilename)
+                                del processed
+                            else:
+                                datafilename = None
+                        else:
+                            assert False, 'Other quantities not set up.'
+                    else:
+                        datafilename = None
+    
+                    if datafilename is not None:
+                        data_packets_it['datafiles'].append(datafilename)
                     else:
                         pass
                     
@@ -526,29 +526,47 @@ class LOSResult(ModelResult):
                     else:
                         pass
 
-                self.data_packets.data = self.data_packets.data.append(
-                    data_packets_it.data)
-                self.data_packets.totalsource += data_packets_it.totalsource
+                data_packets_it['datafiles'] = [file
+                                                for file in data_packets_it['datafiles']
+                                                if file is not None]
                 
-                modelfile = self.save(data_packets_it)
-                self.modelfiles[outputfile] = modelfile
+                if save_packets:
+                    data_packets_df_it = dd.read_parquet(data_packets_it['datafiles'])
+                    ind0 = data_packets_df_it.Index0.unique().compute().values
+                    surface_it = pd.DataFrame(
+                        {'outputfile': [outputfile for _ in ind0],
+                         'Index0': ind0,
+                         'longitude':output.X0.loc[ind0, 'longitude'].values,
+                         'latitude':output.X0.loc[ind0, 'latitude'].values,
+                         'velocity':vel_.loc[ind0]})
+                else:
+                    surface_it = None
                 
+                savefile, savefile_surf = self.save(data_packets_it, surface_it)
+                self.modelfiles[outputfile] = savefile
+                self.surfacefiles[outputfile] = savefile_surf
                 del output
-                del data_packets_it
+                del packets
+                del surface_it
             else:
                 data_packets_it = self.restore(search_result[1])
-                self.data_packets.data = self.data_packets.data.append(
-                    data_packets_it.data)
-                self.data_packets.totalsource += data_packets_it.totalsource
                 self.modelfiles[outputfile] = search_result[1]
-                del data_packets_it
+                self.surfacefiles[outputfile] = search_result[2]
+                self.radiance += data_packets_it['radiance']
 
-        mod_rate = self.data_packets.totalsource / self.inputs.options.endtime.value
+            self.radiance += data_packets_it['radiance']
+            self.data_packets['datafiles'].extend(data_packets_it['datafiles'])
+            self.data_packets['totalsource'] += data_packets_it['totalsource']
+            del data_packets_it
+
+        mod_rate = self.data_packets['totalsource'] / self.inputs.options.endtime.value
         atoms_per_packet = 1e23 / mod_rate
+        self.radiance *= atoms_per_packet
         
-        spec_group = self.data_packets.data.groupby('specind')
-        rad_ = spec_group['weight'].sum() * atoms_per_packet
-        self.radiance.loc[rad_.index] = rad_
+        # data_packets_df = dd.read_parquet(self.data_packets['datafiles'])
+        # rad_ = data_packets_df.groupby('specind').weight.sum().compute() * atoms_per_packet
+        # rad_ = spec_group['weight'].sum() * atoms_per_packet
+        # self.radiance.loc[rad_.index] = rad_
         self.radiance *= u.R
 
     def recompute_radiance(self, modnum, new_source):
@@ -562,7 +580,6 @@ class LOSResult(ModelResult):
         assert len(self.modelfiles) > 0
         self.outputfiles = self.modelfiles.keys()
 
-        self.data_packets = DataPackets()
         surface_source = pd.DataFrame(columns=['outputfile', 'Index', 'longitude',
                                                'latitude'])
         nsteps, endtime = 0, 0
@@ -624,27 +641,27 @@ class LOSResult(ModelResult):
         self.radiance *= u.R
 
 
-if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-    hist, xx, yy = np.histogram2d(surface_ind.longitude, surface_ind.latitude,
-                                  weights=surface_ind.scale_factor,
-                                  range=[[0, 2*np.pi], [-np.pi/2, np.pi/2]],
-                                  bins=(NLONBINS, NLATBINS))
-    hist = hist / np.cos(yy + (yy[1] - yy[0]) / 2.)[np.newaxis, :-1]
-    hist *= new_source['abundance'].mean()/hist.mean()
-
-    fig, ax = plt.subplots(1, 2)
-    ax[0].imshow(new_source['abundance'], vmin=0, vmax=100)
-    ax[1].imshow(hist, vmin=0, vmax=100)
-    plt.show()
-    #
-
-    plt.plot(np.sum(new_source['abundance'], axis=0))
-    plt.plot(np.sum(hist, axis=0))
-    plt.show()
-    plt.plot(np.sum(new_source['abundance'], axis=1))
-    plt.plot(np.sum(hist, axis=1))
-    plt.show()
-    #
-    # from IPython import embed; embed()
-    # import sys; sys.exit()
+# if __name__ == '__main__':
+#     import matplotlib.pyplot as plt
+#     hist, xx, yy = np.histogram2d(surface_ind.longitude, surface_ind.latitude,
+#                                   weights=surface_ind.scale_factor,
+#                                   range=[[0, 2*np.pi], [-np.pi/2, np.pi/2]],
+#                                   bins=(NLONBINS, NLATBINS))
+#     hist = hist / np.cos(yy + (yy[1] - yy[0]) / 2.)[np.newaxis, :-1]
+#     hist *= new_source['abundance'].mean()/hist.mean()
+#
+#     fig, ax = plt.subplots(1, 2)
+#     ax[0].imshow(new_source['abundance'], vmin=0, vmax=100)
+#     ax[1].imshow(hist, vmin=0, vmax=100)
+#     plt.show()
+#     #
+#
+#     plt.plot(np.sum(new_source['abundance'], axis=0))
+#     plt.plot(np.sum(hist, axis=0))
+#     plt.show()
+#     plt.plot(np.sum(new_source['abundance'], axis=1))
+#     plt.plot(np.sum(hist, axis=1))
+#     plt.show()
+#     #
+#     # from IPython import embed; embed()
+#     # import sys; sys.exit()

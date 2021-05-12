@@ -7,7 +7,7 @@ import copy
 import astropy.units as u
 from sklearn.neighbors import KDTree, BallTree
 
-from mathMB import fit_model
+from mathMB import fit_model, Histogram, Histogram2d
 
 from .ModelResults import ModelResult
 from .database_connect import database_connect
@@ -268,7 +268,7 @@ class LOSResult(ModelResult):
                 wtemp *= out_of_shadow
                 
                 rad = wtemp.sum()
-                pack = sum(inview)
+                pack = np.sum(inview)
                 
                 if (rad > 0) and (find_weighting):
                     ratio = spectrum.radiance / rad
@@ -295,7 +295,35 @@ class LOSResult(ModelResult):
             return KDTree(values)
         elif type == 'BallTree':
             return BallTree(values)
+        
+    def make_source_map(self, longitude, latitude, velocity, weight):
+        # Create a new sourcemap
+        source = Histogram2d(longitude, latitude, weights=weight,
+                             range=[[0, 2 * np.pi], [-np.pi / 2, np.pi / 2]],
+                             bins=(NLONBINS, NLATBINS))
+        # source.histogram[:, [0, -1]] = 0
+        v_source = Histogram(velocity, bins=NVELBINS,
+                             range=[0, velocity.max()], weights=weight)
+        v_source.histogram /= np.max(v_source.histogram)
     
+        # packets available
+        packets = Histogram2d(longitude, latitude,
+                              range=[[0, 2 * np.pi], [-np.pi / 2, np.pi / 2]],
+                              bins=(NLONBINS, NLATBINS))
+        # packets[:, [0, -1]] = 0
+        v_packets = Histogram(velocity, bins=NVELBINS, range=[0, velocity.max()])
+        v_packets.histogram /= np.max(v_packets.histogram)
+    
+        sourcemap = {'longitude':source.x * u.rad,
+                     'latitude':source.y * u.rad,
+                     'abundance':source.histogram,
+                     'p_available':packets.histogram,
+                     'velocity':v_source.x * u.km / u.s,
+                     'vdist':v_source.histogram,
+                     'v_available':v_packets.histogram,
+                     'coordinate_system':'solar-fixed'}
+        return sourcemap
+
     def determine_source_from_data(self, inputs_, npackets, overwrite=False,
                                    packs_per_it=None,
                                    masking=None):
@@ -468,6 +496,7 @@ class LOSResult(ModelResult):
                     modelfile = self.save(iteration_result)
                     iteration_result['modelfile'] = modelfile
                     iteration_results.append(iteration_result)
+                    del output
                 else:
                     # Restore saved result
                     iteration_result = self.restore(search_result)
@@ -482,7 +511,8 @@ class LOSResult(ModelResult):
                                    output.X0.vz**2) * self.inputs.geometry.planet.radius
                     velocity = np.append(velocity, vel_)
                     weight = np.append(weight, output.X0.frac)
-        
+                    del output
+
         # Combine iteration_results into single new result
         self.modelfiles = {}
         for iteration_result in iteration_results:
@@ -494,35 +524,8 @@ class LOSResult(ModelResult):
         self.outputfiles = self.modelfiles.keys()
         self.radiance /= self.totalsource
         self.radiance *= u.R
-        
-        # Create a new sourcemap
-        source, xx, yy = np.histogram2d(longitude, latitude, weights=weight,
-                                        range=[[0, 2 * np.pi], [-np.pi / 2, np.pi / 2]],
-                                        bins=(NLONBINS, NLATBINS))
-        source = source / np.cos(yy + (yy[1] - yy[0]) / 2.)[np.newaxis, :-1]
-        source[:, [0, -1]] = 0
-        v_source, v = np.histogram(velocity, bins=NVELBINS,
-                                   range=[0, velocity.max()], weights=weight)
-        v_source /= np.max(v_source)
-        
-        # packets available
-        packets, _, _ = np.histogram2d(longitude, latitude,
-                                       range=[[0, 2 * np.pi], [-np.pi / 2, np.pi / 2]],
-                                       bins=(NLONBINS, NLATBINS))
-        packets = packets / np.cos(yy + (yy[1] - yy[0]) / 2.)[np.newaxis, :-1]
-        packets[:, [0, -1]] = 0
-        v_packets, _ = np.histogram(velocity, bins=NVELBINS, range=[0, velocity.max()])
-        v_packets = v_packets / np.max(v_packets)
-        
-        sourcemap = {'longitude':xx * u.rad,
-                     'latitude':yy * u.rad,
-                     'abundance':source,
-                     'p_available':packets,
-                     'velocity':v * u.km / u.s,
-                     'vdist':v_source,
-                     'v_available':v_packets,
-                     'coordinate_system':'solar-fixed'}
-        self.sourcemap = sourcemap
+        self.sourcemap = self.make_source_map(longitude, latitude, velocity,
+                                              weight)
     
     def simulate_data_from_inputs(self, inputs_, npackets, overwrite=False,
                                   packs_per_it=None):
@@ -561,6 +564,9 @@ class LOSResult(ModelResult):
         search_results = self.search()
         iteration_results = []
         
+        latitude, longitude = np.ndarray((0,)), np.ndarray((0,))
+        velocity, weight = np.ndarray((0,)), np.ndarray((0,))
+
         dist_from_plan = (self._data_setup()
                           if None in search_results.values()
                           else None)
@@ -611,12 +617,31 @@ class LOSResult(ModelResult):
                 modelfile = self.save(iteration_result)
                 iteration_result['modelfile'] = modelfile
                 iteration_results.append(iteration_result)
+
+                # Save the starting state for making a source map
+                longitude = np.append(longitude, output.X0.longitude)
+                latitude = np.append(latitude, output.X0.latitude)
+                vel_ = np.sqrt(output.X0.vx**2 + output.X0.vy**2 +
+                               output.X0.vz**2) * self.inputs.geometry.planet.radius
+                velocity = np.append(velocity, vel_)
+                weight = np.append(weight, output.X0.frac)
+                del output
+
             else:
                 iteration_result = self.restore(search_result)
                 iteration_result['modelfile'] = search_result[1]
                 assert len(iteration_result['radiance']) == len(data)
                 iteration_results.append(iteration_result)
-        
+                
+                output = Output.restore(outputfile)
+                longitude = np.append(longitude, output.X0.longitude)
+                latitude = np.append(latitude, output.X0.latitude)
+                vel_ = np.sqrt(output.X0.vx**2 + output.X0.vy**2 +
+                               output.X0.vz**2) * self.inputs.geometry.planet.radius
+                velocity = np.append(velocity, vel_)
+                weight = np.append(weight, output.X0.frac)
+                del output
+
         # combine iteration_results
         self.modelfiles = {}
         for iteration_result in iteration_results:
@@ -629,7 +654,9 @@ class LOSResult(ModelResult):
         self.outputfiles = self.modelfiles.keys()
         self.radiance /= self.totalsource
         self.radiance *= u.R
-    
+        self.sourcemap = self.make_source_map(longitude, latitude, velocity,
+                                              weight)
+
     def simulate_data_from_outputs(self, output):
         # TAA needs to match the data
         self.inputs.geometry.taa = self.scdata.taa

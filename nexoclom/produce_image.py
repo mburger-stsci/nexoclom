@@ -3,8 +3,9 @@ import numpy as np
 import pandas as pd
 import pickle
 import astropy.units as u
+import json
 from solarsystemMB import SSObject
-from mathMB import rotation_matrix
+from mathMB import rotation_matrix, Histogram2d
 from .ModelResults import ModelResult
 from .database_connect import database_connect
 from .Output import Output
@@ -86,11 +87,13 @@ class ModelImage(ModelResult):
         self.blimits = None
         immin = tuple(c - w/2 for c, w in zip(self.center, self.width))
         immax = tuple(c + w/2 for c, w in zip(self.center, self.width))
-        scale = tuple(w/(d-1) for w, d in zip(self.width, self.dims))
+        self.xrange = [immin[0], immax[0]]
+        self.zrange = [immin[1], immax[1]]
+        scale = tuple(w/d for w, d in zip(self.width, self.dims))
         self.Apix = (scale[0]*scale[1]).to(u.cm**2)
 
-        self.xaxis = np.linspace(immin[0], immax[0], self.dims[0])
-        self.zaxis = np.linspace(immin[1], immax[1], self.dims[1])
+        self.xaxis = None
+        self.zaxis = None
 
         for i, fname in enumerate(self.outputfiles):
             # Search to see if its already been done
@@ -244,18 +247,14 @@ class ModelImage(ModelResult):
         self.packet_weighting(packets, out_of_shadow, output.aplanet)
         packets['weight'] /= self.Apix
 
-        # Edges of each pixel (bin) for the histogram
-        dx = (self.xaxis[1]-self.xaxis[0])/2.
-        bx = np.append(self.xaxis-dx, self.xaxis[-1]+dx)
-        dz = (self.zaxis[1]-self.zaxis[0])/2.
-        bz = np.append(self.zaxis-dz, self.zaxis[-1]+dz)
-        bx, bz = bx.value, bz.value
-
         pts_obs = pts_obs.transpose()
-        image, _, _ = np.histogram2d(pts_obs[0,:], pts_obs[2,:],
-                                     weights=packets['weight'], bins=(bx, bz))
-        packim, _, _ = np.histogram2d(pts_obs[0,:], pts_obs[2,:],
-                                       bins=(bx, bz))
+        image = Histogram2d(pts_obs[0,:], pts_obs[2,:], weights=packets['weight'],
+                            bins=self.dims, range=[self.xrange, self.zrange])
+        packim = Histogram2d(pts_obs[0,:], pts_obs[2,:],
+                            bins=self.dims, range=[self.xrange, self.zrange])
+        self.xaxis = image.x
+        self.zaxis = image.y
+        image, packim = image.histogram, packim.histogram
 
         self.save(output.filename, image, packim)
 
@@ -352,9 +351,9 @@ class ModelImage(ModelResult):
 
         return fig
     
-    def image_rotation(image):
-        slong = image.subobslongitude
-        slat = image.subobslatitude
+    def image_rotation(self):
+        slong = self.subobslongitude
+        slat = self.subobslatitude
         
         pSun = np.array([0., -1., 0.])
         pObs = np.array([np.sin(slong)*np.cos(slat),
@@ -371,4 +370,12 @@ class ModelImage(ModelResult):
         #M = np.transpose(M)
         return M
 
-
+    def export(self, filename='image.json'):
+        if filename.endswith('.json'):
+            saveimage = {'image':self.image.tolist(),
+                         'xaxis':self.xaxis.value.tolist(),
+                         'zaxis':self.zaxis.value.tolist()}
+            with open(filename, 'w') as f:
+                json.dump(saveimage, f)
+        else:
+            raise TypeError('Not an valid file format')
