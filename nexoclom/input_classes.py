@@ -621,9 +621,9 @@ class SpatialDist:
         elif self.type == 'fitted output':
             params = [self.unfit_outid, self.query]
             query = '''SELECT idnum
-                           FROM spatdist_fittedoutput
-                           WHERE unfit_outid = %s and
-                                 query = %s'''
+                       FROM spatdist_fittedoutput
+                       WHERE unfit_outid = %s and
+                             query = %s'''
         else:
             raise InputError('SpatialDist.__init__',
                              f'SpatialDist.type = {self.type} not defined.')

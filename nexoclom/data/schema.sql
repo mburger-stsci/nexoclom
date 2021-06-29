@@ -175,6 +175,7 @@ CREATE TABLE modelimages (
 CREATE TABLE uvvsmodels (
     idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     out_idnum INT NOT NULL,
+    unfit_idnum INT,
     quantity TEXT NOT NULL,
     query TEXT NOT NULL,
     dphi DOUBLE PRECISION NOT NULL,

@@ -6,7 +6,7 @@ import astropy.units as u
 import json
 from solarsystemMB import SSObject
 from mathMB import rotation_matrix, Histogram2d
-from .ModelResults import ModelResult
+from .ModelResult import ModelResult
 from .database_connect import database_connect
 from .Output import Output
 
@@ -19,7 +19,7 @@ from bokeh.themes import Theme
 
 
 class ModelImage(ModelResult):
-    def __init__(self, inputs, format, filenames=None, overwrite=False):
+    def __init__(self, inputs, params, filenames=None, overwrite=False):
         """ Create Images from model results.
         This Assumes the model has already been run.
         
@@ -28,7 +28,7 @@ class ModelImage(ModelResult):
         inputs
             An Input object
         
-        format
+        params
             A dictionary with format information or a path to a formatfile.
             
         filenames
@@ -39,48 +39,28 @@ class ModelImage(ModelResult):
             If True, deletes any images that have already been computed.
             Default = False
         """
-        super().__init__(format, species=inputs.options.species)
-        self.inputs = inputs
+        super().__init__(inputs, params)
         self.type = 'image'
-        self.search_for_outputs()
-        
-        if 'origin' in self.format:
-            self.origin = SSObject(self.format['origin'])
-        else:
-            self.origin = inputs.geometry.planet
-            
+        self.origin = self.params.get('origin', inputs.geometry.planet)
         self.unit = u.def_unit('R_' + self.origin.object,
                                self.origin.radius)
 
-        if 'dims' in self.format:
-            dimtemp = self.format['dims'].split(',')
-            self.dims = [int(dimtemp[0]), int(dimtemp[1])]
-        else:
-            self.dims = [800, 800]
+        dimtemp = self.params.get('dims', ['800', '800']).split(',')
+        self.dims = [int(dimtemp[0]), int(dimtemp[1])]
 
-        if 'center' in self.format:
-            centtemp = self.format['center'].split(',')
-            self.center = [float(centtemp[0])*self.unit,
-                           float(centtemp[1])*self.unit]
-        else:
-            self.center = [0*self.unit, 0*self.unit]
+        centtemp = self.params.get('center', '0,0').split(',')
+        self.center = [float(centtemp[0])*self.unit,
+                       float(centtemp[1])*self.unit]
 
-        if 'width' in self.format:
-            widtemp = self.format['width'].split(',')
-            self.width = [float(widtemp[0])*self.unit,
-                          float(widtemp[1])*self.unit]
-        else:
-            self.width = [8*self.unit, 8*self.unit]
+        widtemp = self.params.get('width', '8,8').split(',')
+        self.width = [float(widtemp[0])*self.unit,
+                      float(widtemp[1])*self.unit]
 
-        if 'subobslongitude' in self.format:
-            self.subobslongitude = float(self.format['subobslongitude'])*u.rad
-        else:
-            self.subobslongitude = 0.*u.rad
+        subobslong = self.params.get('subobslongitude', '0')
+        self.subobslongitude = float(subobslong) * u.rad
 
-        if 'subobslongitude' in self.format:
-            self.subobslatitude = float(self.format['subobslatitude'])*u.rad
-        else:
-            self.subobslatitude = np.pi*u.rad
+        subobsllat = self.params.get('subobslatitude', np.pi/2)
+        self.subobslatitude = float(subobsllat) * u.rad
 
         self.image = np.zeros(self.dims)
         self.packet_image = np.zeros(self.dims)
@@ -95,6 +75,8 @@ class ModelImage(ModelResult):
         self.xaxis = None
         self.zaxis = None
 
+        self.outid, self.outputfiles, _, _ = self.inputs.search()
+        
         for i, fname in enumerate(self.outputfiles):
             # Search to see if its already been done
             print(f'Output filename: {fname}')
@@ -108,13 +90,16 @@ class ModelImage(ModelResult):
                 print(f'Image {i+1} of {len(self.outputfiles)} '
                        'previously completed.')
 
-            self.image += image_
-            self.packet_image += packets_
+            self.image += image_.histogram
+            self.packet_image += packets_.histogram
             self.totalsource += output.totalsource
+            self.xaxis = image_.x * self.unit
+            self.zaxis = image_.y * self.unit
             del output
 
         mod_rate = self.totalsource / self.inputs.options.endtime.value
         self.atoms_per_packet = 1e23 / mod_rate
+        self.sourcerate = 1e23 / u.s
         self.image *= self.atoms_per_packet
 
     def save(self, fname, image, packets):
@@ -248,14 +233,13 @@ class ModelImage(ModelResult):
         packets['weight'] /= self.Apix
 
         pts_obs = pts_obs.transpose()
+        range = [[x.value for x in self.xrange],
+                 [z.value for z in self.zrange]]
         image = Histogram2d(pts_obs[0,:], pts_obs[2,:], weights=packets['weight'],
-                            bins=self.dims, range=[self.xrange, self.zrange])
-        packim = Histogram2d(pts_obs[0,:], pts_obs[2,:],
-                            bins=self.dims, range=[self.xrange, self.zrange])
-        self.xaxis = image.x
-        self.zaxis = image.y
-        image, packim = image.histogram, packim.histogram
-
+                            bins=self.dims, range=range)
+        packim = Histogram2d(pts_obs[0,:], pts_obs[2,:], bins=self.dims, range=range)
+        self.xaxis = image.x * self.unit
+        self.zaxis = image.y * self.unit
         self.save(output.filename, image, packim)
 
         return image, packim
@@ -312,7 +296,7 @@ class ModelImage(ModelResult):
                                   np.max(self.zaxis.value)],
                          tooltips=tooltips)
 
-        fig.image(image=[self.image], x=x0, y=y0, dw=dw, dh=dh,
+        fig.image(image=[self.image.T], x=x0, y=y0, dw=dw, dh=dh,
                   color_mapper=color_mapper)
         xc = np.cos(np.linspace(0, 2*np.pi, 1000))
         yc = np.sin(np.linspace(0, 2*np.pi, 1000))

@@ -8,8 +8,9 @@ Monte Carlo model of neutral clouds and exospheres
   :maxdepth: 2
 
   nexoclom/Input
-  nexoclom/LOSResult
   nexoclom/Output
+  nexoclom/ModelResult
+  nexoclom/LOSResult
   nexoclom/configure_model
   nexoclom/outline
 

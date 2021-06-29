@@ -24,6 +24,7 @@ AngularDist
 Options
     Configure other model parameters
 """
+import copy
 import os
 import os.path
 import numpy as np
@@ -34,8 +35,7 @@ from .configure_model import configfile
 from .database_connect import database_connect
 from .input_classes import (Geometry, SurfaceInteraction, Forces, SpatialDist,
                             SpeedDist, AngularDist, Options)
-from .produce_image import ModelImage
-
+from .ModelImage import ModelImage
 
 class Input:
     def __init__(self, infile):
@@ -145,7 +145,7 @@ class Input:
         opt_id = self.options.search()
         
         if None in [geo_id, sint_id, for_id, spat_id, spd_id, ang_id, opt_id]:
-            return [], 0., 0.
+            return [], [], 0., 0.
         else:
             query = f'''SELECT idnum, filename, npackets, totalsource
                         FROM outputfile
@@ -164,8 +164,8 @@ class Input:
             with database_connect() as con:
                 result = pd.read_sql(query, con)
             
-            return (result.filename.to_list(), result.npackets.sum(),
-                    result.totalsource.sum())
+            return (result.idnum.to_list(), result.filename.to_list(),
+                    result.npackets.sum(), result.totalsource.sum())
 
     def run(self, npackets, packs_per_it=None, overwrite=False, compress=True):
         """Run the nexoclom model with the current inputs.
@@ -199,7 +199,7 @@ class Input:
             self.delete_files()
             totalpackets = 0
         else:
-            outputfiles, totalpackets, _ = self.search()
+            _, outputfiles, totalpackets, _ = self.search()
             print(f'Found {len(outputfiles)} files with {totalpackets} '
                   'packets.')
 
@@ -261,36 +261,77 @@ class Input:
         No outputs.
 
         """
-        filelist, _, _ = self.search()
+        idnum, filelist, _, _ = self.search()
         with database_connect() as con:
             cur = con.cursor()
             
-            for f in filelist:
-                # Delete the file
-                print(f'Deleting {f}')
+            for i, f in zip(idnum, filelist):
+                # Remove from database and delete file
+                print(f'Deleting outputfile {os.path.basename(f)}')
+                cur.execute('''DELETE FROM outputfile
+                               WHERE idnum = %s''', (i,))
                 if os.path.exists(f):
                     os.remove(f)
+
+                # Delete any model images that depend on this output
+                cur.execute('''SELECT idnum, filename FROM modelimages
+                               WHERE out_idnum = %s''', (i,))
+                for mid, mfile in cur.fetchall():
+                    print(f'Deleting model image {os.path.basename(mfile)}')
+                    cur.execute('''DELETE from modelimages
+                                   WHERE idnum = %s''', (mid,))
+                    if os.path.exists(mfile):
+                        os.remove(mfile)
                 
-                # Remove from database
-                cur.execute('''SELECT idnum FROM outputfile
-                               WHERE filename = %s''', (f,))
-                idnum = cur.fetchone()[0]
-                
-                cur.execute('''DELETE FROM outputfile
-                               WHERE idnum = %s''', (idnum,))
-                
-                # cur.execute('''SELECT idnum, filename FROM modelimages
-                #                WHERE out_idnum = %s''', (idnum,))
-                # for mid, mfile in cur.fetchall():
-                #     cur.execute('''DELETE from modelimages
-                #                    WHERE idnum = %s''', (mid,))
-                #     if os.path.exists(mfile):
-                #         os.remove(mfile)
-                
-                # cur.execute('''SELECT idnum, filename FROM uvvsmodels
-                #                WHERE out_idnum = %s''', (idnum,))
-                # for mid, mfile in cur.fetchall():
-                #     cur.execute('''DELETE from modelimages
-                #                    WHERE idnum = %s''', (mid,))
-                #     if os.path.exists(mfile):
-                #         os.remove(mfile)
+                # Delete any uvvsmodels that depend on this output
+                cur.execute('''SELECT idnum, filename FROM uvvsmodels
+                               WHERE out_idnum = %s''', (i,))
+                for mid, mfile in cur.fetchall():
+                    print(f'Deleting uvvsmodel result {os.path.basename(mfile)}')
+                    cur.execute('''DELETE from uvvsmodels
+                                   WHERE idnum = %s''', (mid,))
+                    if os.path.exists(mfile):
+                        os.remove(mfile)
+
+                # Remove the fitted uvvsmodels that depend on this output
+                uvvsmods = pd.read_sql(
+                    f'''SELECT filename FROM uvvsmodels
+                        WHERE unfit_idnum={i}''', con)
+                for _, uvvsmod in uvvsmods.iterrows():
+                    print(f'Deleting fitted uvvsmodel result ' +
+                          os.path.basename(uvvsmod.filename))
+                    cur.execute(f'''DELETE FROM uvvsmodels
+                                    WHERE filename='{uvvsmod.filename}';''')
+                    if os.path.exists(uvvsmod.filename):
+                        os.remove(uvvsmod.filename)
+
+                # Delete any fitted outputs that depend on this output
+                spatdist_id = pd.read_sql(
+                    f'''SELECT idnum FROM spatdist_fittedoutput
+                        WHERE unfit_outid = {i}''', con)
+                for num in spatdist_id.idnum.to_list():
+                    # Remove the outputfile
+                    fitoutfile = pd.read_sql(
+                        f'''SELECT idnum, filename FROM outputfile
+                            WHERE spatdist_type = 'fitted output' and
+                                  spatdist_id = {num}''', con)
+
+                    for _, row in fitoutfile.iterrows():
+                        print(f'Deleting fitted output ' +
+                              os.path.basename(row.filename))
+                        cur.execute(f'''DELETE FROM outputfile
+                                        WHERE filename='{row.filename}';''')
+                        if os.path.exists(row.filename):
+                            os.remove(row.filename)
+                        
+                        # Remove the modelimages
+                        modims = pd.read_sql(
+                            f'''SELECT filename FROM modelimages
+                                WHERE out_idnum={row.idnum}''', con)
+                        for _, modim in modims.iterrows():
+                            print(f'Deleting model image ' +
+                                  os.path.basename(modim.filename))
+                            cur.execute(f'''DELETE FROM modelimages
+                                            WHERE filename='{modim.filename}';''')
+                            if os.path.exists(modim.filename):
+                                os.remove(modim.filename)
