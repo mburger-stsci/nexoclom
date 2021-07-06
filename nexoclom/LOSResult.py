@@ -1,6 +1,4 @@
 import os.path
-import sys
-
 import numpy as np
 import pandas as pd
 import pickle
@@ -128,8 +126,6 @@ class LOSResult(ModelResult):
         nspec = len(scdata)
         self.radiance = pd.Series(np.zeros(nspec), index=scdata.data.index)
         self.radiance_unit = u.def_unit('kR', 1e3*u.R)
-        self.npackets = pd.Series(np.zeros(nspec), index=scdata.data.index,
-                                  dtype=int)
         self.sourcemap = None
         self.modelfiles = None
         

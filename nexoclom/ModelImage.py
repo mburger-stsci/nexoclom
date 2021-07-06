@@ -14,7 +14,7 @@ import bokeh.plotting as bkp
 from bokeh.palettes import Inferno256
 from bokeh.models import (HoverTool, ColumnDataSource, ColorBar,
                           LogColorMapper, LogTicker, LinearColorMapper)
-from bokeh.io import curdoc
+from bokeh.io import curdoc, export_png
 from bokeh.themes import Theme
 
 
@@ -244,7 +244,7 @@ class ModelImage(ModelResult):
 
         return image, packim
 
-    def display(self, savefile='image.png', limits=None, show=True, log=True):
+    def display(self, savefile='image.html', limits=None, show=True, log=True):
         if self.unit.__str__() == 'R_Mercury':
             ustr = 'R_M'
         else:
@@ -303,6 +303,7 @@ class ModelImage(ModelResult):
         fig.patch(xc, yc, fill_color='yellow')
         
         bkp.output_file(savefile)
+        export_png(fig, filename=savefile.replace('.html', '.png'))
         if show:
             bkp.show(fig)
         else:
