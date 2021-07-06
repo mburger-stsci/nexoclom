@@ -313,6 +313,21 @@ class ModelResult:
                   'coordinate_system':'solar-fixed'}
     
         return source
+    
+    def show_source_map(self, filename, which='source',
+                        source=None, available=None, X0=None):
+        if X0 is None:
+            source, available, X0 = self.make_source_map()
+        elif (which == 'source') and (source is None):
+            touse, _, X0 = self.make_source_map()
+        elif which == 'source':
+            touse = source
+        elif (which == 'available') and (available is None):
+            _, touse, X0 = self.make_source_map()
+        elif which == 'available':
+            touse = available
+        else:
+            raise InputError
 
     # def transform_reference_frame(self, output):
     #     """If the image center is not the planet, transform to a

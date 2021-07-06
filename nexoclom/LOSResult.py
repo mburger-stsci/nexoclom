@@ -400,8 +400,8 @@ fitted = {self.fitted}'''
         # Search for unfitted outputfiles
         self.fitted = True
         self.inputs.options.fitted = False
-        unfit_outid, unfit_outputfiles, _, _ = self.inputs.search()
-        if self.npackets == 0:
+        unfit_outid, unfit_outputfiles, unfit_npackets, _ = self.inputs.search()
+        if unfit_npackets == 0:
             raise RuntimeError('No packets found for these Inputs.')
         else:
             self.unfit_outid, self.unfit_outputfiles = unfit_outid, unfit_outputfiles
@@ -694,3 +694,4 @@ fitted = {self.fitted}'''
         self.sourcerate = strength * u.def_unit('10**23 atoms/s', 1e23 / u.s)
         self.goodness_of_fit = goodness_of_fit
         self.mask = mask
+        
