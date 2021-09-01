@@ -1,0 +1,12 @@
+geometry.planet = Mercury
+geometry.taa = 1.3
+
+SpatialDist.type = fitted output
+SpeedDist.type = fitted output
+
+options.endtime = 50000
+options.species = Na
+options.outeredge = 15
+options.step_size = 30
+options.fitted = True
+

@@ -6,9 +6,7 @@ import random
 import copy
 import astropy.units as u
 from sklearn.neighbors import KDTree, BallTree
-
 import mathMB
-
 from .ModelResult import ModelResult
 from .input_classes import SpatialDist, SpeedDist
 from .database_connect import database_connect
@@ -585,8 +583,6 @@ fitted = {self.fitted}'''
         self.outputfiles = list(self.modelfiles.keys())
 
         print(self.totalsource, self.atoms_per_packet)
-        # self.sourcemap = self.make_source_map(longitude, latitude, velocity,
-        #                                       weight)
     
     def simulate_data_from_inputs(self, scdata):
         """Given a set of inputs, determine what the spacecraft should see.

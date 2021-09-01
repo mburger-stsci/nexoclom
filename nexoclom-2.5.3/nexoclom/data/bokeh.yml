@@ -1,0 +1,19 @@
+attrs:
+    Grid:
+        grid_line_color: '#cecece'
+        grid_line_alpha: 1
+    Title:
+        text_color: "black"
+        align: 'center'
+        text_font_size: '16pt'
+    Legend:
+        click_policy: 'hide'
+        label_text_font_size: '16pt'
+    Axis:
+        axis_label_text_font_size: '16pt'
+        major_label_text_font_size: '16pt'
+    Line:
+        line_width: 3
+    Step:
+        line_width: 3
+

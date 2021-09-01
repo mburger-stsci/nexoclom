@@ -45,7 +45,7 @@ class ModelImage(ModelResult):
         self.unit = u.def_unit('R_' + self.origin.object,
                                self.origin.radius)
 
-        dimtemp = self.params.get('dims', ['800', '800']).split(',')
+        dimtemp = self.params.get('dims', '800,800').split(',')
         self.dims = [int(dimtemp[0]), int(dimtemp[1])]
 
         centtemp = self.params.get('center', '0,0').split(',')

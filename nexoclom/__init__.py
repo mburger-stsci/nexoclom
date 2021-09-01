@@ -13,6 +13,6 @@ from .database_connect import database_connect, export_database, import_database
 name = 'nexoclom'
 __author__ = 'Matthew Burger'
 __email__ = 'mburger@stsci.edu'
-__version__ = '2.5.3'
+__version__ = '2.5.4'
 
 configure_model()

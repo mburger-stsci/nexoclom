@@ -2,6 +2,7 @@ import os.path
 import numpy as np
 import copy
 import astropy.units as u
+from sklearn.neighbors import KDTree, BallTree
 import mathMB
 from atomicdataMB import gValue
 from .input_classes import InputError
@@ -234,6 +235,32 @@ class ModelResult:
             available = None
 
         return source, available, X0
+    
+    def velocity_distribution_at_point(self, point, radius=5*np.pi/180, X0=None,
+                                       nvelbins=100, nazbins=180, naltbins=45):
+        if X0 is None:
+            _, _, X0 = self.make_source_map()
+        else:
+            pass
+        
+        tree = KDTree(X0[['x', 'y', 'z']].values)
+        point_xyz = np.array([np.sin(point[0]) * np.cos(point[1]),
+                             -np.cos(point[0]) * np.cos(point[1]),
+                             np.sin(point[1])]).reshape((1, 3))
+        ind = tree.query_radius(point_xyz, radius)
+
+        source_point = self.calculate_histograms(X0.iloc[ind[0]], weight=True,
+            nlonbins=0, nlatbins=0, nvelbins=nvelbins, nazbins=nazbins,
+            naltbins=naltbins)
+        
+        if self.__dict__.get('fitted', False):
+            available_point = self.calculate_histograms(X0.iloc[ind[0]], weight=False,
+                nlonbins=0, nlatbins=0, nvelbins=nvelbins, nazbins=nazbins,
+                naltbins=naltbins)
+        else:
+            available_point = None
+
+        return source_point, available_point
 
     def calculate_histograms(self, X0, weight=False, nlonbins=72, nlatbins=36,
                              nvelbins=100, nazbins=180, naltbins=45):
@@ -258,7 +285,7 @@ class ModelResult:
                     (np.sin(gridlatitude + source.dy / 2) - np.sin(gridlatitude - source.dy / 2)))
         
             source.x, source.dx = source.x * u.rad, source.dx * u.rad
-            source.y, source.dy = source.x * u.rad, source.dy * u.rad
+            source.y, source.dy = source.y * u.rad, source.dy * u.rad
             source.histogram = (source.histogram / X0.frac.sum() /
                                 area.T.to(u.cm**2) *
                                 self.sourcerate.to(1 / u.s))
@@ -276,7 +303,6 @@ class ModelResult:
                                         range=[0, X0.speed.max()], weights=w)
             velocity.x = velocity.x * u.km / u.s
             velocity.dx = velocity.dx * u.km / u.s
-            velocity.histogram /= np.max(velocity.histogram)
             velocity.histogram = (self.sourcerate * velocity.histogram /
                                   velocity.histogram.sum() / velocity.dx)
             velocity.histogram = velocity.histogram.to(self.sourcerate.unit *
@@ -314,7 +340,7 @@ class ModelResult:
     
         return source
     
-    def show_source_map(self, filename, which='source',
+    def show_source_map(self, filename, which='source', smooth=False, show=True,
                         source=None, available=None, X0=None):
         if X0 is None:
             source, available, X0 = self.make_source_map()
@@ -328,6 +354,9 @@ class ModelResult:
             touse = available
         else:
             raise InputError
+        
+        
+        
 
     # def transform_reference_frame(self, output):
     #     """If the image center is not the planet, transform to a
