@@ -196,5 +196,4 @@ CREATE TABLE savedpackets (
     ratio DOUBLE PRECISION NOT NULL,
     scale_factor DOUBLE PRECISION)
 
-
 DONE

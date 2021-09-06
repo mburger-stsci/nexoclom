@@ -1,0 +1,31 @@
+name: nexoclom
+channels:
+  - anaconda
+  - http://ssb.stsci.edu/astroconda
+  - conda-forge
+  - defaults
+dependencies:
+  - pip
+  - python=3.8
+  - ipython
+  - numpy
+  - scipy
+  - pandas
+  - matplotlib
+  - scikit-learn
+  - anaconda::astropy
+  - postgresql
+  - psycopg2
+  - dash
+  - plotly
+  - bokeh
+  - selenium
+  - conda-forge::firefox
+  - conda-forge::geckodriver
+  - pytest
+  - pip:
+    - periodictable
+    - spiceypy
+    - sphinx
+    - stsci_rtd_theme
+
