@@ -36,7 +36,7 @@ def fit_model(data, model, sigma, fit_method='chisq', masking=None,
                 minalt = float(masktype[6:])
                 mask = mask & (kwargs['altitude'] >= minalt)
             elif masktype.startswith('minalt'):
-                raise InputError('mathMB.fit_model', 'Altitude not supplied.')
+                raise InputError('nexoclom.math.fit_model', 'Altitude not supplied.')
             elif masktype.startswith('minsnr'):
                 minSNR = float(masktype[6:])
                 snr = data/sigma
@@ -44,7 +44,7 @@ def fit_model(data, model, sigma, fit_method='chisq', masking=None,
             elif masktype.startswith('siglimit'):
                 sigmalimit = masktype
             else:
-                raise InputError('MESSENGERdata.fit_model',
+                raise InputError('nexoclom.math.fit_model',
                                  f'masking = {masktype} not defined.')
     else:
         pass
@@ -87,5 +87,5 @@ def fit_model(data, model, sigma, fit_method='chisq', masking=None,
                     pass
                 return model_strength.x, model_strength.fun, mask
         else:
-            raise InputError('mathMB.fit_model',
+            raise InputError('nexoclom.math.fit_model',
                              f'fit_method = {fit_method} not defined.')

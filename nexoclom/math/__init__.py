@@ -7,7 +7,6 @@ from .fit_model import fit_model
 from .histogram import HistogramSphere, Histogram, Histogram2d
 
 
-name = 'mathMB'
+name = 'math'
 __author__ = 'Matthew Burger'
 __email__ = 'mburger@stsci.edu'
-__version__ = '1.10'

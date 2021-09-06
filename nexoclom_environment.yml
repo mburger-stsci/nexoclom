@@ -28,4 +28,5 @@ dependencies:
     - spiceypy
     - sphinx
     - stsci_rtd_theme
+    - statsmodels
 
