@@ -11,116 +11,13 @@ where h is Plank's constant, g is the g-value as a function of radial
 velocity, m is the mass of the accelerated species, and λ is the wavelength
 of the absorbed photon.
 """
-
-import glob
-import os
-import os.path
 import numpy as np
 import pandas as pd
 import astropy.units as u
-from astropy.io import ascii
 from astropy import constants as const
-import mathMB
 from .atomicmass import atomicmass
-from ...nexoclom.utilities import database_connect
-
-
-def make_gvalue_table():
-    """ Creates and populates gvalues database table.
-    Creates a database table called gvalues. Fields in the table:
-    
-    filename
-        Filename in project tree containing the data; used only for
-        populating the database
-        
-    reference
-        Source of the g-values
-        
-    species
-        Atomic species
-        
-    refpt
-        Distance from Sun in AU for which the g-values were calculated.
-        
-    wavelength
-        At-rest wavelength for the g-values in Å.
-    
-    velocity
-        :math:`\Delta \mathrm{v}` from rest in km/s.
-        
-    g
-        g-values in photons/s as a fucntion of velocity.
-        
-    **Parameters**
-    
-    None
-    
-    **Returns**
-    
-    No Output
-    """
-    con = database_connect()
-    cur = con.cursor()
-
-    # Erase the table if it is there
-    cur.execute('select table_name from information_schema.tables')
-    tables = [r[0] for r in cur.fetchall()]
-    if 'gvalues' in tables:
-        cur.execute('''DROP TABLE gvalues''')
-    else:
-        pass
-
-    # Create the table
-    cur.execute('''CREATE TABLE gvalues (
-                     filename text,
-                     reference text,
-                     species text,
-                     refpt float, -- AU
-                     wavelength float, -- A
-                     velocity float[], -- km/s
-                     g float[])''')  # 1/s
-
-    # Look up the gvalue datafiles
-
-    datafiles = glob.glob(os.path.join(os.path.dirname(__file__), 'data',
-                                       'g-values', '*.dat'))
-    ref = 'Killen et al. (2009)'
-
-    for d in datafiles:
-        # Determine the species
-        f = os.path.basename(d)
-        sp = f.split('.')[0]
-
-        # Determine reference point for the file
-        with open(d, 'r') as f:
-            # Determine the reference point
-            astr = f.readline().strip()
-            a = float(astr.split('=')[1])
-
-            # Determine the wavelengths
-            ww = f.readline().strip().split(':')[1:]
-            wavestr = [w.strip() for w in ww]
-
-        # Read in the data table
-        data = ascii.read(d, delimiter=':', header_start=1)
-
-        # make the vel array
-        vel = np.array(data['vel'])
-        q = np.argsort(vel)
-        vel = vel[q]
-
-        # Make an array of g-values for each wavelength and add the row
-        for w in wavestr:
-            gg = np.array(data[w])
-            gg = gg[q]
-            wave = float(w.strip())
-            print(d, sp, wave)
-
-            cur.execute('''INSERT into gvalues values (
-                           %s, %s, %s, %s, %s, %s, %s)''',
-                        (d, ref, sp, a, wave, list(vel), list(gg)))
-
-    con.close()
+from ..utilities import database_connect
+from ..math import interpu
 
 
 class gValue:
@@ -159,7 +56,6 @@ class gValue:
         g-value as function of velocity in units 1/s.
     """
     def __init__(self, sp, wavelength=None, aplanet=1*u.au):
-
         self.species = sp
         if wavelength is None:
             assert 0
@@ -261,7 +157,7 @@ class RadPresConst:
             # Interpolate gvalues to full velocity set and compute rad pres
             rr = np.zeros_like(allv)/u.s
             for g in gvals:
-                g2 = mathMB.interpu(allv, g.velocity, g.g)
+                g2 = interpu(allv, g.velocity, g.g)
                 q = const.h/atomicmass(sp)/g.wavelength * g2
                 rr += q.to(u.km/u.s**2)
             self.velocity = allv
