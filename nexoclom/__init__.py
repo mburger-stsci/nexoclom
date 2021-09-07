@@ -10,6 +10,6 @@ __name__ = 'nexoclom'
 __author__ = 'Matthew Burger'
 __email__ = 'mburger@stsci.edu'
 __version__ = '3.0.0'
-__date__ = '2021-09-01'
+__date__ = '2021-09-07'
 
 configure()

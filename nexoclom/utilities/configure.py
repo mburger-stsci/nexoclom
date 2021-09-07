@@ -204,5 +204,3 @@ def configure():
     configure_nexoclom()
     configure_solarsystem()
     configure_atomicdata()
-    # configure_MESSENGERuvvs()
-    
