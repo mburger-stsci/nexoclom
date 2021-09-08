@@ -1,11 +1,10 @@
 """Classes used by the Inputs class"""
-import os.path
 import numpy as np
 import pickle
 from astropy.time import Time
 import astropy.units as u
-from solarsystemMB import SSObject
-from .database_connect import database_connect
+from ..solarsystem import SSObject
+from ..utilities import database_connect
 
 
 dtor = np.pi/180.

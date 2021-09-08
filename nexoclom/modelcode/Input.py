@@ -24,15 +24,13 @@ AngularDist
 Options
     Configure other model parameters
 """
-import copy
 import os
 import os.path
 import numpy as np
 import pandas as pd
 from astropy.time import Time
 from .Output import Output
-from .configure_model import configfile
-from .database_connect import database_connect
+from ..utilities import database_connect, read_configfile
 from .input_classes import (Geometry, SurfaceInteraction, Forces, SpatialDist,
                             SpeedDist, AngularDist, Options)
 from .ModelImage import ModelImage
@@ -65,7 +63,8 @@ class Input:
         
         """
         # Read the configuration file
-        self._savepath = configfile()
+        config = read_configfile()
+        self._savepath = config['savepath']
 
         # Read in the input file:
         self._inputfile = infile

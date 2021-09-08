@@ -4,10 +4,10 @@ import pandas as pd
 import pickle
 import astropy.units as u
 import json
-from solarsystemMB import SSObject
-from mathMB import rotation_matrix, Histogram2d
+from ..solarsystem import SSObject
+from ..math import rotation_matrix, Histogram2d
+from ..utilities import database_connect
 from .ModelResult import ModelResult
-from .database_connect import database_connect
 from .Output import Output
 
 import bokeh.plotting as bkp

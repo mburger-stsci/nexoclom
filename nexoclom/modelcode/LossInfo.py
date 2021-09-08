@@ -1,5 +1,5 @@
 import numpy as np
-from atomicdataMB import PhotoRate
+from ..atomicdata import PhotoRate
 import astropy.units as u
 
 class LossInfo:

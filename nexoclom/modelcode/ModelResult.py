@@ -3,8 +3,8 @@ import numpy as np
 import copy
 import astropy.units as u
 from sklearn.neighbors import KDTree, BallTree
-import mathMB
-from atomicdataMB import gValue
+from .. import math as mathMB
+from ..atomicdata import gValue
 from .input_classes import InputError
 from .Output import Output
 

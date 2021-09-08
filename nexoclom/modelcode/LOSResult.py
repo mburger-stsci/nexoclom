@@ -6,10 +6,10 @@ import random
 import copy
 import astropy.units as u
 from sklearn.neighbors import KDTree, BallTree
-import mathMB
+from .. import math as mathMB
 from .ModelResult import ModelResult
 from .input_classes import SpatialDist, SpeedDist
-from .database_connect import database_connect
+from ..utilities import database_connect
 from .Output import Output
 
 xcols = ['x', 'y', 'z']
