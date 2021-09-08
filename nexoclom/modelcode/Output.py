@@ -5,16 +5,17 @@ import numpy as np
 import pickle
 import random
 import astropy.units as u
-from solarsystemMB import planet_dist
-import mathMB
+
+from .. import math as mathMB
+from ..solarsystem import planet_dist
+from ..atomicdata import RadPresConst
+from ..utilities.database_connect import database_connect
 from .satellite_initial_positions import satellite_initial_positions
-from atomicdataMB import RadPresConst
 from .LossInfo import LossInfo
 from .rk5 import rk5
 from .bouncepackets import bouncepackets
 from .source_distribution import (surface_distribution, speed_distribution,
                                   angular_distribution)
-from .database_connect import database_connect
 from .SurfaceInteraction import SurfaceInteraction
 
 

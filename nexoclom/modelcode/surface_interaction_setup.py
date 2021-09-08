@@ -2,7 +2,7 @@ import numpy as np
 from scipy import interpolate
 import astropy.units as u
 import astropy.constants as const
-from atomicdataMB import atomicmass
+from ..atomicdata import atomicmass
 from .surface_temperature import surface_temperature
 from .source_distribution import MaxwellianDist
 
