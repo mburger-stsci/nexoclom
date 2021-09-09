@@ -139,7 +139,7 @@ class Output:
             time = self.randgen.random(npackets) * inputs.options.endtime
 
         self.X0 = pd.DataFrame()
-        self.X0['time'] = time
+        self.X0['time'] = time.value
 
         # Define the fractional content
         self.X0['frac'] = np.ones(npackets)
@@ -149,6 +149,7 @@ class Output:
 
         # Determine initial satellite positions if necessary
         if self.planet.moons is not None:
+            assert False, 'Not set up'
             sat_init_pos = satellite_initial_positions(inputs)
         else:
             pass

@@ -143,8 +143,8 @@ def surface_distribution(outputs):
     outputs.X0['x'] = X_[0,:]
     outputs.X0['y'] = X_[1,:]
     outputs.X0['z'] = X_[2,:]
-    outputs.X0['longitude'] = lon
-    outputs.X0['latitude'] = lat
+    outputs.X0['longitude'] = lon.value
+    outputs.X0['latitude'] = lat.value
     local_time = (lon.value * 12/np.pi + 12) % 24
     outputs.X0['local_time'] = local_time
 

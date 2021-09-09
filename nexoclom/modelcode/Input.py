@@ -30,7 +30,8 @@ import numpy as np
 import pandas as pd
 from astropy.time import Time
 from .Output import Output
-from ..utilities import database_connect, read_configfile
+from ..utilities import database_connect
+from ..utilities.read_configfile import read_configfile
 from .input_classes import (Geometry, SurfaceInteraction, Forces, SpatialDist,
                             SpeedDist, AngularDist, Options)
 from .ModelImage import ModelImage

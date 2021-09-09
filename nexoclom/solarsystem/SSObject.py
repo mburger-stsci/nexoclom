@@ -46,6 +46,10 @@ class SSObject:
 
         self.moons = [SSObject(moon) for moon in 
                  constants.loc[constants.orbits == self.object, 'Object'].to_list()]
+        if len(self.moons) == 0:
+            self.moons = None
+        else:
+            pass
 
         if self.orbits == 'Milky Way':
             self.type = 'Star'
