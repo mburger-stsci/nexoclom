@@ -236,9 +236,9 @@ class ModelResult:
 
         return source, available, X0
     
-    def velocity_distribution_at_point(self, point, normalize=True, 
-                                       radius=5*np.pi/180, X0=None,
-                                       nvelbins=100, nazbins=180, naltbins=45):
+    def velocity_distribution_at_point(self, point, radius=5*np.pi/180, X0=None,
+                                       nvelbins=100, nazbins=180, naltbins=45,
+                                       normalize=True):
         if X0 is None:
             _, _, X0 = self.make_source_map()
         else:
