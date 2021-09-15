@@ -170,7 +170,7 @@ class ModelResult:
 
         assert np.all(np.isfinite(packets['weight'])), 'Non-finite weights'
 
-    def make_source_map(self):
+    def make_source_map(self, normalize=True):
         """
         At each point in lon/lat grid want:
             * Source flux (atoms/cm2/s
@@ -228,15 +228,16 @@ class ModelResult:
         X0['longitude'] = (np.arctan2(X0.x.values, -X0.y.values) + 2*np.pi) % (2*np.pi)
         X0['latitude'] = np.arcsin(X0.z.values)
 
-        source = self.calculate_histograms(X0, weight=True)
+        source = self._calculate_histograms(X0, normalize, weight=True)
         if  self.__dict__.get('fitted', False):
-            available = self.calculate_histograms(X0, weight=False)
+            available = self._calculate_histograms(X0, normalize, weight=False)
         else:
             available = None
 
         return source, available, X0
     
-    def velocity_distribution_at_point(self, point, radius=5*np.pi/180, X0=None,
+    def velocity_distribution_at_point(self, point, normalize=True, 
+                                       radius=5*np.pi/180, X0=None,
                                        nvelbins=100, nazbins=180, naltbins=45):
         if X0 is None:
             _, _, X0 = self.make_source_map()
@@ -249,20 +250,20 @@ class ModelResult:
                              np.sin(point[1])]).reshape((1, 3))
         ind = tree.query_radius(point_xyz, radius)
 
-        source_point = self.calculate_histograms(X0.iloc[ind[0]], weight=True,
-            nlonbins=0, nlatbins=0, nvelbins=nvelbins, nazbins=nazbins,
+        source_point = self._calculate_histograms(X0.iloc[ind[0]], normalize, 
+            weight=True, nlonbins=0, nlatbins=0, nvelbins=nvelbins, nazbins=nazbins,
             naltbins=naltbins)
         
         if self.__dict__.get('fitted', False):
-            available_point = self.calculate_histograms(X0.iloc[ind[0]], weight=False,
-                nlonbins=0, nlatbins=0, nvelbins=nvelbins, nazbins=nazbins,
-                naltbins=naltbins)
+            available_point = self._calculate_histograms(X0.iloc[ind[0]], normalize,
+                weight=False, nlonbins=0, nlatbins=0, nvelbins=nvelbins, 
+                nazbins=nazbins, naltbins=naltbins)
         else:
             available_point = None
 
         return source_point, available_point
 
-    def calculate_histograms(self, X0, weight=False, nlonbins=72, nlatbins=36,
+    def _calculate_histograms(self, X0, normalize, weight=False, nlonbins=72, nlatbins=36,
                              nvelbins=100, nazbins=180, naltbins=45):
         if weight:
             w = X0.frac.values
@@ -272,28 +273,26 @@ class ModelResult:
         # Determine source distribution
         if (nlonbins > 0) and (nlatbins > 0):
             source = mathMB.Histogram2d(X0.longitude, X0.latitude, weights=w,
-                                        range=[[0, 2 * np.pi], [-np.pi / 2, np.pi / 2]],
+                                        range=[[0, 2*np.pi], [-np.pi/2, np.pi/2]],
                                         bins=(nlonbins, nlatbins))
-        
-            # Convert histogram to flux
-            # (a) divide by area of a grid cell
-            #   Surface area of a grid cell = R**2 (lambda_2 - lambda_1) (sin(phi2)-sin(phi1))
-            #   https://onlinelibrary.wiley.com/doi/epdf/10.1111/tgis.12636, eqn 1
-            # (b) Multiply by source rate
-            gridlongitude, gridlatitude = np.meshgrid(source.x, source.y)
-            area = (self.inputs.geometry.planet.radius**2 * source.dx *
-                    (np.sin(gridlatitude + source.dy / 2) - np.sin(gridlatitude - source.dy / 2)))
-        
             source.x, source.dx = source.x * u.rad, source.dx * u.rad
             source.y, source.dy = source.y * u.rad, source.dy * u.rad
-            source.histogram = (source.histogram / X0.frac.sum() /
-                                area.T.to(u.cm**2) *
-                                self.sourcerate.to(1 / u.s))
         
-            # Test
-            # print(source.dx * source.dy *
-            #       self.inputs.geometry.planet.radius.to(u.cm)**2 *
-            #       np.sum(source.histogram.T * np.cos(gridlatitude)))
+            if normalize:
+                # Convert histogram to flux
+                # (a) divide by area of a grid cell
+                #   Surface area of a grid cell = R**2 (lambda_2 - lambda_1) (sin(phi2)-sin(phi1))
+                #   https://onlinelibrary.wiley.com/doi/epdf/10.1111/tgis.12636, eqn 1
+                # (b) Multiply by source rate
+                _, gridlatitude = np.meshgrid(source.x, source.y)
+                area = (self.inputs.geometry.planet.radius**2 * source.dx *
+                        (np.sin(gridlatitude + source.dy / 2) - np.sin(gridlatitude - source.dy / 2)))
+            
+                source.histogram = (source.histogram / X0.frac.sum() /
+                                    area.T.to(u.cm**2) *
+                                    self.sourcerate.to(1 / u.s))
+            else:
+                pass
         else:
             source = None
     
@@ -303,10 +302,13 @@ class ModelResult:
                                         range=[0, X0.speed.max()], weights=w)
             velocity.x = velocity.x * u.km / u.s
             velocity.dx = velocity.dx * u.km / u.s
-            velocity.histogram = (self.sourcerate * velocity.histogram /
-                                  velocity.histogram.sum() / velocity.dx)
-            velocity.histogram = velocity.histogram.to(self.sourcerate.unit *
-                                                       u.def_unit('(km/s)^-1', u.s / u.km))
+            if normalize:
+                velocity.histogram = (self.sourcerate * velocity.histogram /
+                                    velocity.histogram.sum() / velocity.dx)
+                velocity.histogram = velocity.histogram.to(self.sourcerate.unit *
+                                                           u.def_unit('(km/s)^-1', u.s/u.km))
+            else:
+                pass
         else:
             velocity = None
     
@@ -327,8 +329,11 @@ class ModelResult:
                                        range=[0, 2 * np.pi], weights=w)
             azimuth.x = azimuth.x * u.rad
             azimuth.dx = azimuth.dx * u.rad
-            azimuth.histogram = (self.sourcerate * azimuth.histogram /
-                                 azimuth.histogram.sum() / azimuth.dx)
+            if normalize:
+                azimuth.histogram = (self.sourcerate * azimuth.histogram /
+                                    azimuth.histogram.sum() / azimuth.dx)
+            else:
+                pass
         else:
             azimuth = None
     
