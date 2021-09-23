@@ -2,11 +2,11 @@ import os.path
 import numpy as np
 import copy
 import astropy.units as u
-from sklearn.neighbors import KDTree, BallTree
-from .. import math as mathMB
-from ..atomicdata import gValue
-from .input_classes import InputError
-from .Output import Output
+from sklearn.neighbors import KDTree
+from nexoclom import math as mathMB
+from nexoclom.atomicdata import gValue
+from nexoclom.modelcode.input_classes import InputError
+from nexoclom.modelcode.Output import Output
 
 
 class ModelResult:
@@ -318,8 +318,11 @@ class ModelResult:
                                         range=[0, np.pi / 2], weights=w)
             altitude.x = altitude.x * u.rad
             altitude.dx = altitude.dx * u.rad
-            altitude.histogram = (self.sourcerate * altitude.histogram /
-                                  altitude.histogram.sum() / altitude.dx)
+            if normalize:
+                altitude.histogram = (self.sourcerate * altitude.histogram /
+                                    altitude.histogram.sum() / altitude.dx)
+            else:
+                pass
         else:
             altitude = None
     
