@@ -5,8 +5,8 @@ not exist, it will be created. By default, the tables will only be created if
 """
 import os
 from .photolossrates import make_photo_table
-from .g_values import make_gvalue_table
-from .database_connect import database_connect
+from nexoclom.atomicdata.g_values import make_gvalue_table
+from nexoclom.utilities import database_connect
 import sys
 import types
 

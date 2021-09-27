@@ -6,11 +6,11 @@ import random
 import copy
 import astropy.units as u
 from sklearn.neighbors import KDTree, BallTree
-from .. import math as mathMB
-from .ModelResult import ModelResult
-from .input_classes import SpatialDist, SpeedDist
-from ..utilities import database_connect
-from .Output import Output
+from nexoclom import ModelResult
+from nexoclom import Output
+import nexoclom.math as mathMB
+from nexoclom.modelcode.input_classes import SpatialDist, SpeedDist
+from nexoclom.utilities import database_connect
 
 xcols = ['x', 'y', 'z']
 borecols = ['xbore', 'ybore', 'zbore']

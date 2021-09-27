@@ -7,7 +7,6 @@ but returns the mass as an `astropy quantity
 <http://docs.astropy.org/en/stable/units/index.html>`_.
 """
 import periodictable as pt
-from periodictable import formulas
 import astropy.units as u
 
 
@@ -46,7 +45,7 @@ def atomicmass(species):
         mass = atom.mass * u.u
     else:
         try:
-            mass = formulas.formula(species).mass * u.u
+            mass = pt.formulas.formula(species).mass * u.u
         except ValueError:
             print(f'WARNING: mathMB.atomicmass: {species} not found')
             mass = None

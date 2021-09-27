@@ -2,7 +2,7 @@
 import numpy as np
 from scipy.misc import derivative
 import astropy.units as u
-from . import SSObject
+from nexoclom import SSObject
 
 
 def planet_dist(planet_, taa=None, time=None):
@@ -21,8 +21,8 @@ def planet_dist(planet_, taa=None, time=None):
         from .load_kernels import load_kernels
         kernels = load_kernels()
 
-        et = spice.str2et(inputs.geometry.time.isot)
-        posvel, lt = spice.spkezr(inputs.geometry.planet.object, et, 'J2000',
+        et = spice.str2et(time.isot)
+        posvel, lt = spice.spkezr(planet.object, et, 'J2000',
                                   'LT+S', 'Sun')
 
         position = np.array(posvel[0:3])*u.km

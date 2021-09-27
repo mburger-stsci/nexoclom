@@ -3,8 +3,8 @@ import numpy as np
 import pickle
 from astropy.time import Time
 import astropy.units as u
-from ..solarsystem import SSObject
-from ..utilities import database_connect
+from nexoclom import SSObject
+from nexoclom.utilities import database_connect
 
 
 dtor = np.pi/180.

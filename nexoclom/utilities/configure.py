@@ -5,7 +5,7 @@ import pandas as pd
 import psycopg2
 import glob
 from astropy.io import ascii
-from .database_connect import database_connect
+from nexoclom.utilities.database_connect import database_connect
 
 
 curpath = os.path.dirname(__file__)

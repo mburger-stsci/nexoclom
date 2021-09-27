@@ -1,7 +1,7 @@
 """``photolossrates`` - Determine photoionization and photodissociation rates"""
 import pandas as pd
 import astropy.units as u
-from ..utilities import database_connect
+from nexoclom.utilities import database_connect
 
 
 class PhotoRate:

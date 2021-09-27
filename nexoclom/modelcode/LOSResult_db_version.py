@@ -11,12 +11,12 @@ from sklearn.neighbors import KDTree, BallTree
 from scipy.interpolate import RectBivariateSpline
 import scipy.linalg as lin
 from psycopg2.extras import execute_batch
-from mathMB import fit_model
+from nexoclom.math import fit_model
 
-from .ModelResults import ModelResult
-from .database_connect import database_connect
-from .Input import Input
-from .Output import Output
+from nexoclom.modelcode import ModelResult
+from nexoclom.utilities import database_connect
+from nexoclom import Input
+from nexoclom import Output
 
 
 xcols = ['x', 'y', 'z']

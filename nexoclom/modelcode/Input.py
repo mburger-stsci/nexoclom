@@ -29,12 +29,13 @@ import os.path
 import numpy as np
 import pandas as pd
 from astropy.time import Time
-from .Output import Output
-from ..utilities import database_connect
-from ..utilities.read_configfile import read_configfile
-from .input_classes import (Geometry, SurfaceInteraction, Forces, SpatialDist,
-                            SpeedDist, AngularDist, Options)
-from .ModelImage import ModelImage
+from nexoclom import Output
+from nexoclom.utilities import database_connect
+from nexoclom.utilities import read_configfile
+from nexoclom.modelcode.input_classes import (Geometry, SurfaceInteraction, 
+                                             Forces, SpatialDist, SpeedDist, 
+                                             AngularDist, Options)
+from nexoclom import ModelImage
 
 class Input:
     def __init__(self, infile):
