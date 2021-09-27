@@ -7,16 +7,17 @@ import random
 import astropy.units as u
 
 from .. import math as mathMB
-from ..solarsystem import planet_dist
-from ..atomicdata import RadPresConst
-from ..utilities.database_connect import database_connect
-from .satellite_initial_positions import satellite_initial_positions
-from .LossInfo import LossInfo
-from .rk5 import rk5
-from .bouncepackets import bouncepackets
-from .source_distribution import (surface_distribution, speed_distribution,
-                                  angular_distribution)
-from .SurfaceInteraction import SurfaceInteraction
+from nexoclom.solarsystem import planet_dist
+from nexoclom.atomicdata import RadPresConst
+from nexoclom.utilities.database_connect import database_connect
+from nexoclom.modelcode.satellite_initial_positions import satellite_initial_positions
+from nexoclom.modelcode.LossInfo import LossInfo
+from nexoclom.modelcode.rk5 import rk5
+from nexoclom.modelcode.bouncepackets import bouncepackets
+from nexoclom.modelcode.source_distribution import (surface_distribution, 
+                                                    speed_distribution,
+                                                    angular_distribution)
+from nexoclom.modelcode.SurfaceInteraction import SurfaceInteraction
 
 
 class Output:

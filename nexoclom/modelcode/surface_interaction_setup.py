@@ -2,9 +2,9 @@ import numpy as np
 from scipy import interpolate
 import astropy.units as u
 import astropy.constants as const
-from ..atomicdata import atomicmass
-from .surface_temperature import surface_temperature
-from .source_distribution import MaxwellianDist
+from nexoclom.atomicdata import atomicmass
+from nexoclom.modelcode.surface_temperature import surface_temperature
+from nexoclom.modelcode.source_distribution import MaxwellianDist
 
 def surface_interaction_setup(inputs):
     # Set up accommodation factor

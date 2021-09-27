@@ -1,8 +1,8 @@
-from nexoclom.modelcode import Input
-from nexoclom.modelcode import Output
-from nexoclom.modelcode import LOSResult
-from nexoclom.modelcode import ModelImage
-from nexoclom.utilities import configure
+from nexoclom.modelcode.Input import Input
+from nexoclom.modelcode.Output import Output
+from nexoclom.modelcode.LOSResult import LOSResult
+from nexoclom.modelcode.ModelImage import ModelImage
+from nexoclom.utilities.configure import configure
 from nexoclom.solarsystem import SSObject
 
 

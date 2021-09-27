@@ -1,6 +1,6 @@
-from .g_values import RadPresConst, gValue
-from .photolossrates import PhotoRate
-from .atomicmass import atomicmass
+from nexoclom.atomicdata.g_values import RadPresConst, gValue
+from nexoclom.atomicdata.photolossrates import PhotoRate
+from nexoclom.atomicdata.atomicmass import atomicmass
 
 
 __name__ = 'atomicdata'

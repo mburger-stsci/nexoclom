@@ -3,8 +3,8 @@ import numpy as np
 import pickle
 import astropy.units as u
 import astropy.constants as const
-from .. import math as mathMB
-from ..atomicdata import atomicmass
+import nexoclom.math as mathMB
+from nexoclom.atomicdata import atomicmass
 
 
 def sputdist(velocity, U, alpha, beta, species):

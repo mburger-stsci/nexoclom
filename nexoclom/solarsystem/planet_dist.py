@@ -2,7 +2,7 @@
 import numpy as np
 from scipy.misc import derivative
 import astropy.units as u
-from nexoclom import SSObject
+from nexoclom.solarsystem.SSObject import SSObject
 
 
 def planet_dist(planet_, taa=None, time=None):

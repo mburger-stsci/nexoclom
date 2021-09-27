@@ -4,11 +4,11 @@ import pandas as pd
 import pickle
 import astropy.units as u
 import json
-from ..solarsystem import SSObject
-from ..math import rotation_matrix, Histogram2d
-from ..utilities import database_connect
-from .ModelResult import ModelResult
-from .Output import Output
+from nexoclom.solarsystem import SSObject
+from nexoclom.math import rotation_matrix, Histogram2d
+from nexoclom.utilities import database_connect
+from nexoclom.modelcode.ModelResult import ModelResult
+from nexoclom.modelcode.Output import Output
 
 import bokeh.plotting as bkp
 from bokeh.palettes import Inferno256

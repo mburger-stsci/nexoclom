@@ -11,7 +11,7 @@ import numpy as np
 import astropy.units as u
 import astropy.constants as const
 from nexoclom.solarsystem.relative_position import relative_position
-from nexoclom import SSObject
+from nexoclom.solarsystem.SSObject import SSObject
 
 def planet_geometry(time, planet):
     ## Determine planet location relative to sun

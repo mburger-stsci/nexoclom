@@ -3,7 +3,7 @@ import numpy as np
 import pickle
 from astropy.time import Time
 import astropy.units as u
-from nexoclom import SSObject
+from nexoclom.solarsystem import SSObject
 from nexoclom.utilities import database_connect
 
 

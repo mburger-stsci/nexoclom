@@ -6,8 +6,8 @@ import random
 import copy
 import astropy.units as u
 from sklearn.neighbors import KDTree, BallTree
-from nexoclom import ModelResult
-from nexoclom import Output
+from nexoclom.modelcode.ModelResult import ModelResult
+from nexoclom.modelcode.Output import Output
 import nexoclom.math as mathMB
 from nexoclom.modelcode.input_classes import SpatialDist, SpeedDist
 from nexoclom.utilities import database_connect

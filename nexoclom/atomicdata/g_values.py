@@ -15,8 +15,8 @@ import numpy as np
 import pandas as pd
 import astropy.units as u
 from astropy import constants as const
-from nexoclom.atomicdata import atomicmass
-from nexoclom.utilities import database_connect
+from nexoclom.atomicdata.atomicmass import atomicmass
+from nexoclom.utilities.database_connect import database_connect
 from nexoclom.math import interpu
 
 
