@@ -1,6 +1,6 @@
 import numpy as np
 import astropy.units as u
-from ..interpu import interpu
+from nexoclom.math import interpu
 
 
 def test_interpu():

@@ -6,7 +6,7 @@ import pickle
 import random
 import astropy.units as u
 
-from .. import math as mathMB
+import nexoclom.math as mathMB
 from nexoclom.solarsystem import planet_dist
 from nexoclom.atomicdata import RadPresConst
 from nexoclom.utilities.database_connect import database_connect

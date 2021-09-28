@@ -155,10 +155,11 @@ class RadPresConst:
             allv = np.unique(allv) * u.km/u.s
 
             # Interpolate gvalues to full velocity set and compute rad pres
-            rr = np.zeros_like(allv)/u.s
+            rpres = np.zeros_like(allv)/u.s
             for g in gvals:
                 g2 = interpu(allv, g.velocity, g.g)
-                q = const.h/atomicmass(sp)/g.wavelength * g2
-                rr += q.to(u.km/u.s**2)
+                rpres_ = const.h/atomicmass(sp)/g.wavelength * g2
+                rpres += rpres_.to(u.km/u.s**2)
+                
             self.velocity = allv
-            self.accel = rr
+            self.accel = rpres

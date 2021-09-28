@@ -45,7 +45,7 @@ def atomicmass(species):
         mass = atom.mass * u.u
     else:
         try:
-            mass = pt.formulas.formula(species).mass * u.u
+            mass = pt.formula(species).mass * u.u
         except ValueError:
             print(f'WARNING: mathMB.atomicmass: {species} not found')
             mass = None
