@@ -1,8 +1,10 @@
 import numpy as np
 import astropy.units as u
 from nexoclom.math import interpu
+import pytest
 
 
+@pytest.mark.math
 def test_interpu():
     x = np.arange(20) * u.km
     y = x**3 - 3*x**2*u.km + 5*u.km**3

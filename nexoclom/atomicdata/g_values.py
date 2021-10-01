@@ -55,15 +55,8 @@ class gValue:
     g
         g-value as function of velocity in units 1/s.
     """
-    def __init__(self, sp, wavelength=None, aplanet=1*u.au):
+    def __init__(self, sp, wavelength, aplanet=1*u.au):
         self.species = sp
-        if wavelength is None:
-            assert 0
-            # waves = pd.read_sql(
-            #     f'''SELECT DISTINCT wavelength
-            #         FROM gvalues
-            #         WHERE species='{self.species}' ''', con)
-            # self.wavelength = [w * u.AA for w in waves.wavelength]
 
         try:
             self.wavelength = wavelength.to(u.AA)
@@ -77,7 +70,7 @@ class gValue:
 
         with database_connect() as con:
             gvalue = pd.read_sql(
-                f'''SELECT refpt, velocity, g
+                f'''SELECT *
                     FROM gvalues
                     WHERE species='{self.species}' and
                           wavelength='{self.wavelength.value}' ''', con)
@@ -85,11 +78,15 @@ class gValue:
         if len(gvalue) == 0:
             self.velocity = np.array([0., 1.])*u.km/u.s
             self.g = np.array([0., 0.])/u.s
+            self.filename = None
+            self.reference = None
             print(f'Warning: g-values not found for species = {sp}')
         elif len(gvalue) == 1:
             self.velocity = np.array(gvalue.velocity[0])*u.km/u.s
             self.g = (np.array(gvalue.g[0])/u.s *
                       gvalue.refpt[0]**2/self.aplanet.value**2)
+            self.reference = gvalue.loc[0, 'reference']
+            self.filename = gvalue.loc[0, 'file']
         else:
             assert 0, 'Multiple rows found.'
 
