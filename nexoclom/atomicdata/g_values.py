@@ -11,14 +11,15 @@ where h is Plank's constant, g is the g-value as a function of radial
 velocity, m is the mass of the accelerated species, and λ is the wavelength
 of the absorbed photon.
 """
+import os
 import numpy as np
 import pandas as pd
 import astropy.units as u
 from astropy import constants as const
 from nexoclom.atomicdata.atomicmass import atomicmass
-from nexoclom.utilities.database_connect import database_connect
 from nexoclom.math import interpu
-
+from nexoclom import __file__ as basefile
+# pylint: disable=no-member
 
 class gValue:
     r"""Class containing g-value vs. velocity for a specified atom and
@@ -68,12 +69,12 @@ class gValue:
         except:
             self.aplanet = aplanet * u.au
 
-        with database_connect() as con:
-            gvalue = pd.read_sql(
-                f'''SELECT *
-                    FROM gvalues
-                    WHERE species='{self.species}' and
-                          wavelength='{self.wavelength.value}' ''', con)
+        gvalue_file = os.path.join(os.path.dirname(basefile), 'data', 
+                                   'g-values', 'g-values.pkl')
+        gvalues = pd.read_pickle(gvalue_file)
+
+        gvalue = gvalues[(gvalues.species == sp) &
+                         (gvalues.wavelength == wavelength)]
 
         if len(gvalue) == 0:
             self.velocity = np.array([0., 1.])*u.km/u.s
@@ -81,12 +82,11 @@ class gValue:
             self.filename = None
             self.reference = None
             print(f'Warning: g-values not found for species = {sp}')
-        elif len(gvalue) == 1:
-            self.velocity = np.array(gvalue.velocity[0])*u.km/u.s
-            self.g = (np.array(gvalue.g[0])/u.s *
-                      gvalue.refpt[0]**2/self.aplanet.value**2)
-            self.reference = gvalue.loc[0, 'reference']
-            self.filename = gvalue.loc[0, 'file']
+        elif len(gvalue.filename.unique()) == 1:
+            self.velocity = gvalue.velocity.values*u.km/u.s
+            self.g = gvalue.gvalue/u.s * gvalue.refpt**2/self.aplanet.value**2
+            self.reference = gvalue.reference.unique()[0]
+            self.filename = gvalue.file.unique()[0]
         else:
             assert 0, 'Multiple rows found.'
 

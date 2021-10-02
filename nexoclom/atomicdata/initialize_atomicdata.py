@@ -1,68 +1,45 @@
-"""Populate the database with the available atomic data.
-Currently populates g-values and photoionization rates. If the database does
-not exist, it will be created. By default, the tables will only be created if
-
+"""Read atomicdata from the text files and save as pandas dataframes
 """
 import os
-from .photolossrates import make_photo_table
-from nexoclom.atomicdata.g_values import make_gvalue_table
-from nexoclom.utilities import database_connect
-import sys
-import types
+import glob
+from nexoclom import __file__ as basefile
+import pandas as pd
 
+basepath = os.path.dirname(basefile)
 
-def initialize_atomicdata(force=False):
-    """Populate the database with available atomic data if nececssary.
-
-    **Parameters**
-
-    force
-        By default, the database tables are only created if they do not already
-        exist. Set force to True to force the tables to be remade. This would
-        be necessary if there are updates to the atomic data.
-
-    **Output**
+def make_gvalue_table():
+    ref = 'Killen et al. (2009)'
+    datafiles = glob.glob(os.path.join(basepath, 'data', 'g-values', '*.dat'))
     
-    No output.
-    """
-    if isinstance(sys.modules['psycopg2'], types.ModuleType):
-        # Get database name and port
-        database, port = database_connect(return_con=False)
+    gvalues = pd.DataFrame(columns=['species', 'wavelength', 
+                                    'velocity', 'gvalue', 'refpoint', 
+                                    'filename', 'reference'])
+    
+    for datafile in datafiles:
+        # Determine the species
+        species = os.path.basename(datafile).split('.')[0]
 
-        # Verify database is running
-        status = os.popen('pg_ctl status').read()
-        if 'no server running' in status:
-            os.system(f'pg_ctl start -D $HOME/.postgres/main '
-                      f'-l $HOME/.postgres/logfile -o "-p {port}"')
-        else:
-            pass
+        with open(datafile) as f:
+            # Determine the reference point
+            refpt_str = f.readline().strip()
+        refpt = float(refpt_str.split('=')[1])
 
-        # Create database if necessary
-        with database_connect(database='postgres') as con:
-            cur = con.cursor()
-            cur.execute('select datname from pg_database')
-            dbs = [r[0] for r in cur.fetchall()]
+        gvalue_species = pd.read_csv(datafile, sep=':', skiprows=1)
+        wavelengths = [float(wave) for wave in gvalue_species.columns[1:]]
+        gvalue_species.columns = ['vel'] + wavelengths
 
-            if database not in dbs:
-                print(f'Creating database {database}')
-                cur.execute(f'create database {database}')
-            else:
-                pass
-
-        # Populate the database tables
-        with database_connect() as con:
-            cur = con.cursor()
-            cur.execute('select table_name from information_schema.tables')
-            tables = [r[0] for r in cur.fetchall()]
-
-        if ('gvalues' not in tables) or (force):
-            print('Making gvalue table')
-            make_gvalue_table()
-        else:
-            pass
-
-        if ('photorates' not in tables) or (force):
-            print('Making photorates table')
-            make_photo_table()
-        else:
-            pass
+        for wave in wavelengths:
+            print(species, wave)
+            for _, row in gvalue_species.iterrows():
+                newrow = {'species': species,
+                          'wavelength': wave,
+                          'velocity': row['vel'],
+                          'gvalue': row[wave],
+                          'refpoint': refpt,
+                          'filename': datafile,
+                          'reference': ref}
+                gvalues.loc[len(gvalues)] = newrow
+        
+    gvalue_file = os.path.join(basepath, 'data', 'g-values', 'g-values.pkl')
+    print(gvalue_file)
+    gvalues.to_pickle(gvalue_file)

@@ -6,6 +6,7 @@ from nexoclom.atomicdata import atomicmass, gValue, RadPresConst
 from nexoclom.math import interpu
 from pytest import approx
 import pytest 
+# pylint: disable=no-member
 
 args_gval = [('Na', 5891, 1.5),
              ('Ca', 4227*u.AA, 0.3),
@@ -17,7 +18,6 @@ args_rp = [('Na', 1.5),
 @pytest.mark.atomicdata
 @pytest.mark.parametrize('species, wavelength, aplanet', args_gval)
 def test_gValue(species, wavelength, aplanet):
-    """Compare gvalues with gvalues in IDL code."""
     ## Test 1
     g = gValue(species, wavelength, aplanet)
     if g.filename is not None:
@@ -76,5 +76,5 @@ def test_radpresconst(species, aplanet):
     assert rp_const.accel.unit is rp_const_new.unit
 
 if __name__ == '__main__':
-    test_gValue()
-    test_radpresconst()
+    test_gValue('Na', 5891, 1)
+    # test_radpresconst()
