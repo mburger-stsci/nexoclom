@@ -38,14 +38,6 @@ class FittedIterationResult(IterationResult):
         self.weighting = None
         self.included = None
 
-class InputError(Exception):
-    """Raised when a required parameter is not included."""
-    
-    def __init__(self, expression, message):
-        self.expression = expression
-        self.message = message
-
-
 class LOSResult(ModelResult):
     """Class to contain the LOS result from multiple outputfiles.
     

@@ -1,7 +1,8 @@
 """``photolossrates`` - Determine photoionization and photodissociation rates"""
+import os
 import pandas as pd
 import astropy.units as u
-from nexoclom.utilities import database_connect
+from nexoclom import __file__ as basefile
 
 
 class PhotoRate:
@@ -63,21 +64,19 @@ class PhotoRate:
 
     """
     def __init__(self, species, aplanet_=1.*u.AU):
-        with database_connect() as con:
-            prates = pd.read_sql(
-                f'''SELECT reaction, kappa
-                    FROM photorates
-                    WHERE species='{species}' and bestvalue=True''', con)
 
-        try:
-            aplanet_.value
+        basepath = os.path.dirname(basefile)
+        photorates_file = os.path.join(basepath, 'data', 'Loss', 'photorates.pkl')
+        photorates = pd.read_pickle(photorates_file)
+        prates = photorates[photorates.species == species]
+
+        if isinstance(aplanet_, type(1*u.au)):
+            aplanet = aplanet_.value
+        else:
             aplanet = aplanet_
-        except:
-            aplanet = aplanet_*u.AU
 
         self.species = species
-        self.aplanet = aplanet
-        a0 = 1*u.AU
+        self.aplanet = aplanet*u.au
 
         # Photo rate adjusted to proper heliocentric distance
         if len(prates) == 0:
@@ -85,10 +84,9 @@ class PhotoRate:
             self.reactions = None
             self.rate = 1e-30/u.s
         else:
-            prates['kappa'] = prates['kappa'].apply(
-                lambda k: k * (a0/aplanet)**2)
+            rates = prates['kappa'].apply(lambda k: k/aplanet**2).values
             self.reactions = prates
-            self.rate = prates['kappa'].sum()/u.s
+            self.rate = rates.sum()/u.s
 
     def __str__(self):
         output = (f'Species = {self.species}\n'

@@ -4,18 +4,12 @@ import pickle
 from astropy.time import Time
 import astropy.units as u
 from nexoclom.solarsystem import SSObject
-from nexoclom.utilities import database_connect
+from nexoclom.utilities import database_connect, InputError
 
 
 dtor = np.pi/180.
 # Tolerances for floating point values
 dtaa = 2.*dtor
-
-class InputError(Exception):
-    """Raised when a required parameter is not included in the inputfile."""
-    def __init__(self, expression, message):
-        self.expression = expression
-        self.message = message
 
 
 class Geometry:

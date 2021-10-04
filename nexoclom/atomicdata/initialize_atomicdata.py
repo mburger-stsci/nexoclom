@@ -39,7 +39,63 @@ def make_gvalue_table():
                           'filename': datafile,
                           'reference': ref}
                 gvalues.loc[len(gvalues)] = newrow
-        
+
+    fakerow = {'species': 'Fk',
+                'wavelength': 9999,
+                'velocity': 0., 
+                'gvalue': 0.,
+                'refpoint': 1.,
+                'filename': 'NO_SUCH_FILE.dat',
+                'reference': 'Fake (2021)'}
+    gvalues.loc[len(gvalues)] = fakerow
+
+    fakerow = {'species': 'Fk',
+                'wavelength': 9999,
+                'velocity': 0., 
+                'gvalue': 1., 
+                'refpoint': 1.,
+                'filename': 'NO_SUCH_FILE2.dat',
+                'reference': 'Liar (2021)'}
+    gvalues.loc[len(gvalues)] = fakerow
+    
     gvalue_file = os.path.join(basepath, 'data', 'g-values', 'g-values.pkl')
     print(gvalue_file)
     gvalues.to_pickle(gvalue_file)
+
+def make_photorates_table():
+    photodatafiles = glob.glob(os.path.join(basepath, 'data', 'Loss', 
+                                            'Photo', '*.dat'))
+    species, reaction, kappa, reference, best = [], [], [], [], []
+    for photofile in photodatafiles:
+        print(f'  {photofile}')
+        ref = ''
+        for line in open(photofile):
+            if 'reference' in line.lower():
+                ref = line.split('//')[0].strip()
+            elif len(line.split(':')) == 4:
+                parts = line.split(':')
+                species.append(parts[0].strip())
+                reaction.append(parts[1].strip())
+                kappa.append(float(parts[2].strip()))
+                reference.append(ref)
+                best.append(True)
+    photorates = pd.DataFrame({'species': species,
+                               'reaction': reaction,
+                               'kappa': kappa,
+                               'reference': reference,
+                               'best_version': best}) 
+    
+    # Find duplicates
+    counts = photorates['reaction'].value_counts()
+    duplicates = counts[counts > 1].index.values
+    for duplicate in duplicates:
+        subset = photorates[photorates.reaction == duplicate]
+        print(f'Reaction = {duplicate}')
+        for ind, row in subset.iterrows():
+            print(f'{ind}: {row.reference}')
+        which = input('Which is the best source? ')
+        notwhich = [i for i in subset.index if i != which]
+        photorates.loc[notwhich, 'best_version'] = False
+
+    photorates_file = os.path.join(basepath, 'data', 'Loss', 'photorates.pkl')
+    photorates.to_pickle(photorates_file)

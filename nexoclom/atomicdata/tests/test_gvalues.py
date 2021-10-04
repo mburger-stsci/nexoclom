@@ -18,7 +18,6 @@ args_rp = [('Na', 1.5),
 @pytest.mark.atomicdata
 @pytest.mark.parametrize('species, wavelength, aplanet', args_gval)
 def test_gValue(species, wavelength, aplanet):
-    ## Test 1
     g = gValue(species, wavelength, aplanet)
     if g.filename is not None:
         aplan_line = open(g.filename).readline()
@@ -43,28 +42,26 @@ def test_gValue(species, wavelength, aplanet):
             assert g.aplanet == aplanet*u.au, 'aplanet failure'
 
         assert g.g.value == approx(newg), 'g-values failure'
+    else:
+        assert g.velocity.value == approx([0., 1.])
+        assert g.g.value == approx([0., 0.])
+        assert g.reference is None
+
+@pytest.mark.atomicdata
+def test_gvalue_bad_table_input():
+    with pytest.raises(ValueError):
+        gValue('Fk', 9999, 1)
 
 @pytest.mark.atomicdata
 @pytest.mark.parametrize('species, aplanet', args_rp)
 def test_radpresconst(species, aplanet):
     rp_const = RadPresConst(species, aplanet)
-
     rp_const_new = np.zeros_like(rp_const.accel)
-    for wave, in rp_const.wavelength:
+    for wave in rp_const.wavelength:
         g = gValue(species, wave, aplanet)
-        aplan_line = open(g.filename).readline()
-        aplan = float(aplan_line.split('=')[1].strip())
-
-        fromfile = pd.read_csv(g.filename, sep=':', skiprows=1)
-        test_vel = fromfile.iloc[:,0].values * u.km/u.s
-        test_g = fromfile.iloc[:,1].values * aplan**2/aplanet**2 / u.s
-        s = np.argsort(test_vel)
-        test_vel, test_g = test_vel[s], test_g[s]
-
-        newg = interpu(rp_const.velocity, test_vel, test_g)
-        rp_ = const.h/atomicmass(species)/(wave*u.AA) * newg
-        rp = rp_.to(u.km/u.s**2)
-        rp_const_new += rp
+        newg = interpu(rp_const.velocity, g.velocity, g.g)
+        rp_ = const.h/atomicmass(species)/wave * newg
+        rp_const_new += rp_.to(u.km/u.s**2)
 
     assert rp_const.species == species
 
@@ -75,6 +72,14 @@ def test_radpresconst(species, aplanet):
     assert rp_const.accel.value == approx(rp_const_new.value)
     assert rp_const.accel.unit is rp_const_new.unit
 
+@pytest.mark.atomicdata
+def test_radpres_input():
+    with pytest.raises(ValueError):
+        RadPresConst('Fk', 1)
+
+
 if __name__ == '__main__':
     test_gValue('Na', 5891, 1)
-    # test_radpresconst()
+    test_gvalue_bad_table_input()
+    test_radpresconst('Na', 1.*u.au)
+    test_radpres_input()

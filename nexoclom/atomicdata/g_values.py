@@ -84,11 +84,15 @@ class gValue:
             print(f'Warning: g-values not found for species = {sp}')
         elif len(gvalue.filename.unique()) == 1:
             self.velocity = gvalue.velocity.values*u.km/u.s
-            self.g = gvalue.gvalue/u.s * gvalue.refpt**2/self.aplanet.value**2
+            self.g = (gvalue.gvalue * 
+                      gvalue.refpoint**2/self.aplanet.value**2).values/u.s
+            s = np.argsort(self.velocity)
+            self.velocity, self.g = self.velocity[s], self.g[s]
             self.reference = gvalue.reference.unique()[0]
-            self.filename = gvalue.file.unique()[0]
+            self.filename = gvalue.filename.unique()[0]
         else:
-            assert 0, 'Multiple rows found.'
+            print('This should never happen')
+            raise ValueError()
 
 
 class RadPresConst:
@@ -123,40 +127,38 @@ class RadPresConst:
     accel
         Radial acceleration vs. velocity with units km/s**2.
     """
-    def __init__(self, sp, aplanet):
-        self.species = sp
-        try:
-            self.aplanet = aplanet.value * u.au
-        except:
+    def __init__(self, species, aplanet):
+        self.species = species
+        if isinstance(aplanet, type(1*u.au)):
+            self.aplanet = aplanet
+        else:
             self.aplanet = aplanet * u.au
 
-        # Open database connection
-        with database_connect() as con:
-            waves = pd.read_sql(f'''SELECT DISTINCT wavelength
-                                    FROM gvalues
-                                    WHERE species='{sp}' ''', con)
+        gvalue_file = os.path.join(os.path.dirname(basefile), 'data', 
+                                   'g-values', 'g-values.pkl')
+        gvalues = pd.read_pickle(gvalue_file)
 
-        if len(waves) == 0:
-            self.v = np.array([0., 1.])*u.km/u.s
-            self.accel = np.array([0., 0.])*u.km/u.s**2
-            print(f'Warning: g-values not found for species = {sp}')
-        else:
-            self.wavelength = [w*u.AA for w in waves.wavelength]
-
-            gvals = [gValue(sp, w, aplanet) for w in self.wavelength]
+        if species in gvalues.species.values:
+            subset = gvalues.loc[gvalues.species == species]
+            self.wavelength = np.array(sorted(subset.wavelength.unique())) * u.AA
 
             # Complete velocity set
-            allv = []
-            for g in gvals:
-                allv.extend(g.velocity.value)
-            allv = np.unique(allv) * u.km/u.s
+            self.velocity = np.array(sorted(subset.velocity.unique())) * u.km/u.s
 
             # Interpolate gvalues to full velocity set and compute rad pres
-            rpres = np.zeros_like(allv)/u.s
-            for g in gvals:
-                g2 = interpu(allv, g.velocity, g.g)
-                rpres_ = const.h/atomicmass(sp)/g.wavelength * g2
+            rpres = np.zeros_like(self.velocity)/u.s
+            for wave in self.wavelength:
+                q = subset.wavelength == wave
+                g_ = (subset.loc[q, 'gvalue'].values * 
+                      subset.loc[q, 'refpoint'].values**2/self.aplanet.value**2)
+                g_ = np.interp(self.velocity.value, subset.loc[q, 'velocity'].values, 
+                               g_)/u.s
+                             
+                rpres_ = const.h/atomicmass(species)/wave * g_
                 rpres += rpres_.to(u.km/u.s**2)
                 
-            self.velocity = allv
             self.accel = rpres
+        else:
+            self.v = np.array([0., 1.])*u.km/u.s
+            self.accel = np.array([0., 0.])*u.km/u.s**2
+            print(f'Warning: g-values not found for species = {species}')
