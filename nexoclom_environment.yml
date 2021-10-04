@@ -1,4 +1,4 @@
-name: nexoclom
+name: nexoclom_old
 channels:
   - anaconda
   - http://ssb.stsci.edu/astroconda

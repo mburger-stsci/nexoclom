@@ -141,24 +141,18 @@ class RadPresConst:
         if species in gvalues.species.values:
             subset = gvalues.loc[gvalues.species == species]
             self.wavelength = np.array(sorted(subset.wavelength.unique())) * u.AA
-
-            # Complete velocity set
             self.velocity = np.array(sorted(subset.velocity.unique())) * u.km/u.s
 
             # Interpolate gvalues to full velocity set and compute rad pres
             rpres = np.zeros_like(self.velocity)/u.s
             for wave in self.wavelength:
-                q = subset.wavelength == wave
-                g_ = (subset.loc[q, 'gvalue'].values * 
-                      subset.loc[q, 'refpoint'].values**2/self.aplanet.value**2)
-                g_ = np.interp(self.velocity.value, subset.loc[q, 'velocity'].values, 
-                               g_)/u.s
-                             
+                gval = gValue(species, wave, aplanet)
+                g_ = interpu(self.velocity, gval.velocity, gval.g)
                 rpres_ = const.h/atomicmass(species)/wave * g_
                 rpres += rpres_.to(u.km/u.s**2)
                 
             self.accel = rpres
         else:
-            self.v = np.array([0., 1.])*u.km/u.s
+            self.velocity = np.array([0., 1.])*u.km/u.s
             self.accel = np.array([0., 0.])*u.km/u.s**2
             print(f'Warning: g-values not found for species = {species}')
