@@ -4,6 +4,7 @@ import os
 import glob
 from nexoclom import __file__ as basefile
 import pandas as pd
+from nexoclom.atomicdata import gValue, PhotoRate
 
 basepath = os.path.dirname(basefile)
 
@@ -58,7 +59,7 @@ def make_gvalue_table():
                 'reference': 'Liar (2021)'}
     gvalues.loc[len(gvalues)] = fakerow
     
-    gvalue_file = os.path.join(basepath, 'data', 'g-values', 'g-values.pkl')
+    gvalue_file = gValue.gvalue_filename()
     print(gvalue_file)
     gvalues.to_pickle(gvalue_file)
 
@@ -79,6 +80,8 @@ def make_photorates_table():
                 kappa.append(float(parts[2].strip()))
                 reference.append(ref)
                 best.append(True)
+            else:
+                pass
     photorates = pd.DataFrame({'species': species,
                                'reaction': reaction,
                                'kappa': kappa,
@@ -97,5 +100,4 @@ def make_photorates_table():
         notwhich = [i for i in subset.index if i != which]
         photorates.loc[notwhich, 'best_version'] = False
 
-    photorates_file = os.path.join(basepath, 'data', 'Loss', 'photorates.pkl')
-    photorates.to_pickle(photorates_file)
+    photorates.to_pickle(PhotoRate.photorates_filename())

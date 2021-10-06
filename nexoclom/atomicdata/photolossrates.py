@@ -64,10 +64,7 @@ class PhotoRate:
 
     """
     def __init__(self, species, aplanet_=1.*u.AU):
-
-        basepath = os.path.dirname(basefile)
-        photorates_file = os.path.join(basepath, 'data', 'Loss', 'photorates.pkl')
-        photorates = pd.read_pickle(photorates_file)
+        photorates = pd.read_pickle(self.photorates_filename())
         prates = photorates[photorates.species == species]
 
         if isinstance(aplanet_, type(1*u.au)):
@@ -93,3 +90,8 @@ class PhotoRate:
                   f'Distance = {self.aplanet}\n'
                   f'Rate = {self.rate}')
         return output
+
+    def photorates_filename(self):
+        basepath = os.path.dirname(basefile)
+        return os.path.join(basepath, 'data', 'Loss', 'photorates.pkl')
+        

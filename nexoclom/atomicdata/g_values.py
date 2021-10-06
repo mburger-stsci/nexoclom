@@ -69,8 +69,7 @@ class gValue:
         except:
             self.aplanet = aplanet * u.au
 
-        gvalue_file = os.path.join(os.path.dirname(basefile), 'data', 
-                                   'g-values', 'g-values.pkl')
+        gvalue_file = self.gvalue_filename()
         gvalues = pd.read_pickle(gvalue_file)
 
         gvalue = gvalues[(gvalues.species == sp) &
@@ -93,6 +92,11 @@ class gValue:
         else:
             print('This should never happen')
             raise ValueError()
+
+    @classmethod
+    def gvalue_filename(self):
+        return os.path.join(os.path.dirname(basefile), 'data', 'g-values', 
+                            'g-values.pkl')
 
 
 class RadPresConst:
@@ -134,9 +138,7 @@ class RadPresConst:
         else:
             self.aplanet = aplanet * u.au
 
-        gvalue_file = os.path.join(os.path.dirname(basefile), 'data', 
-                                   'g-values', 'g-values.pkl')
-        gvalues = pd.read_pickle(gvalue_file)
+        gvalues = pd.read_pickle(gValue.gvalue_filename())
 
         if species in gvalues.species.values:
             subset = gvalues.loc[gvalues.species == species]
