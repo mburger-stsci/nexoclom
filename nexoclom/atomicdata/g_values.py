@@ -69,8 +69,8 @@ class gValue:
         except:
             self.aplanet = aplanet * u.au
 
-        gvalue_file = self.gvalue_filename()
-        gvalues = pd.read_pickle(gvalue_file)
+        self.gvalue_file = self.gvalue_filename()
+        gvalues = pd.read_pickle(self.gvalue_file)
 
         gvalue = gvalues[(gvalues.species == sp) &
                          (gvalues.wavelength == wavelength)]
@@ -83,7 +83,7 @@ class gValue:
             print(f'Warning: g-values not found for species = {sp}')
         elif len(gvalue.filename.unique()) == 1:
             self.velocity = gvalue.velocity.values*u.km/u.s
-            self.g = (gvalue.gvalue * 
+            self.g = (gvalue.gvalue *
                       gvalue.refpoint**2/self.aplanet.value**2).values/u.s
             s = np.argsort(self.velocity)
             self.velocity, self.g = self.velocity[s], self.g[s]

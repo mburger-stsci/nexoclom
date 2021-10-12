@@ -1,11 +1,7 @@
 import os
-import numpy as np
-import pandas as pd
 import pickle
 import astropy.units as u
-from astropy import constants as const
-from nexoclom.atomicdata import atomicmass, gValue, RadPresConst
-from nexoclom.math import interpu
+from nexoclom.atomicdata import gValue, RadPresConst
 from pytest import approx
 import pytest 
 # pylint: disable=no-member

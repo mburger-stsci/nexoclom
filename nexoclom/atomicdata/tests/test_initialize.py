@@ -1,5 +1,4 @@
 import pytest
-import sys
 import os
 import numpy as np
 import pandas as pd
@@ -12,11 +11,11 @@ from nexoclom.atomicdata.initialize_atomicdata import (make_gvalue_table,
 
 @pytest.mark.atomicdata
 def test_make_gvalue_table(monkeypatch, tmpdir):
-    gvalue_true_file = os.path.join(os.path.dirname(basefile), 'data', 'g-values', 
-                                    'g-values.pkl')
+    gvalue_true_file = os.path.join(os.path.dirname(basefile), 'data', 'g-values',                                   'g-values.pkl')
     gvalue_test_file = tmpdir.join('g-values_test.pkl')
 
-    monkeypatch.setattr(gValue, "gvalue_filename", lambda: gvalue_test_file)
+    # monkeypatch.setattr(gValue, "gvalue_filename", lambda: gvalue_test_file)
+    monkeypatch.setattr(gValue, 'gvalue_file', gvalue_test_file)
     make_gvalue_table()
 
     gvalue_true = pd.read_pickle(gvalue_true_file)
@@ -33,7 +32,7 @@ def test_make_photorates_table(monkeypatch, tmpdir):
 
     monkeypatch.setattr(PhotoRate, 'photorates_filename', lambda: photo_test_file)
     make_photorates_table()
-    
+ 
     photo_true = pd.read_pickle(photo_true_file)
     photo_test = pd.read_pickle(photo_test_file)
     assert np.all(photo_true == photo_test)
