@@ -1,4 +1,4 @@
-import psycopg2
+import psycopg
 from nexoclom.utilities.read_configfile import read_configfile
 
 
@@ -6,7 +6,7 @@ DEFAULT_DATABASE = 'thesolarsystemmb'
 DEFAULT_PORT = 5432
 
 def database_connect(return_con=True):
-    """Wrapper for psycopg2.connect() that determines which database and port to use.
+    """Wrapper for psycopg.connect() that determines which database and port to use.
 
     :return:
     :param database: Default = None to use value from config file
@@ -19,7 +19,7 @@ def database_connect(return_con=True):
     port = config.get('port', DEFAULT_PORT)
 
     if return_con:
-        con = psycopg2.connect(database=database, port=port)
+        con = psycopg.connect(dbname=database, port=port)
         con.autocommit = True
 
         return con

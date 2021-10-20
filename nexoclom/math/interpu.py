@@ -8,34 +8,41 @@ interpolation. An exception is raised if the units are not compatible
 :Author: Matthew Burger
 """
 import numpy as np
+import astropy.units as u
 
 
 def interpu(x, xp, fp, **kwargs):
     """Return one dimensional interpolated astropy quantities.
+    :param x: The x-coordinates at which to evaluate the interpolated values
+    :param xp: The x-coordinates of the data points.
+    :param fp: The y-coordinates of the data points
+    :param kwargs:
+    :return:
     
-    **Parameters**
-    
-    x
-        The x-coordinates at which to evaluate the interpolated values
-
-    xp
-        The x-coordinates of the data points.
-
-    fp
-        The y-coordinates of the data points
-
     **Notes**
-    
     x and xp must have compatible units. See `numpy.interp
     <https://docs.scipy.org/doc/numpy/reference/generated/numpy.interp.html>`_
     for details on interpolation.
     """
-    fp0 = fp.value
-    x0 = x.value
-    if x.unit == xp.unit:
-        xp0 = xp.value
+    quantity = type(1 * u.km)
+    
+    if isinstance(x, quantity):
+        x_ = x.value
     else:
-        xp0 = xp.to(x.unit).value
+        raise TypeError('x must be an astropy quantity')
+    
+    if isinstance(xp, quantity):
+        if x.unit == xp.unit:
+            xp_ = xp.value
+        else:
+            xp_ = xp.to(x.unit).value
+    else:
+        raise TypeError('xp must be an astropy quantity')
 
-    result = np.interp(x0, xp0, fp0, **kwargs)
+    if isinstance(fp, quantity):
+        fp_ = fp.value
+    else:
+        raise TypeError('fp must be an astropy quantity')
+    
+    result = np.interp(x_, xp_, fp_, **kwargs)
     return result * fp.unit

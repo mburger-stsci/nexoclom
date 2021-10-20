@@ -69,8 +69,8 @@ class gValue:
         except:
             self.aplanet = aplanet * u.au
 
-        self.gvalue_file = self.gvalue_filename()
-        gvalues = pd.read_pickle(self.gvalue_file)
+        gvalue_file = self.gvalue_filename()
+        gvalues = pd.read_pickle(gvalue_file)
 
         gvalue = gvalues[(gvalues.species == sp) &
                          (gvalues.wavelength == wavelength)]
