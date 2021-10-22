@@ -3,13 +3,14 @@ import pickle
 import astropy.units as u
 from nexoclom.atomicdata import gValue, RadPresConst
 from pytest import approx
-import pytest 
+import pytest
 # pylint: disable=no-member
 
 
-with open(os.path.join(os.path.dirname(__file__), 
+with open(os.path.join(os.path.dirname(__file__),
                        'g_value_test_data.pkl'), 'rb') as f:
     gvalue_test_data, radpres_test_data = pickle.load(f)
+ 
 args_gval = [('Na', 5891, 1.5, gvalue_test_data[0]),
              ('Ca', 4227*u.AA, 0.3, gvalue_test_data[1]),
              ('X', 3333*u.AA, 1.0*u.au, gvalue_test_data[2])]
@@ -28,7 +29,7 @@ def test_gValue(species, wavelength, aplanet, result):
     assert g.g.value == approx(result['g'].value), 'g-values failure'
 
 @pytest.mark.atomicdata
-def test_gvalue_bad_table_input():
+def test_gvalue_bad_input():
     with pytest.raises(ValueError):
         gValue('Fk', 9999, 1)
 
@@ -42,6 +43,6 @@ def test_radpresconst(species, aplanet, result):
     assert rp_const.accel.value == approx(result['accel'].value), 'accel failure'
 
 @pytest.mark.atomicdata
-def test_radpres_input():
+def test_radpres_bad_input():
     with pytest.raises(ValueError):
         RadPresConst('Fk', 1)

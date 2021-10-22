@@ -7,7 +7,7 @@ import pytest
 
 sp = [random.choice(list(pt.elements)).symbol for _ in range(3)]
 sp.extend(['H2O', 'CO2', 'C2H2OH'])
-res = list([pt.formula(s).mass for s in sp])
+res = [pt.formula(s).mass for s in sp]
 sp.append('X')
 res.append(None)
 

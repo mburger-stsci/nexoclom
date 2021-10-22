@@ -15,7 +15,6 @@ dependencies:
   - scikit-learn
   - anaconda::astropy
   - postgresql
-  - psycopg2
   - dash
   - plotly
   - bokeh
@@ -24,6 +23,7 @@ dependencies:
   - conda-forge::geckodriver
   - pytest
   - pip:
+    - psycopg
     - periodictable
     - spiceypy
     - sphinx

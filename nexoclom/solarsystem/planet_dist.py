@@ -8,6 +8,9 @@ from nexoclom.solarsystem.SSObject import SSObject
 def planet_dist(planet_, taa=None, time=None):
     if isinstance(planet_, str):
         planet = SSObject(planet_)
+        
+        if planet.object is None:
+            return None
     elif isinstance(planet_, SSObject):
         planet = planet_
     else:
@@ -15,22 +18,22 @@ def planet_dist(planet_, taa=None, time=None):
                         'Must give a SSObject or a object name.')
 
     if time is not None:
+        raise NotImplementedError
         # Need to do this
-        assert 0, 'This is not verified'
-        import spiceypy as spice
-        from .load_kernels import load_kernels
-        kernels = load_kernels()
-
-        et = spice.str2et(time.isot)
-        posvel, lt = spice.spkezr(planet.object, et, 'J2000',
-                                  'LT+S', 'Sun')
-
-        position = np.array(posvel[0:3])*u.km
-        r = np.sqrt(np.sum(position**2))
-
-        velocity = np.array(posvel[3:])*u.km/u.s
-        v_r = np.sum(position*velocity)/r
-        r = r.to(u.au)
+        # import spiceypy as spice
+        # from .load_kernels import load_kernels
+        # kernels = load_kernels()
+        #
+        # et = spice.str2et(time.isot)
+        # posvel, lt = spice.spkezr(planet.object, et, 'J2000',
+        #                           'LT+S', 'Sun')
+        #
+        # position = np.array(posvel[0:3])*u.km
+        # r = np.sqrt(np.sum(position**2))
+        #
+        # velocity = np.array(posvel[3:])*u.km/u.s
+        # v_r = np.sum(position*velocity)/r
+        # r = r.to(u.au)
     elif taa is not None:
         a = planet.a
         eps = planet.e
@@ -38,8 +41,10 @@ def planet_dist(planet_, taa=None, time=None):
         # make sure taa is in radians. If not a quantity, assume it is.
         if isinstance(taa, type(1*u.s)):
             taa_ = taa.to(u.rad).value
-        else:
+        elif type(taa) in (int, float):
             taa_ = taa
+        else:
+            raise TypeError('taa must be a number or angle quantity')
 
         if eps > 0:
             # determine r
@@ -66,7 +71,7 @@ def planet_dist(planet_, taa=None, time=None):
                 r = a * (1-eps**2)/(1+eps*np.cos(phi))
                 return r.value
 
-            time = np.linspace(0, 1, 1001)*P.value
+            time = np.linspace(-1, 1, 2001)*P.value
             radvel = derivative(radius, time, dx=1e-3)
             radvel = radvel.astype(np.float64)
             ttt = trueanom(time)

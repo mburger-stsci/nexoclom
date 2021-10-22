@@ -20,46 +20,56 @@ import os
 import pandas as pd
 from astropy import constants as const
 from astropy import units as u
+from nexoclom import __file__ as basefile
 
 
 class SSObject:
     """Creates Solar System object."""
     def __init__(self, obj):
-        curpath = os.path.dirname(__file__)
-        basepath = os.path.sep + os.path.join(*curpath.split(os.path.sep)[:-1])
+        basepath = os.path.dirname(basefile)
         pklfile = os.path.join(basepath, 'data', 'PlanetaryConstants.pkl')
-        constants = pd.read_pickle(pklfile)
-        row = constants.loc[constants.Object.apply(lambda x: x.casefold()) == 
-                            obj.casefold()]
-        row = row.iloc[0]
-
-        self.object = row.Object
-        self.orbits = row.orbits
-        self.radius = row.radius * u.km
-        self.mass = row.mass * u.kg
-        self.a = row.a
-        self.e = row.e
-        self.tilt = row.tilt * u.deg
-        self.rotperiod = row.rot_period * u.h
-        self.orbperiod = row.orb_period * u.d
-        self.GM = -self.mass * const.G
-
-        self.moons = [SSObject(moon) for moon in 
-                 constants.loc[constants.orbits == self.object, 'Object'].to_list()]
-        if len(self.moons) == 0:
-            self.moons = None
+        if not os.path.exists(pklfile):
+            set_up_planetary_constants(pklfile)
         else:
             pass
 
-        if self.orbits == 'Milky Way':
-            self.type = 'Star'
-            self.a *= u.km
-        elif self.orbits == 'Sun':
-            self.type = 'Planet'
-            self.a *= u.au
+        constants = pd.read_pickle(pklfile)
+        
+        row = constants.loc[constants.Object.apply(lambda x: x.casefold()) ==
+                            obj.casefold()]
+        if len(row) == 1:
+            row = row.iloc[0]
+
+            self.object = row.Object
+            self.orbits = row.orbits
+            self.radius = row.radius * u.km
+            self.mass = row.mass * u.kg
+            self.a = row.a
+            self.e = row.e
+            self.tilt = row.tilt * u.deg
+            self.rotperiod = row.rot_period * u.h
+            self.orbperiod = row.orb_period * u.d
+            self.GM = -self.mass * const.G
+
+            self.moons = [SSObject(moon) for moon in
+                     constants.loc[constants.orbits == self.object, 'Object'].to_list()]
+            if len(self.moons) == 0:
+                self.moons = None
+            else:
+                pass
+
+            if self.orbits == 'Milky Way':
+                self.type = 'Star'
+                self.a *= u.km
+            elif self.orbits == 'Sun':
+                self.type = 'Planet'
+                self.a *= u.au
+            else:
+                self.type = 'Moon'
+                self.a *= u.km
         else:
-            self.type = 'Moon'
-            self.a *= u.km
+            print(f'Object {obj} does not exist in table.')
+            self.object = None
 
     def __len__(self):
         # Returns number of objects (e.g. Planet + moons) in the SSObeject
@@ -70,6 +80,9 @@ class SSObject:
 
     def __hash__(self):
         return hash((self.object, ))
+    
+    def __repr__(self):
+        return self.__str__()
 
     def __str__(self):
         out = (f'Object: {self.object}\n'
@@ -83,4 +96,14 @@ class SSObject:
                f'Rotation Period = {self.rotperiod:0.2f}\n'
                f'Orbital Period = {self.orbperiod:0.2f}\n'
                f'GM = {self.GM:0.2e}')
-        return(out)
+        return out
+    
+def set_up_planetary_constants(pklfile):
+    table = pd.read_csv(pklfile.replace('.pkl', '.dat'), skipinitialspace=True,
+                        skip_blank_lines=True, comment='#', sep=':')
+    table.columns = [col.strip() for col in table.columns]
+    table.Object = table.Object.apply(lambda x: x.strip())
+    table.orbits = table.orbits.apply(lambda x: x.strip())
+    table.to_pickle(pklfile)
+
+    
