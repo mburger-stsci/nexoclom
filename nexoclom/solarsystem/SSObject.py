@@ -105,5 +105,3 @@ def set_up_planetary_constants(pklfile):
     table.Object = table.Object.apply(lambda x: x.strip())
     table.orbits = table.orbits.apply(lambda x: x.strip())
     table.to_pickle(pklfile)
-
-    
