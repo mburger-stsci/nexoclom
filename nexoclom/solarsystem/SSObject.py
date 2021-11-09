@@ -99,6 +99,13 @@ class SSObject:
         return out
     
 def set_up_planetary_constants(pklfile):
+    basepath = os.path.dirname(basefile)
+    objfile = os.path.join(basepath, 'data', 'SolarSystemContents.csv')
+    objects = pd.read_csv(objfile)
+    
+    # Columns to add: radius, mass, a, e, tilt, rot_period, orb_period
+    
+    
     table = pd.read_csv(pklfile.replace('.pkl', '.dat'), skipinitialspace=True,
                         skip_blank_lines=True, comment='#', sep=':')
     table.columns = [col.strip() for col in table.columns]

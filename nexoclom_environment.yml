@@ -1,4 +1,4 @@
-name: nexoclom_old
+name: nexoclom_dev
 channels:
   - anaconda
   - http://ssb.stsci.edu/astroconda
@@ -23,7 +23,7 @@ dependencies:
   - conda-forge::geckodriver
   - pytest
   - pip:
-    - psycopg
+    - psycopg2
     - periodictable
     - spiceypy
     - sphinx
