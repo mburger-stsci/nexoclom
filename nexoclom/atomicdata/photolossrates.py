@@ -36,7 +36,7 @@ class PhotoRate:
         
     **Example**
     ::
-        >>> from atomicdataMB import PhotoRate
+        >>> from nexoclom.atomicdata import PhotoRate
         >>> kappa = PhotoRate('Na', 0.33)
         >>> print(kappa)
         Species = Na

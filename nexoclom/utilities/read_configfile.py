@@ -7,7 +7,7 @@ class ConfigfileError(Exception):
         self.message = f'{missing} not defined in {configfile}'
 
 
-def read_configfile():
+def read_configfile(configfile=None):
     """Configure external resources used in the model.
     The following parameters can be saved in the file `$HOME/.nexoclom`.
     * savepath = <path where output files are saved>
@@ -17,7 +17,11 @@ def read_configfile():
     
     If savepath and datapath are not present, an exception is raised
     """
-    configfile = os.path.join(os.environ['HOME'], '.nexoclom')
+    if configfile is None:
+        configfile = os.path.join(os.environ['HOME'], '.nexoclom')
+    else:
+        pass
+    
     config = {}
     if os.path.isfile(configfile):
         # Read the config file into a dict

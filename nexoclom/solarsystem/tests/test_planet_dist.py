@@ -28,6 +28,18 @@ def test_planet_dist(planet, taa, result):
     assert (r.unit, v_r.unit) == (u.au, u.km/u.s)
 
 @pytest.mark.solarsystem
+def test_not_real_object():
+    assert planet_dist('Fake') is None
+    
+@pytest.mark.solarsystem
+def test_planet_dist_bad_input():
+    with pytest.raises(TypeError):
+        planet_dist(4)
+
+    with pytest.raises(TypeError):
+        planet_dist('Jupiter', 'bad')
+
+@pytest.mark.solarsystem
 @pytest.mark.xfail
 def test_planet_dist_with_time():
     # Not setup to work with times yet
@@ -40,6 +52,3 @@ def test_planet_dist_with_time():
 def test_planet_dist_no_inputs():
     assert planet_dist('Mercury') is None
     
-@pytest.mark.solarsystem
-def test_bad_input():
-    pass

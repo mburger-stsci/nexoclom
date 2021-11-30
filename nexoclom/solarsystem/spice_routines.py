@@ -22,7 +22,7 @@ def load_kernels():
                   node.get('href').endswith('.tls')]
     lsk_path = os.path.join(__datapath__, 'spice_kernels', 'lsk')
     lsk_filename = os.path.join(lsk_path, os.path.basename(lsk_url[-1]))
-    if not os.path.exists(lsk_filename)
+    if not os.path.exists(lsk_filename):
         print(f'Retreiving leapsecond kernel {os.path.basename(lsk_filename)}')
         file = requests.get(lsk_url[-1]).text
         with open(lsk_filename, 'w') as f:

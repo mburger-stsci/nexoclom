@@ -1,4 +1,4 @@
-import psycopg
+import psycopg2
 from nexoclom.utilities.read_configfile import read_configfile
 
 
@@ -19,7 +19,7 @@ def database_connect(return_con=True):
     port = config.get('port', DEFAULT_PORT)
 
     if return_con:
-        con = psycopg.connect(dbname=database, port=port)
+        con = psycopg2.connect(dbname=database, port=port)
         con.autocommit = True
 
         return con

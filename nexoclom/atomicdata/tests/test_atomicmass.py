@@ -1,3 +1,12 @@
+""" Tests atomicdata.atomicmass
+Tests
+    Three random elements
+    H2O, CO2, C2G2OH
+    X (non existing element)
+    
+Compares with masses in periodictable (i.e., if periodictable changes, tests
+will still succeed.
+"""
 import astropy.units as u
 import periodictable as pt
 import random

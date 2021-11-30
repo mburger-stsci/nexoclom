@@ -19,13 +19,13 @@ def test_PhotoRate(species, aplanet, result, capsys):
         assert rate.aplanet.value == aplanet
     assert rate.rate.value == approx(result)
     assert rate.rate.unit == 1./u.s
-    captured = capsys.readouterr()
+    _ = capsys.readouterr()
 
     print(rate)
     captured = capsys.readouterr()
     assert captured[0] == (f'Species = {rate.species}\n'
-                         f'Distance = {rate.aplanet}\n'
-                         f'Rate = {rate.rate}\n')
+                           f'Distance = {rate.aplanet}\n'
+                           f'Rate = {rate.rate}\n')
     assert captured[1] == ''
 
     

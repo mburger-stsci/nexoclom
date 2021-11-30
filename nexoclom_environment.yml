@@ -14,6 +14,7 @@ dependencies:
   - matplotlib
   - scikit-learn
   - anaconda::astropy
+  - astroquery
   - postgresql
   - dash
   - plotly

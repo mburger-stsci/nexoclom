@@ -29,7 +29,7 @@ def atomicmass(species):
     **Examples**
     ::
     
-        >>> from atomicdataMB import atomicmass
+        >>> from nexoclom.atomicdata import atomicmass
         >>> print(atomicmass('Na'))
         22.98977 u
         >>> print(atomicmass('H2O'))

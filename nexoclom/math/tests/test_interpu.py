@@ -5,7 +5,9 @@ import pytest
 
 
 def fn(x):
-    return x**3 - 3*x**2 + 5
+    return (x**np.random.random()*3 +
+            (10*np.random.random()-5)*x**np.random.random()*3 +
+            (10*np.random.random()-5))
 
 @pytest.mark.math
 def test_interpu():
@@ -23,13 +25,13 @@ def test_interpu():
     assert test.value == pytest.approx(result)
 
     with pytest.raises(TypeError):
-        test = interpu(points, xp*u.km, fp*u.km**3)
+        interpu(points, xp*u.km, fp*u.km**3)
 
     with pytest.raises(TypeError):
-        _ = interpu(points*u.km, xp, fp*u.km**3)
+        interpu(points*u.km, xp, fp*u.km**3)
 
     with pytest.raises(TypeError):
-        _ = interpu(points*u.km, xp*u.km, fp)
+        interpu(points*u.km, xp*u.km, fp)
 
     with pytest.raises(u.UnitConversionError):
-        _ = interpu(points*u.s, xp*u.km, fp*u.km**3)
+        interpu(points*u.s, xp*u.km, fp*u.km**3)
