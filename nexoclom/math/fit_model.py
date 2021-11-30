@@ -9,7 +9,8 @@ class InputError(Exception):
     def __init__(self, expression, message):
         self.expression = expression
         self.message = message
-
+        
+        
 def fit_model(data, model, sigma, fit_method='chisq', masking=None,
               mask_only=False, **kwargs):
     def chisq(x):

@@ -84,7 +84,7 @@ def configure_atomicdata():
     if not os.path.exists(photorates_file):
         from nexoclom.atomicdata.initialize_atomicdata import make_photorates_table
         make_photorates_table()
-
+        
 def configure():
     configure_nexoclom()
     configure_solarsystem()

@@ -2,6 +2,7 @@
 import numpy as np
 from scipy.misc import derivative
 import astropy.units as u
+# from astroquery.jplhorizons import Horizons
 from nexoclom.solarsystem.SSObject import SSObject
 
 
@@ -19,11 +20,6 @@ def planet_dist(planet_, taa=None, time=None):
 
     if time is not None:
         raise NotImplementedError
-        # Need to do this
-        # import spiceypy as spice
-        # from .load_kernels import load_kernels
-        # kernels = load_kernels()
-        #
         # et = spice.str2et(time.isot)
         # posvel, lt = spice.spkezr(planet.object, et, 'J2000',
         #                           'LT+S', 'Sun')

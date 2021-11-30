@@ -28,3 +28,7 @@ def test_SSObject():
     assert p4.object == 'Sun'
     assert p4.type == 'Star'
     assert p4.orbits == 'Milky Way'
+
+    p5 = SSObject('Sun')
+    assert p4 == p5
+    assert p1 != p5

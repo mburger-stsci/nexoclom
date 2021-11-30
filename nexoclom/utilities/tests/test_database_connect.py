@@ -7,6 +7,7 @@ import pytest
 def test_readconfigfile():
     assert read_configfile()
 
+
 @pytest.mark.utilities
 def test_database_connect():
     # Test database connection
