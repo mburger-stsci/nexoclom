@@ -1,0 +1,52 @@
+Installation of Neutral Cloud Model (nexoclom) and associated packages.
+
+Packages created by Matthew Burger that need to be installed:
+(1) nexoclom
+(2) MESSENGERuvvs
+
+------------------
+
+Installation process:
+
+(1) Install Anaconda Python 3.7:
+    (a) Download the installer from:
+        https://www.anaconda.com/distribution/
+    (b) Click Download
+    (c) double-click the installer to install. This installs anaconda python in
+        $HOME/anaconda3 and does not need sysadmin privileges.
+    (d) Verify it works: Open a new terminal window and type:
+        > python
+        You should see something like:
+
+Python 3.7.1 | packaged by conda-forge | (default, Nov 13 2018, 10:30:07)
+[Clang 4.0.1 (tags/RELEASE_401/final)] :: Anaconda custom (64-bit) on darwin
+Type "help", "copyright", "credits" or "license" for more information.
+
+NOTE: Anaconda python requires you to use the bash shell.
+
+(2) Create a new python environment with the model.
+    (a) Obtain the file nexoclom_requirements.yml
+    (b) Create the envirnoment:
+        > conda env create -f nexoclom_environment.yml
+    (c) To use this environment run:
+        > conda activate nexoclom
+    (d) To turn it off run:
+        (nexoclom) > conda deactivate
+
+(3) Initialize the postgres server if necessary:
+    (a) In your .bashrc or .bash_profile file (the file that runs when you
+    start a terminal window) add the line:
+        export PGDATA=$HOME/.postgres/main
+    (b) > initdb -D $HOME/.postgres/main/
+    (c) > pg_ctl -D $HOME/.postgres/main/ -l logfile start
+    (d) > createdb <username>
+        * Find <username> with > echo $USER
+
+(4) Download the MESSENGER UVVS data
+    (a) Download the MESSENGERdata package. Get the link from Matt.
+    (b) Put the file somewhere and untar it:
+        > tar -xvzf ModelData.tar.gz
+
+(5) To install updates, run:
+    conda activate nexoclom
+    conda env update  --file nexoclom_environment.yml

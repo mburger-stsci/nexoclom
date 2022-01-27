@@ -3,7 +3,7 @@ from nexoclom.modelcode.Output import Output
 from nexoclom.modelcode.LOSResult import LOSResult
 from nexoclom.modelcode.ModelImage import ModelImage
 from nexoclom.utilities.configure import configure
-from nexoclom.utilities.read_configfile import read_configfile
+from nexoclom.utilities.read_configfile import NexoclomConfig
 from nexoclom.solarsystem import SSObject
 
 
@@ -13,9 +13,5 @@ __email__ = 'mburger@stsci.edu'
 __version__ = '3.0.8'
 __date__ = '2021-10-04'
 
-configure()
-config = read_configfile()
-__savepath__ = config['savepath']
-__database__ = config['database']
-__datapath__ = config['datapath']
+__config__ = configure()
 

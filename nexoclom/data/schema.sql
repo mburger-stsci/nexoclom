@@ -1,3 +1,11 @@
+CREATE TYPE SSObject AS ENUM (
+    'Milky Way', 'Sun', 'Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter',
+    'Saturn', 'Uranus', 'Neptune', 'Ceres', 'Pluto', 'Moon', 'Phobos',
+    'Deimos', 'Io', 'Europa', 'Ganymede', 'Callisto', 'Mimas', 'Enceladus',
+    'Tethys', 'Dione', 'Rhea', 'Titan', 'Hyperion', 'Iapetus', 'Phoebe',
+    'Charon', 'Nix', 'Hydra'
+);
+
 CREATE TABLE geometry_with_time (
     idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     Planet SSObject NOT NULL,

@@ -24,7 +24,7 @@ dependencies:
   - conda-forge::geckodriver
   - pytest
   - pip:
-    - psycopg2
+    - psycopg[c]
     - periodictable
     - spiceypy
     - sphinx

@@ -1,51 +1,55 @@
 import os
+from nexoclom.utilities.exceptions import ConfigfileError
 
 
-class ConfigfileError(Exception):
-    def __init__(self, configfile, missing):
-        self.expression = configfile
-        self.message = f'{missing} not defined in {configfile}'
+DEFAULT_DATABASE = 'thesolarsystemmb'
+DEFAULT_PORT = 5432
 
-
-def read_configfile(configfile=None):
+class NexoclomConfig:
     """Configure external resources used in the model.
     The following parameters can be saved in the file `$HOME/.nexoclom`.
     * savepath = <path where output files are saved>
-    * datapath = <path where MESSENGER data is kept>
     * database = <name of the postgresql database to use> (*optional*)
     * port = <port for postgreSQL server to use> (*optional*)
     
-    If savepath and datapath are not present, an exception is raised
+    If savepath is not present, an exception is raised
     """
-    if configfile is None:
-        configfile = os.path.join(os.environ['HOME'], '.nexoclom')
-    else:
-        pass
-    
-    config = {}
-    if os.path.isfile(configfile):
-        # Read the config file into a dict
-        for line in open(configfile, 'r').readlines():
-            if '=' in line:
-                key, value = line.split('=')
-                config[key.strip()] = value.strip()
-            else:
-                pass
-    else:
-        pass
+    def __init__(self, configfile=None):
+        if configfile is None:
+            # print('config', os.environ.get('NEXOCLOMCONFIG', 'Not Set'))
+            configfile = os.environ.get('NEXOCLOMCONFIG', os.path.join(
+                os.environ['HOME'], '.nexoclom'))
+        else:
+            pass
+        print(f'Using configuration file {configfile}')
+        
+        config = {}
+        if os.path.isfile(configfile):
+            # Read the config file into a dict
+            for line in open(configfile, 'r'):
+                if '=' in line:
+                    key, value = line.split('=')
+                    config[key.strip()] = value.strip()
+                else:
+                    pass
+        else:
+            pass
 
-    savepath = config.get('savepath', None)
-    if savepath is None:
-        raise ConfigfileError(configfile, savepath)
-    elif not os.path.exists(savepath):
-        os.makedirs(savepath)
-    else:
-        pass
+        self.savepath = config.get('savepath', None)
+        if self.savepath is None:
+            raise ConfigfileError(configfile, self.savepath)
+        elif not os.path.exists(self.savepath):
+            os.makedirs(self.savepath)
+        else:
+            pass
 
-    datapath = config.get('datapath', None)
-    if datapath is None:
-        raise ConfigfileError(configfile, datapath)
-    else:
-        pass
+        if 'port' not in config:
+            self.port = DEFAULT_PORT
+        else:
+            self.port = int(config['port'])
+            
+        if 'database' not in config:
+            self.database = DEFAULT_DATABASE
+        else:
+            self.database = config['database']
 
-    return config

@@ -1,26 +1,37 @@
 """Create and read configuration file, create necessary database tables."""
 import os
 import pandas as pd
-import psycopg2
-import glob
-from nexoclom.utilities.database_connect import database_connect
+import psycopg
+import subprocess
+from nexoclom.utilities import database_connect
+from nexoclom.utilities.read_configfile import NexoclomConfig
 from nexoclom import __file__ as basefile
 
 
 basepath = os.path.dirname(basefile)
 
-def configure_nexoclom():
+
+def configure_nexoclom(configfile=None):
     # Create the database if necessary
-    database, port = database_connect(return_con=False)
-    with psycopg2.connect(database=database, port=port) as con:
+    config = NexoclomConfig(configfile)
+    
+    # verify database is running
+    proc = subprocess.run('pg_ctl status', capture_output=True, shell=True)
+    if 'no server running' in str(proc.stdout):
+        subprocess.run(f'pg_ctl -o "-p {config.port}" start -l $PGDATA/logfile',
+                       shell=True)
+    else:
+        pass
+
+    with psycopg.connect(port=config.port) as con:
         con.autocommit = True
         cur = con.cursor()
         cur.execute('select datname from pg_database')
         dbs = [r[0] for r in cur.fetchall()]
 
-        if database not in dbs:
-            print(f'Creating database {database}')
-            cur.execute(f'create database {database}')
+        if config.database not in dbs:
+            print(f'Creating database {config.database}')
+            cur.execute(f'create database {config.database}')
         else:
             pass
 
@@ -28,29 +39,35 @@ def configure_nexoclom():
     with database_connect() as con:
         cur = con.cursor()
         cur.execute('select table_name from information_schema.tables')
-    tables = [r[0] for r in cur.fetchall()]
-    
-    with open(os.path.join(basepath, 'data', 'schema.sql'), 'r') as sqlfile:
-        done = False
-        while not done:
-            line = sqlfile.readline()
-            nextline = ''
-            if 'TABLE' in line:
-                # table_to_test = line[len('CREATE TABLE '):-3]
-                table_to_test = line.split()[2]
-                if table_to_test in tables:
-                    # Need to verify schema
-                    pass
-                else:
-                    # Create the table if it isn't there
-                    query = line
-                    nextline = sqlfile.readline()
-                    while (nextline.strip()) and ('DONE' not in nextline):
-                        query += nextline
+        tables = [r[0] for r in cur.fetchall()]
+        cur.execute('''SELECT distinct pg_type.typname AS enum_type
+                       FROM pg_type JOIN pg_enum
+                       ON pg_enum.enumtypid = pg_type.oid;''')
+        tables.extend([r[0] for r in cur.fetchall()])
+        
+        with open(os.path.join(basepath, 'data', 'schema.sql'), 'r') as sqlfile:
+            done = False
+            while not done:
+                line = sqlfile.readline()
+                nextline = ''
+                if 'CREATE' in line:
+                    # table_to_test = line[len('CREATE TABLE '):-3]
+                    table_to_test = line.split()[2].lower()
+
+                    if table_to_test in tables:
+                        # Need to verify schema
+                        pass
+                    else:
+                        # Create the table if it isn't there
+                        query = line
                         nextline = sqlfile.readline()
-                    print(query)
-                    cur.execute(query)
-            done = ('DONE' in nextline) or ('DONE' in line)
+                        while (nextline.strip()) and ('DONE' not in nextline):
+                            query += nextline
+                            nextline = sqlfile.readline()
+                        print(query)
+                        cur.execute(query)
+                done = ('DONE' in nextline) or ('DONE' in line)
+    return config
 
 def configure_solarsystem():
     # Make a pickle file with the planetary constants
@@ -85,7 +102,9 @@ def configure_atomicdata():
         from nexoclom.atomicdata.initialize_atomicdata import make_photorates_table
         make_photorates_table()
         
-def configure():
-    configure_nexoclom()
+def configure(configfile=None):
+    config = configure_nexoclom(configfile)
     configure_solarsystem()
     configure_atomicdata()
+    
+    return config

@@ -4,7 +4,7 @@ import astropy.units as u
 import astropy.constants as const
 from nexoclom.atomicdata import atomicmass
 from nexoclom.modelcode.surface_temperature import surface_temperature
-from nexoclom.modelcode.source_distribution import MaxwellianDist
+from nexoclom.math.distributions import MaxwellianDist
 
 
 class SurfaceInteraction:

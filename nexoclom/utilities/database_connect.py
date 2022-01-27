@@ -1,11 +1,26 @@
-import psycopg2
-from nexoclom.utilities.read_configfile import read_configfile
+import os
+import psycopg
+import subprocess
+from nexoclom.utilities.read_configfile import NexoclomConfig
 
 
-DEFAULT_DATABASE = 'thesolarsystemmb'
-DEFAULT_PORT = 5432
+def verify_database_running(config=None, configfile=None):
+    if config is None:
+        config = NexoclomConfig(configfile=configfile)
+    else:
+        pass
+    
+    # verify database is running
+    proc = subprocess.run('pg_ctl status', capture_output=True, shell=True)
+    if 'no server running' in str(proc.stdout):
+        subprocess.run(f'pg_ctl -o "-p {config.port}" start -l $PGDATA/logfile',
+                       shell=True)
+        return 'Started Database'
+    else:
+        return 'Database Already Running'
 
-def database_connect(return_con=True):
+
+def database_connect(configfile=None):
     """Wrapper for psycopg.connect() that determines which database and port to use.
 
     :return:
@@ -14,14 +29,10 @@ def database_connect(return_con=True):
     :param return_con: False to return database name and port instead of connection
     :return: Database connection with autocommit = True unless return_con = False
     """
-    config = read_configfile()
-    database = config.get('database', DEFAULT_DATABASE)
-    port = config.get('port', DEFAULT_PORT)
+    config = NexoclomConfig(configfile=configfile)
+    verify_database_running(config)
+    
+    con = psycopg.connect(dbname=config.database, port=config.port)
+    con.autocommit = True
 
-    if return_con:
-        con = psycopg2.connect(dbname=database, port=port)
-        con.autocommit = True
-
-        return con
-    else:
-        return database, port
+    return con
