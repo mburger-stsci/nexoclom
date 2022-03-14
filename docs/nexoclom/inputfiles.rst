@@ -121,11 +121,11 @@ where the coefficients are species dependent. For Na,
 surfaceinteraction.sticktype [Required]
     Set `surfaceinteraction.sticktype = temperature dependent`.
 
-surfaceinteractions.accomfactor [Required]
+surfaceinteraction.accomfactor [Required]
     Surface accommodation factor. 1 = Fully accommodated to local surface
     temperature. 0 = Elastic reemission.
 
-surfaceinteractions.A [Optional]
+surfaceinteraction.A [Optional]
     Comma separated values for the coeffeicients.
     Default = 1.57014, 0.006262, 0.1614157. (Ideally the defaults will be
     species dependent, but I only have values for Na.)
@@ -136,15 +136,23 @@ Sticking Coefficient from a Surface Map
 ---------------------------------------
 
 surfaceinteraction.type [Required]
-    Set `surfaceinteraction.sticktype = from map`.
+    Set `surfaceinteraction.sticktype = surface map`.
 
 surfaceinteraction.sticking_mapfile [Required]
     Path to the file containing a map of the sticking coeficient. The format
     for the map has not been determined.
 
-surfaceinteractions.accomfactor [Required]
+surfaceinteraction.subsolarlon [required for planet-fixed surfacemaps]
+    Sub-solar longitude for the observation in radians. This is required for
+    a planet-fixed coordinate system. However, if simulating a MESSENGER
+    orbit, this value will be overwritten by the value at the time the data
+    were taken. If it is required, but not given or specified programmatically,
+    an Exception will be raised.
+
+surfaceinteraction.accomfactor [Required]
     Surface accommodation factor. 1 = Fully accommodated to local surface
     temperature. 0 = Elastic reemission.
+
 
 Forces
 ======

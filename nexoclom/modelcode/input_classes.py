@@ -1,4 +1,5 @@
 """Classes used by the Inputs class"""
+import os
 import numpy as np
 import pickle
 from astropy.time import Time
@@ -19,12 +20,12 @@ class Geometry:
         See :doc:`inputfiles#Geometry` for more information.
         """
         # Planet
-        if 'planet' in gparam:
-            planet = gparam['planet'].title()
-            self.planet = SSObject(planet)
-        else:
+        planet = gparam.get('planet', None)
+        if planet is None:
             raise InputError('Geometry.__init__',
                              'Planet not defined in inputfile.')
+        else:
+            self.planet = SSObject(planet.title())
 
         # All possible objects
         objlist = [self.planet.object]
@@ -34,9 +35,7 @@ class Geometry:
             pass
 
         # Choose the starting point
-        self.startpoint = (gparam['startpoint'].title()
-                           if 'startpoint' in gparam
-                           else self.planet.object)
+        self.startpoint = gparam.get('startpoint', self.planet.object).title()
         if self.startpoint not in objlist:
             print(f'{self.startpoint} is not a valid starting point.')
             olist = '\n\t'.join(objlist)
@@ -58,9 +57,14 @@ class Geometry:
             if i not in objlist:
                 raise InputError('Geometry.__init__',
                                  f'Invalid object {i} in geometry.include')
+            
+        # Only remember objects that will be included
         self.objects = set(SSObject(o) for o in inc)
         if len(self.objects) == 0:
+            # Probably not possible to get here
             self.objects = None
+        else:
+            pass
 
         # Different objects are created for geometry_with_starttime and
         # geometry_without_starttime
@@ -101,9 +105,19 @@ class Geometry:
                 self.subsolarpoint = (0*u.rad, 0*u.rad)
 
             # True Anomaly Angle
-            self.taa = (float(gparam['taa'])*u.rad
-                        if 'taa' in gparam
-                        else 0.*u.rad)
+            self.taa = float(gparam.get('taa', 0.))*u.rad
+            
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        else:
+            pass
+        
+        keys_self, keys_other = set(self.__dict__.keys()), set(other.__dict__.keys())
+        if keys_self != keys_other:
+            return False
+        else:
+            return all([self.__dict__[key] == other.__dict__[key] for key in keys_self])
 
     def __str__(self):
         result = ''
@@ -262,7 +276,25 @@ class SurfaceInteraction:
         elif sticktype == 'surface map':
             self.sticktype = sticktype
             self.stick_mapfile = sparam.get('stick_mapfile', 'default')
-            
+
+            if os.path.exists(self.stick_mapfile):
+                if self.stick_mapfile.endswith('.pkl'):
+                    with open(self.stick_mapfile, 'rb') as f:
+                        sourcemap = pickle.load(f)
+                    self.coordinate_system = sourcemap.get('coordinate_system',
+                                                           'solar-fixed')
+                else:
+                    self.coordinate_system = 'solar-fixed'
+                    # assert 0, 'Not set up yet'
+            else:
+                print('Warning: mapfile does not exist')
+                self.coordinate_system = 'solar-fixed'
+
+            if (self.coordinate_system == 'planet-fixed'):
+                self.subsolarlon = sparam.get('subsolarlon', 0.) * u.rad
+            else:
+                self.subsolarlon = None
+
             if 'accomfactor' in sparam:
                 self.accomfactor = float(sparam['accomfactor'])
             else:
@@ -278,6 +310,7 @@ class SurfaceInteraction:
                 self.stickcoef = 1
             else:
                 pass
+            
             if 'accomfactor' in sparam:
                 self.accomfactor = float(sparam['accomfactor'])
             else:
@@ -290,7 +323,19 @@ class SurfaceInteraction:
             self.sticktype = 'constant'
             self.stickcoef = 1.
             self.accomfactor = None
-        
+
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        else:
+            pass
+    
+        keys_self, keys_other = set(self.__dict__.keys()), set(other.__dict__.keys())
+        if keys_self != keys_other:
+            return False
+        else:
+            return all([self.__dict__[key] == other.__dict__[key] for key in keys_self])
+
     def __str__(self):
         result = ''
         for key,value in self.__dict__.items():
@@ -387,6 +432,18 @@ class Forces:
                         if 'radpres' in fparam
                         else True)
 
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        else:
+            pass
+    
+        keys_self, keys_other = set(self.__dict__.keys()), set(other.__dict__.keys())
+        if keys_self != keys_other:
+            return False
+        else:
+            return all([self.__dict__[key] == other.__dict__[key] for key in keys_self])
+
     def __str__(self):
         result = ''
         for key,value in self.__dict__.items():
@@ -473,9 +530,7 @@ class SpatialDist:
             
             self.mapfile = sparam.get('mapfile', 'default')
             
-            if self.mapfile == 'default':
-                self.coordinate_system = 'planet-fixed'
-            else:
+            if os.path.exists(self.mapfile):
                 if self.mapfile.endswith('.pkl'):
                     with open(self.mapfile, 'rb') as f:
                         sourcemap = pickle.load(f)
@@ -486,13 +541,14 @@ class SpatialDist:
                 else:
                     self.coordinate_system = 'solar-fixed'
                     # assert 0, 'Not set up yet'
-                
-            if ((self.coordinate_system == 'planet-fixed') and
-                ('subsolarlon' in sparam)):
-                self.subsolarlon = float(sparam['subsolarlon'])*u.rad
+            else:
+                print('Warning: mapfile does not exist')
+                self.coordinate_system = 'planet-fixed'
+
+            if (self.coordinate_system == 'planet-fixed'):
+                self.subsolarlon = sparam.get('subsolarlon', 0.)*u.rad
             else:
                 self.subsolarlon = None
-
         elif self.type == 'surface spot':
             self.exobase = (float(sparam['exobase'])
                             if 'exobase' in sparam
@@ -520,6 +576,18 @@ class SpatialDist:
         else:
             raise InputError('SpatialDist.__init__',
                              f'SpatialDist.type = {self.type} not defined.')
+
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        else:
+            pass
+    
+        keys_self, keys_other = set(self.__dict__.keys()), set(other.__dict__.keys())
+        if keys_self != keys_other:
+            return False
+        else:
+            return all([self.__dict__[key] == other.__dict__[key] for key in keys_self])
 
     def __str__(self):
         result = ''
@@ -697,6 +765,18 @@ class SpeedDist:
         else:
             assert 0, f'SpeedDist.type = {self.type} not available'
 
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        else:
+            pass
+    
+        keys_self, keys_other = set(self.__dict__.keys()), set(other.__dict__.keys())
+        if keys_self != keys_other:
+            return False
+        else:
+            return all([self.__dict__[key] == other.__dict__[key] for key in keys_self])
+
     def __str__(self):
         result = ''
         for key,value in self.__dict__.items():
@@ -850,6 +930,18 @@ class AngularDist:
             self.azimuth = (0*u.rad, 2*np.pi*u.rad)
             self.altitude = (0*u.rad, np.pi/2*u.rad)
 
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        else:
+            pass
+    
+        keys_self, keys_other = set(self.__dict__.keys()), set(other.__dict__.keys())
+        if keys_self != keys_other:
+            return False
+        else:
+            return all([self.__dict__[key] == other.__dict__[key] for key in keys_self])
+
     def __str__(self):
         result = ''
         for key,value in self.__dict__.items():
@@ -955,6 +1047,18 @@ class Options:
                            else False)
         else:
             self.fitted = False
+
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        else:
+            pass
+    
+        keys_self, keys_other = set(self.__dict__.keys()), set(other.__dict__.keys())
+        if keys_self != keys_other:
+            return False
+        else:
+            return all([self.__dict__[key] == other.__dict__[key] for key in keys_self])
 
     def __str__(self):
         result = ''

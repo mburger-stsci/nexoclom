@@ -33,7 +33,8 @@ def test_random_deviates():
     # Test against maxwellian
     v1 = np.linspace(0, 10, 1000)*u.km/u.s
     f1 = MaxwellianDist(v1, 1500.*u.K, 'Na')
-    hist = Histogram(dev, bins=v1.value)
+    dev = random_deviates_1d(v1, f1, int(1e8))
+    hist = Histogram(dev.value, bins=v1.value)
     hist.histogram /= hist.histogram.mean()
     f1_ = MaxwellianDist(hist.x*u.km/u.s, 1500.*u.K, 'Na')
     f1_ /= f1_.mean()
@@ -41,8 +42,5 @@ def test_random_deviates():
     assert np.mean((hist.histogram-f1_)**2) == pytest.approx(0, abs=1e-3)
     assert np.std((hist.histogram-f1_)**2) == pytest.approx(0, abs=1e-3)
 
-    from IPython import embed; embed()
-    import sys; sys.exit()
-    
 if __name__ == '__main__':
     test_random_deviates()

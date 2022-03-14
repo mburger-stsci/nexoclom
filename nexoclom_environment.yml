@@ -30,4 +30,7 @@ dependencies:
     - sphinx
     - stsci_rtd_theme
     - statsmodels
+variables:
+  PGDATA: $HOME/.postgres/main
+  NEXOCLOMCONFIG : /Users/mburger/.nexoclom
 

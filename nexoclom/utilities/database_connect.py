@@ -13,7 +13,7 @@ def verify_database_running(config=None, configfile=None):
     # verify database is running
     proc = subprocess.run('pg_ctl status', capture_output=True, shell=True)
     if 'no server running' in str(proc.stdout):
-        subprocess.run(f'pg_ctl -o "-p {config.port}" start -l $PGDATA/logfile',
+        subprocess.run(f'pg_ctl -o "-p {config.port}" start -l {os.environ["PGDATA"]}/logfile',
                        shell=True)
         return 'Started Database'
     else:

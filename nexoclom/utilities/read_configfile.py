@@ -22,6 +22,7 @@ class NexoclomConfig:
         else:
             pass
         print(f'Using configuration file {configfile}')
+        self.configfile = configfile
         
         config = {}
         if os.path.isfile(configfile):
@@ -42,14 +43,22 @@ class NexoclomConfig:
             os.makedirs(self.savepath)
         else:
             pass
-
+        
+        self.database = config.get('database', DEFAULT_DATABASE)
+        
         if 'port' not in config:
             self.port = DEFAULT_PORT
         else:
             self.port = int(config['port'])
             
-        if 'database' not in config:
-            self.database = DEFAULT_DATABASE
-        else:
-            self.database = config['database']
-
+        for key, value in config.items():
+            if key not in self.__dict__:
+                self.__dict__[key] = value
+            else:
+                pass
+            
+    def __repr__(self):
+        return self.__dict__.__repr__()
+    
+    def __str__(self):
+        return self.__dict__.__str__()
