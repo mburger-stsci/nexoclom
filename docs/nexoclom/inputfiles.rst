@@ -138,7 +138,7 @@ Sticking Coefficient from a Surface Map
 surfaceinteraction.type [Required]
     Set `surfaceinteraction.sticktype = surface map`.
 
-surfaceinteraction.sticking_mapfile [Required]
+surfaceinteraction.stick_mapfile [Required]
     Path to the file containing a map of the sticking coeficient. The format
     for the map has not been determined.
 

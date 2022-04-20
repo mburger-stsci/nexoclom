@@ -45,18 +45,18 @@ def surface_distribution(outputs):
     
     if spatialdist.type == 'uniform':
         # Choose the latitude: f(lat) = cos(lat)
-        lat0 = spatialdist.latitude
-        if lat0[0] == lat0[1]:
-            lat = np.zeros(npack)+lat0[0]
-        else:
-            ll = (np.sin(lat0[0]), np.sin(lat0[1]))
-            sinlat = ll[0] + (ll[1]-ll[0]) * outputs.randgen.random(npack)
-            lat = np.arcsin(sinlat)
+        # lat0 = spatialdist.latitude
+        # ll = (np.sin(lat0[0]), np.sin(lat0[1]))
+        ll = tuple(map(np.sin, spatialdist.latitude))
+        sinlat = ll[0] + (ll[1]-ll[0]) * outputs.randgen.random(npack)
+        lat = np.arcsin(sinlat)
     
         # Choose the longitude: f(lon) = 1/(lonmax-lonmin)
         lon0 = spatialdist.longitude
         if lon0[0] > lon0[1]:
             lon0 = [lon0[0], lon0[1]+2*np.pi*u.rad]
+        else:
+            pass
         lon = ((lon0[0] + (lon0[1]-lon0[0]) * outputs.randgen.random(npack)) %
                (2*np.pi*u.rad))
     elif spatialdist.type == 'surface map':

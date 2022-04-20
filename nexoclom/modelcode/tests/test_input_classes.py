@@ -2,7 +2,7 @@
 Note that this is more of a regression test than a unit test.
 Compares with previously computed results."""
 import os
-import pickle
+import numpy as np
 import pytest
 import astropy.units as u
 from astropy.time import Time
@@ -15,34 +15,11 @@ if __name__ == '__main__':
 else:
     inputpath = os.path.join(basepath, 'modelcode', 'tests', 'test_data', 'inputfiles')
 
-@pytest.mark.modelcode
-@pytest.mark.skip
-def test_input_classes():
-    saved_data = os.path.join(basepath, 'modelcode', 'tests', 'test_data',
-                              'input_classes_data.pkl')
-    inputfiles, results = pickle.load(open(saved_data, 'rb'))
-
-    for inputfile_, result in zip(inputfiles, results):
-        inputfile = os.path.join(os.path.dirname(__file__), inputfile_)
-        inputs = Input(inputfile)
-        if inputs != result:
-            print(inputfile)
-            print('geometry', inputs.geometry == result.geometry)
-            print('surfaceinteraction', inputs.surfaceinteraction == result.surfaceinteraction)
-            print('forces', inputs.forces == result.forces)
-            print('spatialdist', inputs.spatialdist == result.spatialdist)
-            print(inputs.spatialdist)
-            print(result.spatialdist)
-            print('speeddist', inputs.speeddist == result.speeddist)
-            print('angulardist', inputs.angulardist == result.angulardist)
-            print('options', inputs.options == result.options)
-
-        assert Input(inputfile) == result
 
 @pytest.mark.modelcode
 def test_geometry():
-    inputfile0 = os.path.join(inputpath, 'Geometry.01.input')
-    geometry0 = Input(inputfile0).geometry
+    inputfile01 = os.path.join(inputpath, 'Geometry.01.input')
+    geometry01 = Input(inputfile01).geometry
     result = {'planet': SSObject('Jupiter'),
               'startpoint': 'Io',
               'objects': {SSObject('Jupiter'), SSObject('Io'), SSObject('Europa')},
@@ -50,19 +27,19 @@ def test_geometry():
               'phi': (1*u.rad, 2*u.rad),
               'subsolarpoint': (3.14*u.rad, 0*u.rad),
               'taa': 1.57*u.rad}
-    assert geometry0.__dict__ == result
+    assert geometry01.__dict__ == result
     
-    inputfile1 = os.path.join(inputpath, 'Geometry.02.input')
-    geometry1 = Input(inputfile1).geometry
+    inputfile02 = os.path.join(inputpath, 'Geometry.02.input')
+    geometry02 = Input(inputfile02).geometry
     result = {'planet': SSObject('Jupiter'),
               'startpoint': 'Io',
               'objects': {SSObject('Jupiter'), SSObject('Io')},
               'type': 'geometry with starttime',
               'time': Time('2022-03-08T19:53:21')}
-    assert geometry1.__dict__ == result
+    assert geometry02.__dict__ == result
 
-    inputfile2 = os.path.join(inputpath, 'Geometry.03.input')
-    geometry2 = Input(inputfile2).geometry
+    inputfile03 = os.path.join(inputpath, 'Geometry.03.input')
+    geometry03 = Input(inputfile03).geometry
     result = {'planet':SSObject('Mercury'),
               'startpoint': 'Mercury',
               'objects': {SSObject('Mercury')},
@@ -70,34 +47,105 @@ def test_geometry():
               'subsolarpoint': (0 * u.rad, 0 * u.rad),
               'phi': None,
               'taa': 3.14 * u.rad}
-    assert geometry2.__dict__ == result
+    assert geometry03.__dict__ == result
     
-    assert geometry0 == geometry0
-    assert geometry0 != geometry1
-    assert geometry0 != geometry2
+    assert geometry01 == geometry01
+    assert geometry01 != geometry02
+    assert geometry01 != geometry03
 
 @pytest.mark.modelcode
 def test_SurfaceInteraction():
     # sticktype = 'constant'
-    inputfile0 = os.path.join(inputpath, 'SurfaceInteraction.01.input')
-    interaction0 = Input(inputfile0).surfaceinteraction
+    inputfile01 = os.path.join(inputpath, 'SurfaceInteraction.01.input')
+    interaction01 = Input(inputfile01).surfaceinteraction
     result = {'sticktype': 'constant',
               'stickcoef': 1.,
               'accomfactor': None}
-    assert interaction0.__dict__ == result
+    assert interaction01.__dict__ == result
 
-    inputfile1 = os.path.join(inputpath, 'SurfaceInteraction.02.input')
-    interaction1 = Input(inputfile1).surfaceinteraction
+    inputfile02 = os.path.join(inputpath, 'SurfaceInteraction.02.input')
+    interaction02 = Input(inputfile02).surfaceinteraction
     result = {'sticktype': 'constant',
               'stickcoef': 0.5,
               'accomfactor': 0.2}
-    assert interaction1.__dict__ == result
+    assert interaction02.__dict__ == result
 
-    assert interaction0 == interaction0
-    assert interaction0 != interaction1
+    assert interaction01 == interaction01
+    assert interaction01 != interaction02
 
     # sticktype = 'temperature dependent
+    inputfile03 = os.path.join(inputpath, 'SurfaceInteraction.03.input')
+    interaction03 = Input(inputfile03).surfaceinteraction
+    result = {'sticktype': 'temperature dependent',
+              'accomfactor': 0.2,
+              'A': (1.57014, -0.006262, 0.1614157)}
+    assert interaction03.__dict__ == result
 
+    inputfile04 = os.path.join(inputpath, 'SurfaceInteraction.04.input')
+    interaction04 = Input(inputfile04).surfaceinteraction
+    result = {'sticktype':'temperature dependent',
+              'accomfactor':0.5,
+              'A': (1., 0.001, 0.2)}
+    assert interaction04.__dict__ == result
+
+    inputfile05 = os.path.join(inputpath, 'SurfaceInteraction.05.input')
+    interaction05 = Input(inputfile05).surfaceinteraction
+    result = {'sticktype':'surface map',
+              'stick_mapfile': 'default',
+              'coordinate_system': 'solar-fixed',
+              'subsolarlon': None,
+              'accomfactor':0.5}
+    assert interaction05.__dict__ == result
+
+    inputfile06 = os.path.join(inputpath, 'SurfaceInteraction.06.input')
+    interaction06 = Input(inputfile06).surfaceinteraction
+    result = {'sticktype':'surface map',
+              'stick_mapfile': 'Orbit3576.Ca.pkl',
+              'coordinate_system': 'solar-fixed',
+              'subsolarlon': None,
+              'accomfactor':0.5}
+    assert interaction06.__dict__ == result
+
+@pytest.mark.modelcode
+def test_Forces():
+    inputfile01 = os.path.join(inputpath, 'Forces.01.input')
+    forces01 = Input(inputfile01).forces
+    result = {'gravity': True,
+              'radpres': True}
+    assert forces01.__dict__ == result
+
+    inputfile02 = os.path.join(inputpath, 'Forces.02.input')
+    forces02 = Input(inputfile02).forces
+    result = {'gravity': False,
+              'radpres': True}
+    assert forces02.__dict__ == result
+
+    inputfile03 = os.path.join(inputpath, 'Forces.03.input')
+    forces03 = Input(inputfile03).forces
+    result = {'gravity': True,
+              'radpres': False}
+    assert forces03.__dict__ == result
+
+@pytest.mark.modelcode
+def test_SpatialDist():
+    inputfile01 = os.path.join(inputpath, 'Spatial.01.input')
+    spatial01 = Input(inputfile01).spatialdist
+    result = {'type': 'uniform',
+              'longitude': (0*u.rad, 2*np.pi*u.rad),
+              'latitude': (-np.pi/2*u.rad, np.pi/2*u.rad),
+              'exobase': 1.}
+    assert spatial01.__dict__ == pytest.approx(result)
+
+    inputfile02 = os.path.join(inputpath, 'Spatial.02.input')
+    spatial02 = Input(inputfile02).spatialdist
+    result = {'type':'uniform',
+              'longitude':(0*u.rad, 3.14*u.rad),
+              'latitude':(0*u.rad, 0.79*u.rad),
+              'exobase':2.1}
+    assert spatial02.__dict__ == pytest.approx(result)
+    
 if __name__ == '__main__':
-    test_geometry()
-    test_SurfaceInteraction()
+    # test_geometry()
+    # test_SurfaceInteraction()
+    # test_Forces()
+    test_SpatialDist()

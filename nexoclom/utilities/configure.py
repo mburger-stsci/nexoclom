@@ -3,8 +3,7 @@ import os
 import pandas as pd
 import psycopg
 import subprocess
-from nexoclom.utilities import database_connect
-from nexoclom.utilities.read_configfile import NexoclomConfig
+from nexoclom.utilities import NexoclomConfig
 from nexoclom import __file__ as basefile
 
 
@@ -36,7 +35,7 @@ def configure_nexoclom(configfile=None):
             pass
 
     # Validate nexoclom output tables
-    with database_connect() as con:
+    with config.database_connect() as con:
         cur = con.cursor()
         cur.execute('select table_name from information_schema.tables')
         tables = [r[0] for r in cur.fetchall()]

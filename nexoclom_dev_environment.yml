@@ -1,4 +1,4 @@
-name: nexoclom
+name: nexoclom_dev
 channels:
   - anaconda
   - http://ssb.stsci.edu/astroconda
@@ -30,9 +30,7 @@ dependencies:
     - sphinx
     - stsci_rtd_theme
     - statsmodels
-    - nexoclom
-    - MESSENGERuvvs
 variables:
-  PGDATA: $HOME/.postgres/main
-  NEXOCLOMCONFIG : /Users/mburger/.nexoclom
+  PGDATA: $HOME/.postgres/main_test
+  NEXOCLOMCONFIG : /Users/mburger/.nexoclom_test
 

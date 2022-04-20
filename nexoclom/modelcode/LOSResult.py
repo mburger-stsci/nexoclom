@@ -11,7 +11,6 @@ from sklearn.neighbors import KDTree, BallTree
 from nexoclom.modelcode.ModelResult import ModelResult
 from nexoclom.modelcode.Output import Output
 from nexoclom.modelcode.input_classes import SpatialDist, SpeedDist
-from nexoclom.utilities import database_connect
 
 xcols = ['x', 'y', 'z']
 borecols = ['xbore', 'ybore', 'zbore']
@@ -171,7 +170,7 @@ fitted = {self.fitted}'''
     #         for _, search_result in search_results.items():
     #             if search_result is not None:
     #                 idnum, modelfile = search_result
-    #                 with database_connect() as con:
+    #                 with self.inputs.config.database_connect() as con:
     #                     cur = con.cursor()
     #                     cur.execute(f'''DELETE from uvvsmodels
     #                                    WHERE idnum = %s''', (idnum,))
@@ -201,7 +200,7 @@ fitted = {self.fitted}'''
         else:
             ufit_id = None
         
-        with database_connect() as con:
+        with self.inputs.config.database_connect() as con:
             cur = con.cursor()
             cur.execute(f'''INSERT into uvvsmodels (out_idnum, unfit_idnum,
                             quantity, query, dphi, mechanism, wavelength,
@@ -238,7 +237,7 @@ fitted = {self.fitted}'''
         """
         search_results = {}
         for oid, outputfile in zip(self.outid, self.outputfiles):
-            with database_connect() as con:
+            with self.inputs.config.database_connect() as con:
                 if self.quantity == 'radiance':
                     mech = ("mechanism = '" +
                             ", ".join(sorted([m for m in self.mechanism])) +

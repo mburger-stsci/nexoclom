@@ -30,7 +30,7 @@ import numpy as np
 import pandas as pd
 from astropy.time import Time
 from nexoclom.modelcode.Output import Output
-from nexoclom.utilities import database_connect, NexoclomConfig
+from nexoclom.utilities import NexoclomConfig
 from nexoclom.modelcode.input_classes import (Geometry, SurfaceInteraction,
                                              Forces, SpatialDist, SpeedDist,
                                              AngularDist, Options)
@@ -64,7 +64,8 @@ class Input:
         
         """
         # Read the configuration file
-        self._savepath = NexoclomConfig().savepath
+        self.config = NexoclomConfig()
+        # self._savepath = NexoclomConfig().savepath
 
         # Read in the input file:
         self._inputfile = infile
@@ -172,7 +173,7 @@ class Input:
                               angdist_type = '{self.angulardist.type}' and
                               angdist_id = {ang_id} and
                               opt_id = {opt_id}'''
-            with database_connect() as con:
+            with self.config.database_connect() as con:
                 result = pd.read_sql(query, con)
             
             return (result.idnum.to_list(), result.filename.to_list(),
@@ -273,7 +274,7 @@ class Input:
 
         """
         idnum, filelist, _, _ = self.search()
-        with database_connect() as con:
+        with self.config.database_connect() as con:
             cur = con.cursor()
             
             for i, f in zip(idnum, filelist):

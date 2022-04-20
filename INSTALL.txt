@@ -8,7 +8,7 @@ Packages created by Matthew Burger that need to be installed:
 
 Installation process:
 
-(1) Install Anaconda Python 3.7:
+(1) Install Anaconda Python 3.9:
     (a) Download the installer from:
         https://www.anaconda.com/distribution/
     (b) Click Download
@@ -42,10 +42,12 @@ NOTE: Anaconda python requires you to use the bash shell.
     (d) > createdb <username>
         * Find <username> with > echo $USER
 
-(4) Download the MESSENGER UVVS data
+(4) Configure the MESSENGER UVVS database
     (a) Download the MESSENGERdata package. Get the link from Matt.
     (b) Put the file somewhere and untar it:
         > tar -xvzf ModelData.tar.gz
+    (c)
+
 
 (5) To install updates, run:
     conda activate nexoclom

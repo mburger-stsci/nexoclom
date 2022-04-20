@@ -5,13 +5,15 @@ import pickle
 from astropy.time import Time
 import astropy.units as u
 from nexoclom.solarsystem import SSObject
-from nexoclom.utilities import database_connect, InputError
+from nexoclom.utilities import InputError, NexoclomConfig
 
 
 dtor = np.pi/180.
 # Tolerances for floating point values
 dtaa = 2.*dtor
 
+
+config = NexoclomConfig()
 
 class Geometry:
     def __init__(self, gparam):
@@ -135,7 +137,7 @@ class Geometry:
                 else:
                     objs = [o.object for o in self.objects]
                     
-                with database_connect() as con:
+                with config.database_connect() as con:
                     cur = con.cursor()
                     cur.execute('''INSERT INTO geometry_with_time (
                                        planet, startpoint, objects,
@@ -155,7 +157,7 @@ class Geometry:
                 else:
                     phi = [p.value for p in self.phi]
                     
-                with database_connect() as con:
+                with config.database_connect() as con:
                     cur = con.cursor()
                     cur.execute('''INSERT INTO geometry_without_time (
                                        planet, startpoint, objects, phi,
@@ -225,7 +227,7 @@ class Geometry:
             raise InputError('geometry.search()',
                              f'geometry.type = {self.type} not allowed.')
                     
-        with database_connect() as con:
+        with config.database_connect() as con:
             cur = con.cursor()
             cur.execute(query, tuple(params))
 
@@ -265,14 +267,14 @@ class SurfaceInteraction:
                                  'surfaceinteraction.accomfactor not given.')
             
             if 'a' in sparam:
-                A = [float(a) for a in sparam['a'].split(',')]
+                A = tuple([float(a) for a in sparam['a'].split(',')])
                 if len(A) == 3:
                     self.A = A
                 else:
                     raise InputError('SurfaceInteraction.__init__',
                                      'surfaceinteraction.A must have 3 values')
             else:
-                self.A = [1.57014, -0.006262, 0.1614157]
+                self.A = (1.57014, -0.006262, 0.1614157)
         elif sticktype == 'surface map':
             self.sticktype = sticktype
             self.stick_mapfile = sparam.get('stick_mapfile', 'default')
@@ -346,21 +348,21 @@ class SurfaceInteraction:
         ids = self.search()
         if ids is None:
             if self.sticktype == 'constant':
-                with database_connect() as con:
+                with config.database_connect() as con:
                     cur = con.cursor()
                     cur.execute('''INSERT INTO surface_int_constant (
                                        stickcoef, accomfactor) VALUES (
                                        %s, %s)''',
                                 (self.stickcoef, self.accomfactor))
             elif self.sticktype == 'surface map':
-                with database_connect() as con:
+                with config.database_connect() as con:
                     cur = con.cursor()
                     cur.execute('''INSERT INTO surface_int_map (
                                        mapfile, accomfactor) VALUES (
                                        %s, %s)''',
                                 (self.stick_mapfile, self.accomfactor))
             elif self.sticktype == 'temperature dependent':
-                with database_connect() as con:
+                with config.database_connect() as con:
                     cur = con.cursor()
                     cur.execute('''INSERT INTO surface_int_tempdependent (
                                        accomfactor, a) VALUES
@@ -405,7 +407,7 @@ class SurfaceInteraction:
             raise InputError('SurfaceInteraction.search()',
              f'surfaceinteraction.sticktype = {self.sticktype} not allowed.')
         
-        with database_connect() as con:
+        with config.database_connect() as con:
             cur = con.cursor()
             cur.execute(query, tuple(params))
     
@@ -453,7 +455,7 @@ class Forces:
     def insert(self):
         ids = self.search()
         if ids is None:
-            with database_connect() as con:
+            with config.database_connect() as con:
                 cur = con.cursor()
                 cur.execute('''INSERT INTO forces (
                                    gravity, radpres) VALUES (%s, %s)''',
@@ -470,7 +472,7 @@ class Forces:
                     WHERE gravity = %s and
                           radpres = %s'''
         
-        with database_connect() as con:
+        with config.database_connect() as con:
             cur = con.cursor()
             cur.execute(query, (self.gravity, self.radpres))
     
@@ -601,7 +603,7 @@ class SpatialDist:
             if self.type == 'uniform':
                 long = [l.value for l in self.longitude]
                 lat = [l.value for l in self.latitude]
-                with database_connect() as con:
+                with config.database_connect() as con:
                     cur = con.cursor()
                     cur.execute('''INSERT INTO spatdist_uniform (
                                        exobase, longitude, latitude) VALUES (
@@ -609,7 +611,7 @@ class SpatialDist:
                                        %s::DOUBLE PRECISION[2])''',
                                 (self.exobase, long, lat))
             elif self.type == 'surface map':
-                with database_connect() as con:
+                with config.database_connect() as con:
                     cur = con.cursor()
                     sslon = (None
                              if self.subsolarlon is None
@@ -621,7 +623,7 @@ class SpatialDist:
                                 (self.exobase, self.mapfile, sslon,
                                  self.coordinate_system))
             elif self.type == 'surface spot':
-                with database_connect() as con:
+                with config.database_connect() as con:
                     cur = con.cursor()
                     cur.execute('''INSERT INTO spatdist_spot (
                                        exobase, longitude, latitude, sigma) VALUES (
@@ -629,7 +631,7 @@ class SpatialDist:
                                 (self.exobase, self.longitude.value,
                                  self.latitude.value, self.sigma.value))
             elif self.type == 'fitted output':
-                with database_connect() as con:
+                with config.database_connect() as con:
                     cur = con.cursor()
                     cur.execute('''INSERT INTO spatdist_fittedoutput (
                                    unfit_outid, query)
@@ -689,7 +691,7 @@ class SpatialDist:
             raise InputError('SpatialDist.__init__',
                              f'SpatialDist.type = {self.type} not defined.')
 
-        with database_connect() as con:
+        with config.database_connect() as con:
             cur = con.cursor()
             # print(cur.mogrify(query, tuple(params)))
             cur.execute(query, tuple(params))
@@ -787,37 +789,37 @@ class SpeedDist:
         ids = self.search()
         if ids is None:
             if self.type == 'gaussian':
-                with database_connect() as con:
+                with config.database_connect() as con:
                     cur = con.cursor()
                     cur.execute('''INSERT INTO speeddist_gaussian (
                                        vprob, sigma) VALUES (%s, %s)''',
                                 (self.vprob.value, self.sigma.value))
             elif self.type == 'sputtering':
-                with database_connect() as con:
+                with config.database_connect() as con:
                     cur = con.cursor()
                     cur.execute('''INSERT INTO speeddist_sputtering (
                                        alpha, beta, U) VALUES (%s, %s, %s)''',
                                 (self.alpha, self.beta, self.U.value))
             elif self.type == 'maxwellian':
-                with database_connect() as con:
+                with config.database_connect() as con:
                     cur = con.cursor()
                     cur.execute('''INSERT INTO speeddist_maxwellian (
                                        temperature) VALUES (%s)''',
                                 (self.temperature.value, ))
             elif self.type == 'flat':
-                with database_connect() as con:
+                with config.database_connect() as con:
                     cur = con.cursor()
                     cur.execute('''INSERT INTO speeddist_flat (
                                        vprob, delv) VALUES (%s, %s)''',
                                 (self.vprob.value, self.delv.value))
             elif self.type == 'user defined':
-                with database_connect() as con:
+                with config.database_connect() as con:
                     cur = con.cursor()
                     cur.execute('''INSERT INTO speeddist_user (
                                        vdistfile) VALUES (%s)''',
                                 (self.vdistfile,))
             elif self.type == 'fitted output':
-                with database_connect() as con:
+                with config.database_connect() as con:
                     cur = con.cursor()
                     cur.execute('''INSERT INTO speeddist_fittedoutput (
                                    unfit_outid, query)
@@ -874,7 +876,7 @@ class SpeedDist:
             raise InputError('SpeedDist.__init__',
                              f'SpeedDist.type = {self.type} not defined.')
 
-        with database_connect() as con:
+        with config.database_connect() as con:
             cur = con.cursor()
             cur.execute(query, tuple(params))
         
@@ -956,7 +958,7 @@ class AngularDist:
             elif self.type == 'isotropic':
                 alt = [a.value for a in self.altitude]
                 az = [a.value for a in self.azimuth]
-                with database_connect() as con:
+                with config.database_connect() as con:
                     cur = con.cursor()
                     cur.execute('''INSERT INTO angdist_isotropic (
                                        altitude, azimuth) VALUES (
@@ -988,7 +990,7 @@ class AngularDist:
             raise InputError('AngularDist.__init__',
                              f'AngularDist.type = {self.type} not defined.')
     
-        with database_connect() as con:
+        with config.database_connect() as con:
             cur = con.cursor()
             cur.execute(query, tuple(params))
         
@@ -1069,7 +1071,7 @@ class Options:
     def insert(self):
         ids = self.search()
         if ids is None:
-            with database_connect() as con:
+            with config.database_connect() as con:
                 cur = con.cursor()
                 cur.execute('''INSERT into options (endtime, species, lifetime,
                                    outer_edge, step_size, resolution, fitted) VALUES (
@@ -1104,7 +1106,7 @@ class Options:
                           {resol} and
                           fitted = %s'''
         
-        with database_connect() as con:
+        with config.database_connect() as con:
             cur = con.cursor()
             cur.execute(query, tuple(params))
     
