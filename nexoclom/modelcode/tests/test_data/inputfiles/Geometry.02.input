@@ -1,0 +1,25 @@
+# Planet with 1 satellite, start at satellite; timestamp
+geometry.planet = Jupiter
+geometry.StartPoint = Io
+geometry.starttime = 2022-03-08T19:53:21
+
+# Incomplete sticking
+surfaceinteraction.stickcoef = 0.5
+surfaceinteraction.accomfactor = 0.5
+
+SpatialDist.type = uniform
+
+# No forces explicitly set
+
+SpeedDist.type = flat
+SpeedDist.vprob = 4.
+SpeedDist.delv = 4.
+
+AngularDist.type = isotropic
+
+options.endtime = 10800.
+options.lifetime = 0.
+options.species = Na
+options.outeredge = 15
+options.step_size = 30.
+

@@ -9,12 +9,11 @@ import astropy.units as u
 import nexoclom.math as mathMB
 from nexoclom.solarsystem import planet_dist
 from nexoclom.atomicdata import RadPresConst
-from nexoclom.utilities.database_connect import database_connect
 from nexoclom.modelcode.satellite_initial_positions import satellite_initial_positions
 from nexoclom.modelcode.LossInfo import LossInfo
 from nexoclom.modelcode.rk5 import rk5
 from nexoclom.modelcode.bouncepackets import bouncepackets
-from nexoclom.modelcode.source_distribution import (surface_distribution, 
+from nexoclom.modelcode.source_distribution import (surface_distribution,
                                                     speed_distribution,
                                                     angular_distribution)
 from nexoclom.modelcode.SurfaceInteraction import SurfaceInteraction
@@ -452,7 +451,7 @@ class Output:
             assert 0, 'Filename not set up for anything but Mercury'
 
         # Come up with a path name
-        pathname = os.path.join(self.inputs._savepath,
+        pathname = os.path.join(self.inputs.config.savepath,
                                 self.planet.object,
                                 self.inputs.options.species,
                                 self.inputs.spatialdist.type,
@@ -475,7 +474,7 @@ class Output:
         ang_id = self.inputs.angulardist.insert()
         opt_id = self.inputs.options.insert()
         
-        with database_connect() as con:
+        with self.inputs.config.database_connect() as con:
             tempfilename = f'temp_{str(random.randint(0, 1000000))}'
             cur = con.cursor()
             cur.execute('''INSERT INTO outputfile (filename,
@@ -537,4 +536,3 @@ class Output:
     def restore(cls, filename):
         output = pickle.load(open(filename, 'rb'))
         return output
-

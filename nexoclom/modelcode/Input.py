@@ -30,10 +30,9 @@ import numpy as np
 import pandas as pd
 from astropy.time import Time
 from nexoclom.modelcode.Output import Output
-from nexoclom.utilities import database_connect
-from nexoclom.utilities import read_configfile
-from nexoclom.modelcode.input_classes import (Geometry, SurfaceInteraction, 
-                                             Forces, SpatialDist, SpeedDist, 
+from nexoclom.utilities import NexoclomConfig
+from nexoclom.modelcode.input_classes import (Geometry, SurfaceInteraction,
+                                             Forces, SpatialDist, SpeedDist,
                                              AngularDist, Options)
 from nexoclom.modelcode.ModelImage import ModelImage
 
@@ -65,8 +64,8 @@ class Input:
         
         """
         # Read the configuration file
-        config = read_configfile()
-        self._savepath = config['savepath']
+        self.config = NexoclomConfig()
+        # self._savepath = NexoclomConfig().savepath
 
         # Read in the input file:
         self._inputfile = infile
@@ -87,7 +86,7 @@ class Input:
                         sec_, par_ = param_.split('.')
                         params.append((sec_.casefold().strip(),
                                        par_.casefold().strip(),
-                                       val_.casefold().strip()))
+                                       val_.strip()))
                     else:
                         pass
                 else:
@@ -96,7 +95,7 @@ class Input:
             raise FileNotFoundError(infile)
             
         def extract_param(tag):
-            return {b:c for (a,b,c) in params if a == tag}
+            return {b: c for (a, b, c) in params if a == tag}
 
         self.geometry = Geometry(extract_param('geometry'))
         self.surfaceinteraction = SurfaceInteraction(extract_param(
@@ -106,6 +105,18 @@ class Input:
         self.speeddist = SpeedDist(extract_param('speeddist'))
         self.angulardist = AngularDist(extract_param('angulardist'))
         self.options = Options(extract_param('options'))
+        
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        else:
+            return all([self.geometry == other.geometry,
+                        self.surfaceinteraction == other.surfaceinteraction,
+                        self.forces == other.forces,
+                        self.spatialdist == other.spatialdist,
+                        self.speeddist == other.speeddist,
+                        self.angulardist == other.angulardist,
+                        self.options == other.options])
         
     def __repr__(self):
         return self.__str__()
@@ -162,7 +173,7 @@ class Input:
                               angdist_type = '{self.angulardist.type}' and
                               angdist_id = {ang_id} and
                               opt_id = {opt_id}'''
-            with database_connect() as con:
+            with self.config.database_connect() as con:
                 result = pd.read_sql(query, con)
             
             return (result.idnum.to_list(), result.filename.to_list(),
@@ -263,7 +274,7 @@ class Input:
 
         """
         idnum, filelist, _, _ = self.search()
-        with database_connect() as con:
+        with self.config.database_connect() as con:
             cur = con.cursor()
             
             for i, f in zip(idnum, filelist):

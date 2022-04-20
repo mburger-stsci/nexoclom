@@ -5,12 +5,12 @@ import pickle
 import random
 import copy
 import astropy.units as u
+from astropy.modeling import models, fitting
+from astropy.visualization import PercentileInterval
 from sklearn.neighbors import KDTree, BallTree
 from nexoclom.modelcode.ModelResult import ModelResult
 from nexoclom.modelcode.Output import Output
-import nexoclom.math as mathMB
 from nexoclom.modelcode.input_classes import SpatialDist, SpeedDist
-from nexoclom.utilities import database_connect
 
 xcols = ['x', 'y', 'z']
 borecols = ['xbore', 'ybore', 'zbore']
@@ -170,7 +170,7 @@ fitted = {self.fitted}'''
     #         for _, search_result in search_results.items():
     #             if search_result is not None:
     #                 idnum, modelfile = search_result
-    #                 with database_connect() as con:
+    #                 with self.inputs.config.database_connect() as con:
     #                     cur = con.cursor()
     #                     cur.execute(f'''DELETE from uvvsmodels
     #                                    WHERE idnum = %s''', (idnum,))
@@ -200,7 +200,7 @@ fitted = {self.fitted}'''
         else:
             ufit_id = None
         
-        with database_connect() as con:
+        with self.inputs.config.database_connect() as con:
             cur = con.cursor()
             cur.execute(f'''INSERT into uvvsmodels (out_idnum, unfit_idnum,
                             quantity, query, dphi, mechanism, wavelength,
@@ -237,7 +237,7 @@ fitted = {self.fitted}'''
         """
         search_results = {}
         for oid, outputfile in zip(self.outid, self.outputfiles):
-            with database_connect() as con:
+            with self.inputs.config.database_connect() as con:
                 if self.quantity == 'radiance':
                     mech = ("mechanism = '" +
                             ", ".join(sorted([m for m in self.mechanism])) +
@@ -385,6 +385,37 @@ fitted = {self.fitted}'''
             return KDTree(values)
         elif type == 'BallTree':
             return BallTree(values)
+        
+    def make_mask(self, data):
+        mask = np.array([True for _ in data.radiance])
+        sigmalimit = None
+        if self.masking is not None:
+            for masktype in self.masking.split(';'):
+                masktype = masktype.strip().lower()
+                if masktype.startswith('middle'):
+                    perinterval = float(masktype[6:])
+                    # Estimate model strength (source rate) by fitting middle %
+                    interval = PercentileInterval(perinterval)
+                    lim = interval.get_limits(data)
+                    mask = (mask &
+                            (data.radiance >= lim[0]) &
+                            (data.radiance <= lim[1]))
+                elif masktype.startswith('minalt'):
+                    minalt = float(masktype[6:])
+                    mask = mask & (data.alttan >= minalt)
+                elif masktype.startswith('minsnr'):
+                    minSNR = float(masktype[6:])
+                    snr = data.radiance/data.sigma
+                    mask = mask & (snr > minSNR)
+                elif masktype.startswith('siglimit'):
+                    sigmalimit = float(masktype[8:])
+                else:
+                    raise ValueError('nexoclom.math.fit_model',
+                                     f'masking = {masktype} not defined.')
+        else:
+            pass
+        
+        return mask, sigmalimit
 
     def determine_source_from_data(self, scdata):
         # Search for unfitted outputfiles
@@ -408,9 +439,7 @@ fitted = {self.fitted}'''
         dist_from_plan = self._data_setup(data)
 
         # Determine which points should be used for the fit
-        _, _, mask = mathMB.fit_model(data.radiance, None, data.sigma,
-                                      masking=self.masking, mask_only=True,
-                                      altitude=data.alttan)
+        mask, _ = self.make_mask(data)
 
         for ufit_id, ufit_out in zip(self.unfit_outid, self.unfit_outputfiles):
             # Search for fitted outputfiles
@@ -672,14 +701,26 @@ fitted = {self.fitted}'''
         #                                       weight)
         
     def determine_source_rate(self, scdata):
-        strength, goodness_of_fit, mask = mathMB.fit_model(scdata.data.radiance.values,
-                                                           self.radiance.values,
-                                                           scdata.data.sigma.values,
-                                                           fit_method=self.fit_method,
-                                                           masking=self.masking,
-                                                           altitude=scdata.data.alttan)
-        self.radiance *= strength
-        self.sourcerate = strength * u.def_unit('10**23 atoms/s', 1e23 / u.s)
-        self.goodness_of_fit = goodness_of_fit
-        self.mask = mask
+        mask, sigmalimit = self.make_mask(scdata.data)
+        linmodel = models.Multiply()
+        fitter = fitting.LinearLSQFitter()
+        best_fit = fitter(linmodel, self.radiance.values[mask],
+                          scdata.data.radiance.values[mask],
+                          weights=1./scdata.data.sigma.values[mask]**2)
         
+        if sigmalimit is not None:
+            diff = np.abs((scdata.data.radiance.values -
+                           best_fit.factor*self.radiance.values)/
+                          scdata.data.sigma)
+            mask = mask & (diff < sigmalimit)
+            best_fit = fitter(linmodel, self.radiance.values[mask],
+                              scdata.data.radiance.values[mask],
+                              weights=1./scdata.data.sigma.values[mask]**2)
+        else:
+            pass
+
+
+        self.radiance *= best_fit.factor.value
+        self.sourcerate = best_fit.factor.value * u.def_unit('10**23 atoms/s', 1e23 / u.s)
+        self.goodness_of_fit = None
+        self.mask = mask

@@ -5,23 +5,7 @@ import astropy.units as u
 import astropy.constants as const
 import nexoclom.math as mathMB
 from nexoclom.atomicdata import atomicmass
-
-
-def sputdist(velocity, U, alpha, beta, species):
-    mspecies = atomicmass(species)
-    v_b = np.sqrt(2*U/mspecies)
-    v_b = v_b.to(u.km/u.s)
-    f_v = velocity**(2*beta+1) / (velocity**2 + v_b**2)**alpha
-    f_v /= np.max(f_v)
-    return f_v.value
-
-
-def MaxwellianDist(velocity, temperature, species):
-    vth2 = 2*temperature*const.k_B/atomicmass(species)
-    vth2 = vth2.to(u.km**2/u.s**2)
-    f_v = velocity**3 * np.exp(-velocity**2/vth2)
-    f_v /= np.max(f_v)
-    return f_v.value
+import nexoclom.math.distributions as distributions
 
 
 def xyz_from_lonlat(lon, lat, isplan, exobase):
@@ -61,18 +45,18 @@ def surface_distribution(outputs):
     
     if spatialdist.type == 'uniform':
         # Choose the latitude: f(lat) = cos(lat)
-        lat0 = spatialdist.latitude
-        if lat0[0] == lat0[1]:
-            lat = np.zeros(npack)+lat0[0]
-        else:
-            ll = (np.sin(lat0[0]), np.sin(lat0[1]))
-            sinlat = ll[0] + (ll[1]-ll[0]) * outputs.randgen.random(npack)
-            lat = np.arcsin(sinlat)
+        # lat0 = spatialdist.latitude
+        # ll = (np.sin(lat0[0]), np.sin(lat0[1]))
+        ll = tuple(map(np.sin, spatialdist.latitude))
+        sinlat = ll[0] + (ll[1]-ll[0]) * outputs.randgen.random(npack)
+        lat = np.arcsin(sinlat)
     
         # Choose the longitude: f(lon) = 1/(lonmax-lonmin)
         lon0 = spatialdist.longitude
         if lon0[0] > lon0[1]:
             lon0 = [lon0[0], lon0[1]+2*np.pi*u.rad]
+        else:
+            pass
         lon = ((lon0[0] + (lon0[1]-lon0[0]) * outputs.randgen.random(npack)) %
                (2*np.pi*u.rad))
     elif spatialdist.type == 'surface map':
@@ -162,9 +146,8 @@ def speed_distribution(outputs):
             v0 *= speeddist.vprob.unit
     elif speeddist.type == 'sputtering':
         velocity = np.linspace(.1, 50, 5000)*u.km/u.s
-        f_v = sputdist(velocity, speeddist.U, speeddist.alpha,
-                       speeddist.beta, outputs.inputs.options.species)
-
+        f_v = distributions.sputdist(velocity, speeddist.U, speeddist.alpha,
+            speeddist.beta, outputs.inputs.options.species)
         v0 = (mathMB.random_deviates_1d(velocity.value, f_v, npackets) *
               velocity.unit)
     elif speeddist.type == 'maxwellian':
@@ -174,8 +157,8 @@ def speed_distribution(outputs):
             v_th = np.sqrt(2*speeddist.temperature*const.k_B/amass)
             v_th = v_th.to(u.km/u.s)
             velocity = np.linspace(0.1*u.km/u.s, v_th*5, 5000)
-            f_v = MaxwellianDist(velocity, speeddist.temperature,
-                                 outputs.inputs.options.species)
+            f_v = distributions.MaxwellianDist(velocity, speeddist.temperature,
+                                               outputs.inputs.options.species)
             v0 = (mathMB.random_deviates_1d(velocity.value, f_v, npackets) *
                   velocity.unit)
         else:

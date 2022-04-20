@@ -6,7 +6,6 @@ import astropy.units as u
 import json
 from nexoclom.solarsystem import SSObject
 from nexoclom.math import rotation_matrix, Histogram2d
-from nexoclom.utilities import database_connect
 from nexoclom.modelcode.ModelResult import ModelResult
 from nexoclom.modelcode.Output import Output
 
@@ -118,7 +117,7 @@ class ModelImage(ModelResult):
         width = [w.value for w in self.width]
         center = [c.value for c in self.center]
         
-        with database_connect() as con:
+        with self.inputs.config.database_connect() as con:
             cur = con.cursor()
             cur.execute(f'''INSERT into modelimages (out_idnum, quantity,
                                 origin, dims, center, width, subobslongitude,
@@ -161,7 +160,7 @@ class ModelImage(ModelResult):
             mech = 'mechanism is NULL'
             wave = 'wavelength is NULL'
 
-        with database_connect() as con:
+        with self.inputs.config.database_connect() as con:
             idnum_ = pd.read_sql(f'''SELECT idnum
                                 FROM outputfile
                                 WHERE filename='{fname}' ''', con)
@@ -186,7 +185,7 @@ class ModelImage(ModelResult):
         if (len(result) == 1) and overwrite:
             if os.path.exists(result.filename[0]):
                 os.remove(result.filename[0])
-            with database_connect() as con:
+            with self.inputs.config.database_connect() as con:
                 cur = con.cursor()
                 cur.execute('''DELETE FROM modelimages
                                WHERE filename = %s''', (result.filename[0],))

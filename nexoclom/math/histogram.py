@@ -3,6 +3,9 @@ from sklearn.neighbors import KDTree, BallTree
 
 
 class Histogram:
+    """ Wrapper for np.histogram that makes the x-axis the center of each bin.
+    Returns a class with everything self-contained.
+    """
     def __init__(self, a, bins=10, range=None, normed=None, weights=None,
                  density=None):
         hist, x = np.histogram(a, bins, range, normed, weights, density)
@@ -12,6 +15,9 @@ class Histogram:
         
         
 class Histogram2d:
+    """ Wrapper for np.histogram2d that makes the x,y axes the centers of each bin.
+    Returns a class with everything self-contained.
+    """
     def __init__(self, ptsx, ptsy, bins=10, range=None, normed=None, weights=None,
                  density=None):
         hist, x, y = np.histogram2d(ptsx, ptsy, bins, range, normed, weights, density)
