@@ -1,6 +1,9 @@
 # Remove old versions
 rm dist/*.*
 
+# Install current version
+pip install .
+
 # Build the distribution
 python setup.py sdist bdist_wheel bdist_egg
 python setup.py bdist_wheel

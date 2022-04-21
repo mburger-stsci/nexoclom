@@ -16,7 +16,7 @@ Installation process:
         $HOME/anaconda3 and does not need sysadmin privileges.
     (d) Verify it works: Open a new terminal window and type:
         > python
-        You should see something like:
+        You should see something like (but saying Python 3.9.x):
 
 Python 3.7.1 | packaged by conda-forge | (default, Nov 13 2018, 10:30:07)
 [Clang 4.0.1 (tags/RELEASE_401/final)] :: Anaconda custom (64-bit) on darwin

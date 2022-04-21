@@ -1,0 +1,32 @@
+name: nexoclom_dev2
+channels:
+  - conda-forge
+  - http://ssb.stsci.edu/astroconda
+  - defaults
+dependencies:
+  - conda-forge::geckodriver
+  - python=3.9
+  - plotly
+  - postgresql
+  - bokeh
+  - scikit-learn
+  - astropy
+  - ipython
+  - conda-forge::firefox
+  - pytest
+  - scipy
+  - selenium
+  - pandas
+  - numpy
+  - pip
+  - dash
+  - matplotlib
+  - astroquery
+  - git
+  - hypothesis
+  - sqlalchemy
+  - psycopg
+variables:
+  NEXOCLOMCONFIG: /Users/mburger/.nexoclom_test
+  PGDATA: /Users/mburger/.postgres_dev/main
+prefix: /Users/mburger/anaconda/envs/nexoclom_dev
