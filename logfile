@@ -1,0 +1,8 @@
+2022-04-21 22:07:14.342 EDT [9460] LOG:  starting PostgreSQL 14.2 on x86_64-apple-darwin13.4.0, compiled by clang version 11.1.0, 64-bit
+2022-04-21 22:07:14.344 EDT [9460] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2022-04-21 22:07:14.344 EDT [9460] LOG:  listening on IPv6 address "::1", port 5432
+2022-04-21 22:07:14.345 EDT [9460] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2022-04-21 22:07:14.348 EDT [9461] LOG:  database system was shut down at 2022-04-21 22:07:04 EDT
+2022-04-21 22:07:14.352 EDT [9460] LOG:  database system is ready to accept connections
+2022-04-21 22:08:07.801 EDT [9571] FATAL:  database "thesolarsystemmb" does not exist
+2022-04-21 22:20:05.539 EDT [10998] FATAL:  database "thesolarsystemmb_test" does not exist

@@ -1,4 +1,4 @@
-from nexoclom.utilities.database_connect import NexoclomConfig
+from nexoclom.utilities.NexoclomConfig import NexoclomConfig
 from nexoclom.utilities.configure import configure
 from nexoclom.utilities.exceptions import *
 

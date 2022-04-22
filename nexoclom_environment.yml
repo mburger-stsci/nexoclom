@@ -1,28 +1,31 @@
 name: nexoclom
 channels:
-  - anaconda
-  - http://ssb.stsci.edu/astroconda
   - conda-forge
+  - http://ssb.stsci.edu/astroconda
   - defaults
 dependencies:
-  - pip
-  - python=3.8
-  - ipython
-  - numpy
-  - scipy
-  - pandas
-  - matplotlib
-  - scikit-learn
   - anaconda::astropy
-  - astroquery
-  - postgresql
-  - dash
-  - plotly
-  - bokeh
-  - selenium
   - conda-forge::firefox
-  - conda-forge::geckodriver
+  - postgresql
+  - pandas
+  - plotly
+  - dash
+  - numpy
+  - ipython
+  - matplotlib
+  - pip
+  - bokeh
+  - scipy
   - pytest
+  - scikit-learn
+  - selenium
+  - python=3.8
+  - conda-forge::geckodriver
+  - psycopg2
+  - git
+  - dash-core-components
+  - pylint
+  - astroquery
   - pip:
     - periodictable
     - spiceypy
@@ -31,7 +34,9 @@ dependencies:
     - statsmodels
     - nexoclom
     - MESSENGERuvvs
+  
+prefix: $HOME/anaconda/envs/nexoclom
 variables:
   PGDATA: $HOME/.postgres/main
-  NEXOCLOMCONFIG : /Users/mburger/.nexoclom
+  NEXOCLOMCONFIG : $HOME/.nexoclom
 

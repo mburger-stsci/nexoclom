@@ -1,8 +1,6 @@
 """Create and read configuration file, create necessary database tables."""
 import os
 import pandas as pd
-import psycopg
-import subprocess
 from nexoclom.utilities import NexoclomConfig
 from nexoclom import __file__ as basefile
 
@@ -10,20 +8,12 @@ from nexoclom import __file__ as basefile
 basepath = os.path.dirname(basefile)
 
 
-def configure_nexoclom(configfile=None):
+def configure_nexoclom(verbose=False):
     # Create the database if necessary
-    config = NexoclomConfig(configfile)
+    config = NexoclomConfig(verbose=verbose)
+    config.verify_database_running()
     
-    # verify database is running
-    proc = subprocess.run('pg_ctl status', capture_output=True, shell=True)
-    if 'no server running' in str(proc.stdout):
-        subprocess.run(f'pg_ctl -o "-p {config.port}" start -l $PGDATA/logfile',
-                       shell=True)
-    else:
-        pass
-
-    with psycopg.connect(port=config.port) as con:
-        con.autocommit = True
+    with config.database_connect() as con:
         cur = con.cursor()
         cur.execute('select datname from pg_database')
         dbs = [r[0] for r in cur.fetchall()]
@@ -101,8 +91,8 @@ def configure_atomicdata():
         from nexoclom.atomicdata.initialize_atomicdata import make_photorates_table
         make_photorates_table()
         
-def configure(configfile=None):
-    config = configure_nexoclom(configfile)
+def configure(verbose=False):
+    config = configure_nexoclom(verbose=True)
     configure_solarsystem()
     configure_atomicdata()
     

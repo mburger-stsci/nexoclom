@@ -1,5 +1,6 @@
 import os
-import psycopg
+import psycopg2
+from sqlalchemy import create_engine
 import subprocess
 from nexoclom.utilities.exceptions import ConfigfileError
 
@@ -18,23 +19,20 @@ class NexoclomConfig:
     
     If savepath is not present, an exception is raised
     """
-    def __init__(self, configfile=None, verbose=False):
-        if configfile is None:
-            configfile = os.environ.get('NEXOCLOMCONFIG', os.path.join(
-                os.environ['HOME'], '.nexoclom'))
-        else:
-            pass
+    def __init__(self, verbose=False):
+        configfile = os.environ.get('NEXOCLOMCONFIG', os.path.join(
+            os.environ['HOME'], '.nexoclom'))
+        self.configfile = os.path.expandvars(configfile)
         
         if verbose:
-            print(f'Using configuration file {configfile}')
+            print(f'Using configuration file {self.configfile}')
         else:
             pass
-        self.configfile = configfile
         
         config = {}
-        if os.path.isfile(configfile):
+        if os.path.isfile(os.path.expandvars(self.configfile)):
             # Read the config file into a dict
-            for line in open(configfile, 'r'):
+            for line in open(self.configfile, 'r'):
                 if '=' in line:
                     key, value = line.split('=')
                     config[key.strip()] = value.strip()
@@ -45,7 +43,7 @@ class NexoclomConfig:
         
         self.savepath = config.get('savepath', None)
         if self.savepath is None:
-            raise ConfigfileError(configfile, self.savepath)
+            raise ConfigfileError(self.configfile, self.savepath)
         elif not os.path.exists(self.savepath):
             os.makedirs(self.savepath)
         else:
@@ -64,7 +62,7 @@ class NexoclomConfig:
             else:
                 pass
             
-        self.dbhost = config.get('dbhost', False)
+        self.dbhost = config.get('dbhost', None)
         
     def __repr__(self):
         return self.__dict__.__repr__()
@@ -82,22 +80,34 @@ class NexoclomConfig:
                            shell=True)
             return 'Started Database'
 
-    def database_connect(self):
-        """Wrapper for psycopg.connect() that determines which database and port to use.
+    def create_engine(self):
+        """Wrapper for slalchemy.create_engine() that determines which database and port to use.
 
         :return:
         :param database: Default = None to use value from config file
         :param port: Default = None to use value from config file
         :param return_con: False to return database name and port instead of connection
-        :return: Database connection with autocommit = True unless return_con = False
+        :return: SQLAlchemy engine
         """
         self.verify_database_running()
         
         if self.dbhost:
-            con = psycopg.connect(host=self.dbhost, dbname=self.database,
-                                  port=self.port)
+            url = (f"postgresql+psycopg2://{os.environ['USER']}@{self.dbhost}:"
+                   f"{self.port}/{self.database}")
         else:
-            con = psycopg.connect(dbname=self.database, port=self.port)
+            url = (f"postgresql+psycopg2://{os.environ['USER']}@localhost:"
+                   f"{self.port}/{self.database}")
+        engine = create_engine(url, echo=True, future=True)
+
+        return engine
+
+    def database_connect(self):
+        self.verify_database_running()
+        if self.dbhost:
+            con = psycopg2.connect(host=self.dbhost, dbname=self.database,
+                                   port=self.port)
+        else:
+            con = psycopg2.connect(dbname=self.database, port=self.port)
         con.autocommit = True
 
         return con

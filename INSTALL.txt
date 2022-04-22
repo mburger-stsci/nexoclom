@@ -25,7 +25,7 @@ Type "help", "copyright", "credits" or "license" for more information.
 NOTE: Anaconda python requires you to use the bash shell.
 
 (2) Create a new python environment with the model.
-    (a) Obtain the file nexoclom_requirements.yml
+    (a) Obtain the file nexoclom_environment.yml
     (b) Create the envirnoment:
         > conda env create -f nexoclom_environment.yml
     (c) To use this environment run:

@@ -4,6 +4,9 @@ rm dist/*.*
 # Install current version
 pip install .
 
+# Create nexoclom_environment.yml
+# conda env export --follow-history > nexoclom_environment.yml
+
 # Build the distribution
 python setup.py sdist bdist_wheel bdist_egg
 python setup.py bdist_wheel
