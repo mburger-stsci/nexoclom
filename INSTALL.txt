@@ -33,14 +33,32 @@ NOTE: Anaconda python requires you to use the bash shell.
     (d) To turn it off run:
         (nexoclom) > conda deactivate
 
+(3) Create the .nexoclom file
+    (a) In your home directory create a file called .nexoclom with the
+    following lines:
+savepath = <fullpath>/modeloutputs
+datapath = <fullpath>/ModelData
+database = thesolarsystemmb
+mesdatapath = <fullpath>/UVVSData
+mesdatabase = messengeruvvsdb
+
+<fullpath> does not need to be the same in all lines, but the directories all
+need to be valid.
+
 (3) Initialize the postgres server if necessary:
     (a) In your .bashrc or .bash_profile file (the file that runs when you
     start a terminal window) add the line:
-        export PGDATA=$HOME/.postgres/main
-    (b) > initdb -D $HOME/.postgres/main/
-    (c) > pg_ctl -D $HOME/.postgres/main/ -l logfile start
+        export PGDATA=/Users/mburger/.postgres/main
+    (This step technically isn't needed because the environment variable gets
+    set when you activate the environment).
+    (b) > initdb -D $PGDATA
+    (c) > pg_ctl -l $PGDATA/logfile start
     (d) > createdb <username>
         * Find <username> with > echo $USER
+    (e) > createdb thesolarsystemmb
+        * This needs to match database in the .nexoclom file
+    (g) > createdb messengeruvvsdb
+        * This needs to match mesdatabase in the .nexoclom file
 
 (4) Configure the MESSENGER UVVS database
     (a) Download the MESSENGERdata package. Get the link from Matt.

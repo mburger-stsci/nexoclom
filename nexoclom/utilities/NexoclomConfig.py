@@ -76,11 +76,13 @@ class NexoclomConfig:
         if 'server is running' in str(proc.stdout):
             return 'Database Already Running'
         else:
-            subprocess.run(f'pg_ctl -o "-p {self.port}" start -l {os.environ["PGDATA"]}/logfile',
+            pg_log_dir = os.path.join(os.path.expandvars(os.environ['PGDATA']),
+                                      'logfile')
+            subprocess.run(f'pg_ctl -o "-p {self.port}" start -l {pg_log_dir}',
                            shell=True)
             return 'Started Database'
 
-    def create_engine(self):
+    def create_engine(self, database=None):
         """Wrapper for slalchemy.create_engine() that determines which database and port to use.
 
         :return:
@@ -90,24 +92,33 @@ class NexoclomConfig:
         :return: SQLAlchemy engine
         """
         self.verify_database_running()
+        if database is None:
+            database = self.database
+        else:
+            pass
         
         if self.dbhost:
             url = (f"postgresql+psycopg2://{os.environ['USER']}@{self.dbhost}:"
-                   f"{self.port}/{self.database}")
+                   f"{self.port}/{database}")
         else:
             url = (f"postgresql+psycopg2://{os.environ['USER']}@localhost:"
-                   f"{self.port}/{self.database}")
+                   f"{self.port}/{database}")
         engine = create_engine(url, echo=True, future=True)
 
         return engine
 
-    def database_connect(self):
+    def database_connect(self, database=None):
         self.verify_database_running()
+        if database is None:
+            database = self.database
+        else:
+            pass
+        
         if self.dbhost:
-            con = psycopg2.connect(host=self.dbhost, dbname=self.database,
+            con = psycopg2.connect(host=self.dbhost, dbname=database,
                                    port=self.port)
         else:
-            con = psycopg2.connect(dbname=self.database, port=self.port)
+            con = psycopg2.connect(dbname=database, port=self.port)
         con.autocommit = True
 
         return con

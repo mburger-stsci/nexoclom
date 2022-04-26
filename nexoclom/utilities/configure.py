@@ -13,17 +13,6 @@ def configure_nexoclom(verbose=False):
     config = NexoclomConfig(verbose=verbose)
     config.verify_database_running()
     
-    with config.database_connect() as con:
-        cur = con.cursor()
-        cur.execute('select datname from pg_database')
-        dbs = [r[0] for r in cur.fetchall()]
-
-        if config.database not in dbs:
-            print(f'Creating database {config.database}')
-            cur.execute(f'create database {config.database}')
-        else:
-            pass
-
     # Validate nexoclom output tables
     with config.database_connect() as con:
         cur = con.cursor()

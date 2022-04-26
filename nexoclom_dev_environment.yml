@@ -7,6 +7,7 @@ dependencies:
   - anaconda::astropy
   - conda-forge::firefox
   - postgresql
+  - sqlalchemy
   - pandas
   - plotly
   - dash
@@ -35,8 +36,8 @@ dependencies:
     - nexoclom
     - MESSENGERuvvs
   
-prefix: $HOME/anaconda/envs/nexoclom_dev
+prefix: /Users/mburger/anaconda/envs/nexoclom_dev
 variables:
-  PGDATA: $HOME/.postgres/main
-  NEXOCLOMCONFIG : $HOME/.nexoclom_dev
+  PGDATA: /Users/mburger/.postgres/main
+  NEXOCLOMCONFIG : /Users/mburger/.nexoclom_dev
 

@@ -6,3 +6,109 @@
 2022-04-21 22:07:14.352 EDT [9460] LOG:  database system is ready to accept connections
 2022-04-21 22:08:07.801 EDT [9571] FATAL:  database "thesolarsystemmb" does not exist
 2022-04-21 22:20:05.539 EDT [10998] FATAL:  database "thesolarsystemmb_test" does not exist
+2022-04-22 11:54:04.731 EDT [4530] FATAL:  database "messengeruvvsdb" does not exist
+2022-04-22 11:56:54.061 EDT [4939] FATAL:  database "messengeruvvsdb" does not exist
+2022-04-22 12:06:10.049 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:10.727 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:10.727 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:11.403 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:11.403 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:12.081 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:12.081 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:12.760 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:12.760 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:13.437 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:13.437 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:14.111 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:14.111 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:14.792 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:14.792 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:15.472 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:15.472 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:16.149 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:16.150 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:16.842 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:16.842 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:17.520 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:17.520 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:18.195 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:18.195 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:18.867 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:18.867 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:19.553 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:19.553 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:20.229 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:20.229 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:20.654 EDT [9465] LOG:  using stale statistics instead of current ones because stats collector is not responding
+2022-04-22 12:06:20.654 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:20.654 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:21.330 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:21.330 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:22.010 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:22.010 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:22.684 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:22.684 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:23.359 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:23.360 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:24.036 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:24.036 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:24.713 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:24.713 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:25.390 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:25.391 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:26.068 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:26.068 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:26.750 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:26.750 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:27.431 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:27.431 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:28.111 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:28.111 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:28.790 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:28.790 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:29.468 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:29.468 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:30.152 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:30.152 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:30.831 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:30.831 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:31.253 EDT [9465] LOG:  using stale statistics instead of current ones because stats collector is not responding
+2022-04-22 12:06:31.253 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:31.253 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:31.932 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:31.932 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:32.607 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:32.607 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:33.289 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:33.289 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:33.972 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:33.972 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:34.650 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:34.650 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:35.324 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:35.324 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:36.021 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:36.021 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:36.702 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:36.702 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:37.381 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:37.381 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:38.056 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:38.056 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:38.738 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:38.738 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:39.412 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:39.412 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:40.091 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:40.091 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:40.770 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:40.770 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:41.442 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:41.442 EDT [9466] LOG:  could not open temporary statistics file "pg_stat_tmp/global.tmp": No such file or directory
+2022-04-22 12:06:41.867 EDT [9465] LOG:  using stale statistics instead of current ones because stats collector is not responding
+2022-04-22 12:06:55.332 EDT [9460] LOG:  could not open file "postmaster.pid": No such file or directory
+2022-04-22 12:06:55.332 EDT [9460] LOG:  performing immediate shutdown because data directory lock file is invalid
+2022-04-22 12:06:55.332 EDT [9460] LOG:  received immediate shutdown request
+2022-04-22 12:06:55.332 EDT [9460] LOG:  could not open file "postmaster.pid": No such file or directory
+2022-04-22 12:06:55.333 EDT [9466] LOG:  could not open temporary statistics file "pg_stat/global.tmp": No such file or directory
+2022-04-22 12:06:55.336 EDT [9460] LOG:  database system is shut down
