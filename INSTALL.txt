@@ -62,7 +62,7 @@ need to be valid.
 
 (4) Configure the MESSENGER UVVS database
     (a) Download the MESSENGERdata package. Get the link from Matt.
-    (b) Put the file somewhere and untar it:
+    (b) Put the file in the mesdatapath directory and untar it.
         > tar -xvzf ModelData.tar.gz
     (c)
 

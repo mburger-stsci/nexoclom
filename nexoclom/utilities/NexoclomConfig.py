@@ -8,6 +8,7 @@ from nexoclom.utilities.exceptions import ConfigfileError
 DEFAULT_DATABASE = 'thesolarsystemmb'
 DEFAULT_PORT = 5432
 
+
 class NexoclomConfig:
     """Configure external resources used in the model.
     The following parameters can be saved in the file `$HOME/.nexoclom`.
@@ -55,6 +56,8 @@ class NexoclomConfig:
             self.port = DEFAULT_PORT
         else:
             self.port = int(config['port'])
+            
+        self.mesdatabase = config.get('mesdatabase', None)
         
         for key, value in config.items():
             if key not in self.__dict__:
@@ -84,11 +87,7 @@ class NexoclomConfig:
 
     def create_engine(self, database=None):
         """Wrapper for slalchemy.create_engine() that determines which database and port to use.
-
-        :return:
         :param database: Default = None to use value from config file
-        :param port: Default = None to use value from config file
-        :param return_con: False to return database name and port instead of connection
         :return: SQLAlchemy engine
         """
         self.verify_database_running()
@@ -103,7 +102,7 @@ class NexoclomConfig:
         else:
             url = (f"postgresql+psycopg2://{os.environ['USER']}@localhost:"
                    f"{self.port}/{database}")
-        engine = create_engine(url, echo=True, future=True)
+        engine = create_engine(url, echo=False, future=True)
 
         return engine
 
