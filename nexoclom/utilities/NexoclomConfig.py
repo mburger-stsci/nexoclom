@@ -58,6 +58,7 @@ class NexoclomConfig:
             self.port = int(config['port'])
             
         self.mesdatabase = config.get('mesdatabase', None)
+        self.mesdatapath = config.get('mesdatapath', None)
         
         for key, value in config.items():
             if key not in self.__dict__:

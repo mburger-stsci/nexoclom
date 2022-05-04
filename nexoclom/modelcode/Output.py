@@ -5,6 +5,8 @@ import numpy as np
 import pickle
 import random
 import astropy.units as u
+import sqlalchemy as sqla
+import sqlalchemy.dialects.postgresql as pg
 
 import nexoclom.math as mathMB
 from nexoclom.solarsystem import planet_dist
@@ -474,33 +476,39 @@ class Output:
         ang_id = self.inputs.angulardist.insert()
         opt_id = self.inputs.options.insert()
         
-        with self.inputs.config.database_connect() as con:
-            tempfilename = f'temp_{str(random.randint(0, 1000000))}'
-            cur = con.cursor()
-            cur.execute('''INSERT INTO outputfile (filename,
-                               npackets, totalsource, creation_time,
-                               geo_type, geo_id, sint_type, sint_id,
-                               force_id, spatdist_type, spatdist_id,
-                               spddist_type, spddist_id, angdist_type,
-                               angdist_id, opt_id) VALUES (%s, %s, %s,
-                               NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                               %s, %s)''',
-                        (tempfilename, self.npackets,
-                         self.totalsource, self.inputs.geometry.type, geo_id,
-                         self.inputs.surfaceinteraction.sticktype, sint_id,
-                         for_id, self.inputs.spatialdist.type, spat_id,
-                         self.inputs.speeddist.type, spd_id,
-                         self.inputs.angulardist.type, ang_id, opt_id))
+        engine = self.inputs.config.create_engine()
+        metadata_obj = sqla.MetaData()
+        table = sqla.Table("outputfile", metadata_obj, autoload_with=engine)
+        
+        insert_stmt = pg.insert(table).values(
+            filename = None,
+            npackets = self.npackets,
+            totalsource = self.totalsource,
+            geo_type = self.inputs.geometry.type,
+            geo_id = geo_id,
+            sint_type = self.inputs.surfaceinteraction.sticktype,
+            sint_id = sint_id,
+            force_id = for_id,
+            spatdist_type = self.inputs.spatialdist.type,
+            spatdist_id = spat_id,
+            spddist_type = self.inputs.speeddist.type,
+            spddist_id = spd_id,
+            angdist_type = self.inputs.angulardist.type,
+            angdist_id = ang_id,
+            opt_id = opt_id)
+        
+        with engine.connect() as con:
+            result = con.execute(insert_stmt)
+            con.commit()
             
-            cur.execute('''SELECT idnum
-                           FROM outputfile
-                           WHERE filename = %s''', (tempfilename,))
-            self.idnum = cur.fetchone()[0]
-            self.make_filename()
-            cur.execute('''UPDATE outputfile
-                           SET filename = %s
-                           WHERE idnum = %s''', (self.filename, self.idnum))
-
+        self.idnum = result.inserted_primary_key[0]
+        self.make_filename()
+        update = sqla.update(table).where(table.columns.idnum == self.idnum).values(
+            filename=self.filename)
+        with engine.connect() as con:
+            con.execute(update)
+            con.commit()
+            
         # Remove frac = 0
         if self.compress:
             self.X = self.X[self.X.frac > 0]

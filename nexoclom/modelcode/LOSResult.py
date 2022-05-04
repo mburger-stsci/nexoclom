@@ -8,6 +8,8 @@ import astropy.units as u
 from astropy.modeling import models, fitting
 from astropy.visualization import PercentileInterval
 from sklearn.neighbors import KDTree, BallTree
+import sqlalchemy as sqla
+import sqlalchemy.dialects.postgresql as pg
 from nexoclom.modelcode.ModelResult import ModelResult
 from nexoclom.modelcode.Output import Output
 from nexoclom.modelcode.input_classes import SpatialDist, SpeedDist
@@ -157,74 +159,46 @@ fitted = {self.fitted}'''
     def _add_index(x, i):
         return np.append(x, i)
 
-    # def delete_models(self):
-    #     """Deletes any LOSResult models associated with this data and input
-    #     This may never actually do anything. Overwrite=True will also
-    #     erase the outputfiles (which erases any models that depend on them).
-    #     Unless I put separate outputfile and modelfile delete switches,
-    #     This shouldn't do anything"""
-    #
-    #     search_results = self.search()
-    #     if len(search_results) != 0:
-    #         print('Warning: LOSResult.delete_models found something to delete')
-    #         for _, search_result in search_results.items():
-    #             if search_result is not None:
-    #                 idnum, modelfile = search_result
-    #                 with self.inputs.config.database_connect() as con:
-    #                     cur = con.cursor()
-    #                     cur.execute(f'''DELETE from uvvsmodels
-    #                                    WHERE idnum = %s''', (idnum,))
-    #                 if os.path.exists(modelfile):
-    #                     os.remove(modelfile)
-    #     else:
-    #         pass
-    
     def save(self, iteration_result):
         '''
         Insert the result of a LOS iteration into the database
         :param iteration_result: LOS result from a single outputfile
         :return: name of saved file
         '''
-        if self.quantity == 'radiance':
-            mech = ', '.join(sorted([m for m in self.mechanism]))
-            wave_ = sorted([w.value for w in self.wavelength])
-            wave = ', '.join([str(w) for w in wave_])
-        else:
-            mech = None
-            wave = None
-        
-        tempname = f'temp_{str(random.randint(0, 1000000))}'
-        
         if isinstance(iteration_result, FittedIterationResult):
             ufit_id = iteration_result.unfit_outid
         else:
             ufit_id = None
+
+        # Insert the result into the database
+        engine = self.inputs.config.create_engine()
+        metadata_obj = sqla.MetaData()
+        table = sqla.Table("uvvsmodels", metadata_obj, autoload_with=engine)
         
-        with self.inputs.config.database_connect() as con:
-            cur = con.cursor()
-            cur.execute(f'''INSERT into uvvsmodels (out_idnum, unfit_idnum,
-                            quantity, query, dphi, mechanism, wavelength,
-                            fitted, filename)
-                            values (%s, %s, %s, %s, %s, %s, %s, %s, %s)''',
-                        (iteration_result.out_idnum, ufit_id, self.quantity,
-                         self.query, self.dphi, mech, wave, self.fitted,
-                         tempname))
-            
-            # Determine the savefile name
-            idnum_ = pd.read_sql(f'''SELECT idnum
-                                     FROM uvvsmodels
-                                     WHERE filename='{tempname}';''', con)
-            assert len(idnum_) == 1
-            idnum = int(idnum_.idnum[0])
-            
-            savefile = os.path.join(os.path.dirname(iteration_result.outputfile),
-                                    f'model.{idnum}.pkl')
-            print(f'Saving model result {savefile}')
-            
-            cur.execute(f'''UPDATE uvvsmodels
-                            SET filename=%s
-                            WHERE idnum=%s''', (savefile, idnum))
+        insert_stmt = pg.insert(table).values(
+            out_idnum = iteration_result.out_idnum,
+            unfit_idnum = ufit_id,
+            quantity = self.quantity,
+            query = self.query,
+            dphi = self.dphi,
+            mechanism = self.mechanism,
+            wavelength = [w.value for w in self.wavelength],
+            fitted = self.fitted)
         
+        with engine.connect() as con:
+            result = con.execute(insert_stmt)
+            con.commit()
+            
+        self.idnum = result.inserted_primary_key[0]
+        savefile = os.path.join(os.path.dirname(iteration_result.outputfile),
+                                f'model.{self.idnum}.pkl')
+        print(f'Saving model result {savefile}')
+        update = sqla.update(table).where(table.columns.idnum == self.idnum).values(
+            filename=savefile)
+        with engine.connect() as con:
+            con.execute(update)
+            con.commit()
+
         with open(savefile, 'wb') as f:
             pickle.dump(iteration_result, f)
         
@@ -237,38 +211,33 @@ fitted = {self.fitted}'''
         """
         search_results = {}
         for oid, outputfile in zip(self.outid, self.outputfiles):
-            with self.inputs.config.database_connect() as con:
-                if self.quantity == 'radiance':
-                    mech = ("mechanism = '" +
-                            ", ".join(sorted([m for m in self.mechanism])) +
-                            "'")
-                    wave_ = sorted([w.value for w in self.wavelength])
-                    wave = ("wavelength = '" +
-                            ", ".join([str(w) for w in wave_]) +
-                            "'")
-                else:
-                    mech = 'mechanism is NULL'
-                    wave = 'wavelength is NULL'
+            engine = self.inputs.config.create_engine()
+            metadata_obj = sqla.MetaData()
+            table = sqla.Table("uvvsmodels", metadata_obj, autoload_with=engine)
+            
+            query = sqla.select(table).where(
+                table.columns.out_idnum == oid,
+                table.columns.quantity == self.quantity,
+                table.columns.query == self.query,
+                table.columns.dphi == self.dphi,
+                table.columns.mechanism == self.mechanism,
+                table.columns.wavelength == [w.value for w in self.wavelength],
+                table.columns.fitted == self.fitted)
                 
-                result = pd.read_sql(
-                    f'''SELECT idnum, unfit_idnum, filename FROM uvvsmodels
-                        WHERE out_idnum={oid} and
-                              quantity = '{self.quantity}' and
-                              query = '{self.query}' and
-                              dphi = {self.dphi} and
-                              {mech} and
-                              {wave} and
-                              fitted = {self.fitted}''', con)
+            with engine.connect() as con:
+                result = pd.DataFrame(con.execute(query))
                 
-                # Should only have one match per outputfile
-                assert len(result) <= 1
-                
-                if len(result) == 0:
-                    search_results[outputfile] = None
-                else:
-                    search_results[outputfile] = (result.iloc[0, 0],
-                                                  result.iloc[0, 1],
-                                                  result.iloc[0, 2])
+            # Should only have one match per outputfile
+            assert len(result) <= 1
+            
+            if len(result) == 0:
+                search_results[outputfile] = None
+            else:
+                # from IPython import embed; embed()
+                # import sys; sys.exit()
+                search_results[outputfile] = (result.loc[0, 'idnum'],
+                                              result.loc[0, 'unfit_idnum'],
+                                              result.loc[0, 'filename'])
         
         return search_results
     

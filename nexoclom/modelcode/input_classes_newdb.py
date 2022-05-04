@@ -2,11 +2,9 @@
 import os
 import numpy as np
 import pickle
-import pandas as pd
 from astropy.time import Time
 import astropy.units as u
-import sqlalchemy as sqla
-import sqlalchemy.dialects.postgresql as pg
+from sqlalchemy import text
 from nexoclom.solarsystem import SSObject
 from nexoclom.utilities import InputError, NexoclomConfig
 
@@ -16,16 +14,66 @@ dtor = np.pi/180.
 dtaa = 2.*dtor
 
 
-config = NexoclomConfig()
+class InputClass:
+    def __init__(self):
+        self.type = None
+        self.config = NexoclomConfig()
+    
+    def __repr__(self):
+        result = ''
+        for key,value in self.__dict__.items():
+            result += f'geometry.{key} = {value}\n'
+        return result.strip()
+    
+    def __str__(self):
+        return self.__repr__()
 
+    def __eq__(self, other):
+        if not isinstance(other, type(self)):
+            return False
+        else:
+            pass
+    
+        keys_self, keys_other = set(self.__dict__.keys()), set(other.__dict__.keys())
+        if keys_self != keys_other:
+            return False
+        else:
+            return all([self.__dict__[key] == other.__dict__[key] for key in keys_self])
+        
+    def make_query(self):
+        fields = ', '.join(self.__dict__.keys())
+        values = '%' + ', %'.join(self.__dict__.keys())
+        return fields, values
 
-class Geometry:
+    def insert(self):
+        fields, values = self.make_query()
+        query = text(f'''INSERT INTO {self.type} ({fields})
+                         VALUES ({values});''')
+        with self.config.create_engine().begin as con:
+            con.execute(query, self.__dict__)
+            
+        ids = self.search()
+        return ids
+    
+    def search(self):
+        fields, values = self.make_query()
+        query = text(f'''SELECT idnum FROM {self.type}
+                         WHERE {fields}''')
+        with self.config.create_engine().connect() as con:
+            result = con.execute(query, self.__dict__)
+            ids = [row.idnum for row in result]
+        return ids
+        
+
+class Geometry(InputClass):
     def __init__(self, gparam):
         """Define a Geometry object.
         
         See :doc:`inputfiles#Geometry` for more information.
         """
         # Planet
+        super().__init__()
+        
         planet = gparam.get('planet', None)
         if planet is None:
             raise InputError('Geometry.__init__',
@@ -80,7 +128,7 @@ class Geometry:
                 self.time = Time(gparam['starttime'].upper())
             except:
                 raise InputError('Geometry.__init__',
-                    f'Invalid starttime format: {gparam["starttime"]}')
+                         f'Invalid starttime format: {gparam["starttime"]}')
         else:
             self.type = 'geometry without starttime'
             if len(self.planet) == 1:
@@ -93,10 +141,10 @@ class Geometry:
                     self.phi = phi
                 else:
                     raise InputError('Geometry.__init__',
-                        'The wrong number of orbital positions was given.')
+                          'The wrong number of orbital positions was given.')
             else:
                 raise InputError('Geometry.__init__',
-                    'geometry.phi was not specified.')
+                                 'geometry.phi was not specified.')
 
             # Subsolar longitude and latitude
             if 'subsolarpoint' in gparam:
@@ -106,151 +154,13 @@ class Geometry:
                                           float(subs[1])*u.rad)
                 except:
                     raise InputError('Geometry.__init__',
-                        'The format for geometry.subsolarpoint is wrong.')
+                         'The format for geometry.subsolarpoint is wrong.')
             else:
                 self.subsolarpoint = (0*u.rad, 0*u.rad)
 
             # True Anomaly Angle
             self.taa = float(gparam.get('taa', 0.))*u.rad
             
-    def __eq__(self, other):
-        if not isinstance(other, type(self)):
-            return False
-        else:
-            pass
-        
-        keys_self, keys_other = set(self.__dict__.keys()), set(other.__dict__.keys())
-        if keys_self != keys_other:
-            return False
-        else:
-            return all([self.__dict__[key] == other.__dict__[key] for key in keys_self])
-
-    def __str__(self):
-        result = ''
-        for key,value in self.__dict__.items():
-            result += f'geometry.{key} = {value}\n'
-        return result.strip()
-    
-    def insert(self):
-        # check to see if it is already there
-        ids = self.search()
-        
-        if ids is None:
-            engine = config.create_engine()
-            metadata_obj = sqla.MetaData()
-            if self.type == 'geometry with starttime':
-                if self.objects is None:
-                    objs = None
-                else:
-                    objs = [o.object for o in self.objects]
-
-                table = sqla.Table("geometry_without_time",
-                                   metadata_obj,
-                                   autoload_with=engine)
-                insert_stmt = pg.insert(table).values(
-                    planet=self.planet.object,
-                    startpoint=self.startpoint,
-                    objects=objs,
-                    starttime = self.time)
-            elif self.type == 'geometry without starttime':
-                if self.objects is None:
-                    objs = None
-                else:
-                    objs = [o.object for o in self.objects]
-                    
-                subspt = [s.value for s in self.subsolarpoint]
-                
-                if self.phi is None:
-                    phi = None
-                else:
-                    phi = [p.value for p in self.phi]
-                    
-                table = sqla.Table("geometry_without_time",
-                                   metadata_obj,
-                                   autoload_with=engine)
-                
-                insert_stmt = pg.insert(table).values(
-                    planet=self.planet.object,
-                    startpoint=self.startpoint,
-                    objects=objs,
-                    phi=phi,
-                    subsolarpt=subspt,
-                    taa=self.taa.value)
-            else:
-                raise InputError('Geometry.insert()',
-                                 f'geometry.type = {self.type} not allowed.')
-            
-            with engine.connect() as con:
-                result = con.execute(insert_stmt)
-                con.commit()
-            
-            ids = result.inserted_primary_key
-            assert len(ids) == 1
-            ids = ids[0]
-        else:
-            pass
-        
-        return int(ids)
-
-    def search(self):
-        engine = config.create_engine()
-        metadata_obj = sqla.MetaData()
-
-        if self.objects is None:
-            objects = None
-        else:
-            objects = [o.object for o in self.objects]
-            
-        if self.type == 'geometry with starttime':
-            table = sqla.Table("geometry_without_time",
-                               metadata_obj,
-                               autoload_with=engine)
-            query = sqla.select(table.columns.idnum,
-                                table.columns.taa).where(
-                table.columns.planet == self.planet.object,
-                table.columns.startpoint == self.startpoint,
-                table.columns.objects  ==  objects,
-                table.columns.starttime  ==  self.time)
-        elif self.type == 'geometry without starttime':
-            if self.phi is None:
-                phi = None
-            else:
-                phi = [p.value for p in self.phi]
-            
-            subspoint = [s.value for s in self.subsolarpoint]
-
-            table = sqla.Table("geometry_without_time",
-                               metadata_obj,
-                               autoload_with=engine)
-            query = sqla.select(table.columns.idnum,
-                                table.columns.taa).where(
-                table.columns.planet == self.planet.object,
-                table.columns.startpoint == self.startpoint,
-                table.columns.objects == objects,
-                table.columns.phi == phi,
-                table.columns.subsolarpt == subspoint,
-                table.columns.taa >= self.taa.value - dtaa/2.,
-                table.columns.taa < self.taa.value + dtaa/2.)
-        else:
-            raise InputError('geometry.search()',
-                             f'geometry.type = {self.type} not allowed.')
-                    
-        with engine.connect() as con:
-            results = pd.DataFrame(con.execute(query))
-            
-        if len(results) == 0:
-            return None
-        elif len(results) == 1:
-            return int(results.loc[0, 'idnum'])
-        else:
-            diff = np.abs(results.taa - self.taa.value)
-            q = np.where(diff == diff.min())[0]
-            if len(q) == 1:
-                return int(results.loc[q, 'idnum'][0])
-            else:
-                raise RuntimeError('geometry.search()',
-                                   'Duplicates in geometry table')
-
 
 class SurfaceInteraction:
     def __init__(self, sparam):
@@ -351,87 +261,77 @@ class SurfaceInteraction:
     def insert(self):
         ids = self.search()
         if ids is None:
-            engine = config.create_engine()
-            metadata_obj = sqla.MetaData()
             if self.sticktype == 'constant':
-                table = sqla.Table('surface_int_constant',
-                                   metadata_obj,
-                                   autoload_with=engine)
-                
-                insert_stmt = pg.insert(table).values(
-                    stickcoef=self.stickcoef,
-                    accomfactor=self.accomfactor)
+                with config.database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO surface_int_constant (
+                                       stickcoef, accomfactor) VALUES (
+                                       %s, %s)''',
+                                (self.stickcoef, self.accomfactor))
             elif self.sticktype == 'surface map':
-                table = sqla.Table('surface_int_map',
-                                   metadata_obj,
-                                   autoload_with=engine)
-    
-                insert_stmt = pg.insert(table).values(
-                    mapfile=self.stick_mapfile,
-                    accomfactor = self.accomfactor)
+                with config.database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO surface_int_map (
+                                       mapfile, accomfactor) VALUES (
+                                       %s, %s)''',
+                                (self.stick_mapfile, self.accomfactor))
             elif self.sticktype == 'temperature dependent':
-                table = sqla.Table('surface_int_tempdependent',
-                                   metadata_obj,
-                                   autoload_with=engine)
-    
-                insert_stmt = pg.insert(table).values(
-                    accomfactor = self.accomfactor,
-                    a = self.A)
+                with config.database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO surface_int_tempdependent (
+                                       accomfactor, a) VALUES
+                                       (%s, %s::DOUBLE PRECISION[3])''',
+                                (self.accomfactor, self.A))
             else:
                 raise InputError('SurfaceInteraction.search()',
                     f'surfaceinteraction.sticktype = {self.sticktype} not allowed.')
-
-            with engine.connect() as con:
-                result = con.execute(insert_stmt)
-                con.commit()
-
-            ids = result.inserted_primary_key
-            assert len(ids) == 1
-            ids = ids[0]
+            ids = self.search()
+            assert ids is not None
         else:
             pass
 
-        return int(ids)
+        return ids
 
     def search(self):
-        engine = config.create_engine()
-        metadata_obj = sqla.MetaData()
-        
         if self.sticktype == 'constant':
-            table = sqla.Table('surface_int_constant',
-                               metadata_obj,
-                               autoload_with=engine)
-            query = sqla.select(table.columns.idnum).where(
-                table.columns.accomfactor == self.accomfactor,
-                table.columns.stickcoef == self.stickcoef)
+            params = [self.stickcoef]
+            if self.accomfactor is None:
+                afactor = 'accomfactor is NULL'
+            else:
+                afactor = 'accomfactor = %s'
+                params.append(self.accomfactor)
+            
+            query = f"""SELECT idnum
+                        FROM surface_int_constant
+                        WHERE stickcoef = %s and
+                              {afactor}"""
         elif self.sticktype == 'temperature dependent':
-            table = sqla.Table('surface_int_tempdependent',
-                               metadata_obj,
-                               autoload_with=engine)
-            query = sqla.select(table.columns.idnum).where(
-                table.columns.accomfactor == self.accomfactor,
-                table.columns.a == self.A)
+            params = [self.accomfactor, self.A]
+            query = f"""SELECT idnum
+                        FROM surface_int_tempdependent
+                        WHERE accomfactor = %s and
+                              a = %s::DOUBLE PRECISION[3]"""
         elif self.sticktype == 'surface map':
-            table = sqla.Table('surface_int_map',
-                               metadata_obj,
-                               autoload_with=engine)
-            query = sqla.select(table.columns.idnum).where(
-                table.columns.accomfactor == self.accomfactor,
-                table.columns.mapfile == self.stick_mapfile)
+            params = [self.stick_mapfile, self.accomfactor]
+            query = f"""SELECT idnum
+                        FROM surface_int_map
+                        WHERE mapfile = %s and
+                              accomfactor = %s"""
         else:
             raise InputError('SurfaceInteraction.search()',
              f'surfaceinteraction.sticktype = {self.sticktype} not allowed.')
         
-        with engine.connect() as con:
-            results = pd.DataFrame(con.execute(query))
-            
-        if len(results) == 0:
-            return None
-        elif len(results) == 1:
-            return int(results.loc[0, 'idnum'])
-        else:
-            raise RuntimeError('SurfaceInteraction.search()',
-                               'Duplicates in surface interaction table')
+        with config.database_connect() as con:
+            cur = con.cursor()
+            cur.execute(query, tuple(params))
+    
+            if cur.rowcount == 0:
+                return None
+            elif cur.rowcount == 1:
+                return cur.fetchone()[0]
+            else:
+                raise RuntimeError('SurfaceInteraction.search()',
+                                   'Duplicates in surface interaction table')
 
 
 class Forces:
@@ -468,45 +368,35 @@ class Forces:
     
     def insert(self):
         ids = self.search()
-        
         if ids is None:
-            engine = config.create_engine()
-            metadata_obj = sqla.MetaData()
-            table = sqla.Table('forces', metadata_obj, autoload_with=engine)
-            insert_stmt = pg.insert(table).values(
-                gravity=self.gravity,
-                radpres=self.radpres)
-            
-            with engine.connect() as con:
-                result = con.execute(insert_stmt)
-                con.commit()
-                
-            ids  = result.inserted_primary_key
-            assert len(ids) == 1
-            ids = ids[0]
+            with config.database_connect() as con:
+                cur = con.cursor()
+                cur.execute('''INSERT INTO forces (
+                                   gravity, radpres) VALUES (%s, %s)''',
+                            (self.gravity, self.radpres))
+            ids = self.search()
+            assert ids is not None
         else:
-            pass
+                pass
 
-        return int(ids)
+        return ids
 
     def search(self):
-        engine = config.create_engine()
-        metadata_obj = sqla.MetaData()
-        table = sqla.Table('forces', metadata_obj, autoload_with=engine)
+        query = f'''SELECT idnum FROM forces
+                    WHERE gravity = %s and
+                          radpres = %s'''
         
-        query = sqla.select(table.columns.idnum).where(
-            table.columns.gravity == self.gravity,
-            table.columns.radpres == self.radpres)
-        
-        with engine.connect() as con:
-            results = pd.DataFrame(con.execute(query))
+        with config.database_connect() as con:
+            cur = con.cursor()
+            cur.execute(query, (self.gravity, self.radpres))
     
-        if len(results) == 0:
-            return None
-        elif len(results) == 1:
-            return int(results.loc[0, 'idnum'])
-        else:
-            raise RuntimeError('Forces.search()', 'Duplicates in forces table')
+            if cur.rowcount == 0:
+                return None
+            elif cur.rowcount == 1:
+                return cur.fetchone()[0]
+            else:
+                raise RuntimeError('Forces.search()',
+                                   'Duplicates in forces table')
 
 
 class SpatialDist:
@@ -623,120 +513,111 @@ class SpatialDist:
     
     def insert(self):
         ids = self.search()
-        
         if ids is None:
-            engine = config.create_engine()
-            metadata_obj = sqla.MetaData()
             if self.type == 'uniform':
                 long = [l.value for l in self.longitude]
                 lat = [l.value for l in self.latitude]
-                
-                table = sqla.Table("spatdist_uniform",
-                                   metadata_obj,
-                                   autoload_with=engine)
-                insert_stmt = pg.insert(table).values(
-                    exobase = self.exobase,
-                    longitude = long,
-                    latitude = lat)
+                with config.database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO spatdist_uniform (
+                                       exobase, longitude, latitude) VALUES (
+                                       %s, %s::DOUBLE PRECISION[2],
+                                       %s::DOUBLE PRECISION[2])''',
+                                (self.exobase, long, lat))
             elif self.type == 'surface map':
-                sslon = (None
-                         if self.subsolarlon is None
-                         else self.subsolarlon.value)
-                table = sqla.Table("spatdist_surfmap",
-                                   metadata_obj,
-                                   autoload_with=engine)
-                insert_stmt = pg.insert(table).values(
-                    exobase=self.exobase,
-                    mapfile=self.mapfile,
-                    subsolarlon=sslon,
-                    coordinate_system=self.coordinate_system)
+                with config.database_connect() as con:
+                    cur = con.cursor()
+                    sslon = (None
+                             if self.subsolarlon is None
+                             else self.subsolarlon.value)
+                    cur.execute('''INSERT INTO spatdist_surfmap (
+                                       exobase, mapfile, subsolarlon,
+                                       coordinate_system) VALUES (
+                                       %s, %s, %s, %s)''',
+                                (self.exobase, self.mapfile, sslon,
+                                 self.coordinate_system))
             elif self.type == 'surface spot':
-                table = sqla.Table("spatdist_spot",
-                                   metadata_obj,
-                                   autoload_with=engine)
-                insert_stmt = pg.insert(table).values(
-                    exobase=self.exobase,
-                    longitude=self.longitude.value,
-                    latitude=self.latitude.value,
-                    sigma=self.sigma.value)
+                with config.database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO spatdist_spot (
+                                       exobase, longitude, latitude, sigma) VALUES (
+                                       %s, %s, %s, %s)''',
+                                (self.exobase, self.longitude.value,
+                                 self.latitude.value, self.sigma.value))
             elif self.type == 'fitted output':
-                table = sqla.Table("spatdist_fittedoutput",
-                                   metadata_obj,
-                                   autoload_with=engine)
-                insert_stmt = pg.insert(table).values(
-                    unfit_outid=self.unfit_outid,
-                    query=self.query)
+                with config.database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO spatdist_fittedoutput (
+                                   unfit_outid, query)
+                                       VALUES (%s, %s)''',
+                                (self.unfit_outid, self.query))
             else:
                 raise InputError('SpatialDist.search()',
                                  f'SpatialDist.type = {self.type} not allowed.')
-            with engine.connect() as con:
-                result = con.execute(insert_stmt)
-                con.commit()
-
-            ids  = result.inserted_primary_key
-            assert len(ids) == 1
-            ids = ids[0]
+            ids = self.search()
+            assert ids is not None
         else:
             pass
         
-        return int(ids)
+        return ids
 
     def search(self):
-        engine = config.create_engine()
-        metadata_obj = sqla.MetaData()
-        
         if self.type == 'uniform':
-            table = sqla.Table('spatdist_uniform',
-                               metadata_obj,
-                               autoload_with=engine)
-            query = sqla.select(table.columns.idnum).where(
-                table.columns.exobase == self.exobase,
-                table.columns.longitude ==  [self.longitude[0].value,
-                                             self.longitude[1].value],
-                table.columns.latitude == [self.latitude[0].value,
-                                           self.latitude[1].value])
+            params = [self.exobase,
+                      [self.longitude[0].value, self.longitude[1].value],
+                      [self.latitude[0].value, self.latitude[1].value]]
+            query = '''SELECT idnum
+                       FROM spatdist_uniform
+                       WHERE exobase = %s and
+                             longitude = %s::DOUBLE PRECISION[2] and
+                             latitude = %s::DOUBLE PRECISION[2]'''
         elif self.type == 'surface map':
-            sslon = (None
-                     if self.subsolarlon is None
-                     else self.subsolarlon.value)
-            table = sqla.Table('spatdist_surfmap',
-                               metadata_obj,
-                               autoload_with=engine)
-            query = sqla.select(table.columns.idnum).where(
-                table.columns.exobase == self.exobase,
-                table.columns.mapfile == self.mapfile,
-                table.columns.subsolarlon == sslon,
-                table.columns.coordinate_system == self.coordinate_system)
+            params = [self.exobase, self.mapfile]
+            if self.subsolarlon is None:
+                sslon = 'subsolarlon is NULL'
+            else:
+                sslon = 'subsolarlon = %s'
+                params.append(self.subsolarlon.value)
+                
+            params.append(self.coordinate_system)
+            query = f'''SELECT idnum
+                        FROM spatdist_surfmap
+                        WHERE exobase = %s and
+                              mapfile = %s and
+                              {sslon} and
+                              coordinate_system = %s'''
         elif self.type == 'surface spot':
-            table = sqla.Table('spatdist_spot',
-                               metadata_obj,
-                               autoload_with=engine)
-            query = sqla.select(table.columns.idnum).where(
-                table.columns.exobase == self.exobase,
-                table.columns.longitude == self.longitude.value,
-                table.columns.latitude == self.latitude.value,
-                table.columns.sigma == self.sigma.value)
+            params = [self.exobase, self.longitude.value, self.latitude.value,
+                      self.sigma.value]
+            query = '''SELECT idnum
+                       FROM spatdist_spot
+                       WHERE exobase = %s and
+                             longitude = %s and
+                             latitude = %s and
+                             sigma = %s'''
         elif self.type == 'fitted output':
-            table = sqla.Table('spatdist_fittedoutput',
-                               metadata_obj,
-                               autoload_with=engine)
-            query = sqla.select(table.columns.idnum).where(
-                table.columns.unfit_outid == self.unfit_outid,
-                table.columns.query == self.query)
+            params = [self.unfit_outid, self.query]
+            query = '''SELECT idnum
+                       FROM spatdist_fittedoutput
+                       WHERE unfit_outid = %s and
+                             query = %s'''
         else:
             raise InputError('SpatialDist.__init__',
                              f'SpatialDist.type = {self.type} not defined.')
 
-        with engine.connect() as con:
-            results = pd.DataFrame(con.execute(query))
+        with config.database_connect() as con:
+            cur = con.cursor()
+            # print(cur.mogrify(query, tuple(params)))
+            cur.execute(query, tuple(params))
     
-        if len(results) == 0:
-            return None
-        elif len(results) == 1:
-            return int(results.loc[0, 'idnum'])
-        else:
-            raise RuntimeError('SpatialDist.search()',
-                               'Duplicates in forces table')
+            if cur.rowcount == 0:
+                return None
+            elif cur.rowcount == 1:
+                return cur.fetchone()[0]
+            else:
+                raise RuntimeError('SpatialDist.search()',
+                                   'Duplicates in spatial distribution table')
+        
 
 
 class SpeedDist:
@@ -821,131 +702,105 @@ class SpeedDist:
     def insert(self):
         ids = self.search()
         if ids is None:
-            engine = config.create_engine()
-            metadata_obj = sqla.MetaData()
             if self.type == 'gaussian':
-                table = sqla.Table('speeddist_gaussian',
-                                   metadata_obj,
-                                   autoload_with=engine)
-    
-                insert_stmt = pg.insert(table).values(
-                    vprob=self.vprob.value,
-                    sigma=self.sigma.value)
+                with config.database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO speeddist_gaussian (
+                                       vprob, sigma) VALUES (%s, %s)''',
+                                (self.vprob.value, self.sigma.value))
             elif self.type == 'sputtering':
-                table = sqla.Table('speeddist_sputtering',
-                                   metadata_obj,
-                                   autoload_with=engine)
-    
-                insert_stmt = pg.insert(table).values(
-                    alpha=self.alpha,
-                    beta=self.beta,
-                    U=self.U.value)
+                with config.database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO speeddist_sputtering (
+                                       alpha, beta, U) VALUES (%s, %s, %s)''',
+                                (self.alpha, self.beta, self.U.value))
             elif self.type == 'maxwellian':
-                table = sqla.Table('speeddist_maxwellian',
-                                   metadata_obj,
-                                   autoload_with=engine)
-    
-                insert_stmt = pg.insert(table).values(
-                    temperature=self.temperature.value)
+                with config.database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO speeddist_maxwellian (
+                                       temperature) VALUES (%s)''',
+                                (self.temperature.value, ))
             elif self.type == 'flat':
-                table = sqla.Table('speeddist_flat',
-                                   metadata_obj,
-                                   autoload_with=engine)
-    
-                insert_stmt = pg.insert(table).values(
-                    vprob=self.vprob.value,
-                    delv=self.delv.value)
+                with config.database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO speeddist_flat (
+                                       vprob, delv) VALUES (%s, %s)''',
+                                (self.vprob.value, self.delv.value))
             elif self.type == 'user defined':
-                table = sqla.Table('speeddist_user',
-                                   metadata_obj,
-                                   autoload_with=engine)
-    
-                insert_stmt = pg.insert(table).values(
-                    vdistfile=self.vdistfile)
+                with config.database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO speeddist_user (
+                                       vdistfile) VALUES (%s)''',
+                                (self.vdistfile,))
             elif self.type == 'fitted output':
-                table = sqla.Table('speeddist_fittedoutput',
-                                   metadata_obj,
-                                   autoload_with=engine)
-    
-                insert_stmt = pg.insert(table).values(
-                    unfit_outid=self.unfit_outid,
-                    query=self.query)
+                with config.database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO speeddist_fittedoutput (
+                                   unfit_outid, query)
+                                   VALUES (%s, %s)''',
+                                (self.unfit_outid, self.query))
             else:
                 raise InputError('SpeedDist.search()',
                                  f'speeddist.type = {self.type} not allowed.')
 
-            with engine.connect() as con:
-                result = con.execute(insert_stmt)
-                con.commit()
-
-            ids = result.inserted_primary_key
-            assert len(ids) == 1
-            ids = ids[0]
+            ids = self.search()
+            assert ids is not None
         else:
             pass
 
-        return int(ids)
+        return ids
 
     def search(self):
-        engine = config.create_engine()
-        metadata_obj = sqla.MetaData()
-        
         if self.type == 'gaussian':
-            table = sqla.Table('vprob_gaussian',
-                               metadata_obj,
-                               autoload_with=engine)
-            query = sqla.select(table.columns.idnum).where(
-                table.columns.vprob == self.vprob.value,
-                table.columns.sigma == self.sigma.value)
+            params = [self.vprob.value, self.sigma.value]
+            query = '''SELECT idnum
+                       FROM speeddist_gaussian
+                       WHERE vprob = %s and
+                             sigma = %s'''
         elif self.type == 'sputtering':
-            table = sqla.Table('speeddist_sputtering',
-                               metadata_obj,
-                               autoload_with=engine)
-            query = sqla.select(table.columns.idnum).where(
-                table.columns.alpha == self.alpha,
-                table.columns.beta == self.beta,
-                table.columns.U == self.U.value)
-            
+            params = [self.alpha, self.beta, self.U.value]
+            query = '''SELECT idnum
+                       FROM speeddist_sputtering
+                       WHERE alpha = %s and
+                             beta = %s and
+                             U = %s'''
         elif self.type == 'maxwellian':
-            table = sqla.Table('speeddist_maxwellian',
-                               metadata_obj,
-                               autoload_with=engine)
-            query = sqla.select(table.columns.idnum).where(
-                table.columns.temperature == self.temperature.value)
+            params = [self.temperature.value]
+            query = '''SELECT idnum
+                       FROM speeddist_maxwellian
+                       WHERE temperature = %s'''
         elif self.type == 'flat':
-            table = sqla.Table('speeddist_flat',
-                               metadata_obj,
-                               autoload_with=engine)
-            query = sqla.select(table.columns.idnum).where(
-                table.columns.vprob == self.vprob.value,
-                table.columns.delv == self.delv.value)
+            params = [self.vprob.value, self.delv.value]
+            query = '''SELECT idnum
+                       FROM speeddist_flat
+                       WHERE vprob = %s and
+                             delv = %s'''
         elif self.type == 'user defined':
-            table = sqla.Table('speeddist_user',
-                               metadata_obj,
-                               autoload_with=engine)
-            query = sqla.select(table.columns.idnum).where(
-                table.columns.vdistfile == self.vdistfile)
+            params = [self.vdistfile]
+            query = '''SELECT idnum
+                       FROM speeddist_user
+                       WHERE vdistfile = %s'''
         elif self.type == 'fitted output':
-            table = sqla.Table('speeddist_fittedoutput',
-                               metadata_obj,
-                               autoload_with=engine)
-            query = sqla.select(table.columns.idnum).where(
-                table.columns.unfit_outid == self.unfit_outid,
-                table.columns.query == self.query)
+            params = [self.unfit_outid, self.query]
+            query = '''SELECT idnum
+                           FROM speeddist_fittedoutput
+                           WHERE unfit_outid = %s and
+                                 query = %s'''
         else:
             raise InputError('SpeedDist.__init__',
                              f'SpeedDist.type = {self.type} not defined.')
 
-        with engine.connect() as con:
-            results = pd.DataFrame(con.execute(query))
-            
-        if len(results) == 0:
-            return None
-        elif len(results) == 1:
-            return int(results.loc[0, 'idnum'])
-        else:
-            raise RuntimeError('SpeedDist.search()',
-                               'Duplicates in speed distribution table')
+        with config.database_connect() as con:
+            cur = con.cursor()
+            cur.execute(query, tuple(params))
+        
+            if cur.rowcount == 0:
+                return None
+            elif cur.rowcount == 1:
+                return cur.fetchone()[0]
+            else:
+                raise RuntimeError('SpeedDist.search()',
+                                   'Duplicates in speed distribution table')
     
 
 class AngularDist:
@@ -1012,66 +867,54 @@ class AngularDist:
     def insert(self):
         ids = self.search()
         if ids is None:
-            engine = config.create_engine()
-            metadata_obj = sqla.MetaData()
-            
             if self.type == 'radial':
-                assert False, 'Should not be able to get here.'
+                assert 0, 'Should not be able to get here.'
             elif self.type == 'isotropic':
                 alt = [a.value for a in self.altitude]
                 az = [a.value for a in self.azimuth]
-                table = sqla.Table('angdist_isotropic',
-                                   metadata_obj,
-                                   autoload_with=engine)
-    
-                insert_stmt = pg.insert(table).values(
-                    altitude=alt,
-                    azimuth=az)
+                with config.database_connect() as con:
+                    cur = con.cursor()
+                    cur.execute('''INSERT INTO angdist_isotropic (
+                                       altitude, azimuth) VALUES (
+                                       %s::DOUBLE PRECISION[2],
+                                       %s::DOUBLE PRECISION[2])''',
+                                (alt, az))
             else:
                 raise InputError('AngularDist.search()',
                                  f'angulardist.type = {self.type} not allowed.')
 
-            with engine.connect() as con:
-                result = con.execute(insert_stmt)
-                con.commit()
-
-            ids = result.inserted_primary_key
-            assert len(ids) == 1
-            ids = ids[0]
+            ids = self.search()
+            assert ids is not None
         else:
             pass
 
-        return int(ids)
+        return ids
 
     def search(self):
-        engine = config.create_engine()
-        metadata_obj = sqla.MetaData()
-        
         if self.type == 'radial':
             return 0
         elif self.type == 'isotropic':
-            alt = [a.value for a in self.altitude]
-            az = [a.value for a in self.azimuth]
-            table = sqla.Table('angdist_isotropic',
-                               metadata_obj,
-                               autoload_with=engine)
-            query = sqla.select(table.columns.idnum).where(
-                table.columns.altitude == alt,
-                table.columns.azimuth == az)
+            params = [[a.value for a in self.altitude],
+                      [a.value for a in self.azimuth]]
+            query = '''SELECT idnum
+                       FROM angdist_isotropic
+                       WHERE altitude=%s::DOUBLE PRECISION[2] and
+                             azimuth=%s::DOUBLE PRECISION[2]'''
         else:
             raise InputError('AngularDist.__init__',
                              f'AngularDist.type = {self.type} not defined.')
     
-        with engine.connect() as con:
-            results = pd.DataFrame(con.execute(query))
-            
-        if len(results) == 0:
-            return None
-        elif len(results) == 1:
-            return int(results.loc[0, 'idnum'])
-        else:
-            raise RuntimeError('AngularDist.search()',
-                               'Duplicates in angular distribution table')
+        with config.database_connect() as con:
+            cur = con.cursor()
+            cur.execute(query, tuple(params))
+        
+            if cur.rowcount == 0:
+                return None
+            elif cur.rowcount == 1:
+                return cur.fetchone()[0]
+            else:
+                raise RuntimeError('AngularDist.search()',
+                                   'Duplicates in angular distribution table')
 
 
 class Options:
@@ -1142,55 +985,49 @@ class Options:
     def insert(self):
         ids = self.search()
         if ids is None:
-            engine = config.create_engine()
-            metadata_obj = sqla.MetaData()
-            table = sqla.Table('options',
-                               metadata_obj,
-                               autoload_with=engine)
-
-            insert_stmt = pg.insert(table).values(
-                endtime=self.endtime.value,
-                species=self.species,
-                lifetime=self.lifetime.value,
-                outer_edge=self.outeredge,
-                step_size=self.step_size,
-                resolution=self.resolution,
-                fitted=self.fitted)
-                
-            with engine.connect() as con:
-                result = con.execute(insert_stmt)
-                con.commit()
-
-            ids = result.inserted_primary_key
-            assert len(ids) == 1
-            ids = ids[0]
+            with config.database_connect() as con:
+                cur = con.cursor()
+                cur.execute('''INSERT into options (endtime, species, lifetime,
+                                   outer_edge, step_size, resolution, fitted) VALUES (
+                                   %s, %s, %s, %s, %s, %s, %s)''',
+                            (self.endtime.value, self.species,
+                             self.lifetime.value, self.outeredge,
+                             self.step_size, self.resolution, self.fitted))
+            ids = self.search()
+            assert ids is not None
         else:
             pass
 
-        return int(ids)
+        return ids
 
     def search(self):
-        engine = config.create_engine()
-        metadata_obj = sqla.MetaData()
+        params = [self.endtime.value, self.species, self.lifetime.value,
+                  self.outeredge, self.step_size, self.fitted]
         
-        table = sqla.Table('options',
-                           metadata_obj,
-                           autoload_with=engine)
-        query = sqla.select(table.columns.idnum).where(
-            table.columns.endtime == self.endtime.value,
-            table.columns.species == self.species,
-            table.columns.lifetime == self.lifetime.value,
-            table.columns.outer_edge == self.outeredge,
-            table.columns.step_size == self.step_size,
-            table.columns.resolution == self.resolution,
-            table.columns.fitted == self.fitted)
-        
-        with engine.connect() as con:
-            results = pd.DataFrame(con.execute(query))
-
-        if len(results) == 0:
-            return None
-        elif len(results) == 1:
-            return int(results.loc[0, 'idnum'])
+        if self.resolution is None:
+            resol = 'resolution is NULL'
         else:
-            raise RuntimeError('Options.search()', 'Duplicates in options table')
+            resol = 'resolution = %s'
+            params.append(self.resolution)
+            
+        query = f'''SELECT idnum
+                    FROM options
+                    WHERE endtime = %s and
+                          species = %s and
+                          lifetime = %s and
+                          outer_edge = %s and
+                          step_size = %s and
+                          {resol} and
+                          fitted = %s'''
+        
+        with config.database_connect() as con:
+            cur = con.cursor()
+            cur.execute(query, tuple(params))
+    
+            if cur.rowcount == 0:
+                return None
+            elif cur.rowcount == 1:
+                return cur.fetchone()[0]
+            else:
+                raise RuntimeError('Options.search()',
+                                   'Duplicates in options table')

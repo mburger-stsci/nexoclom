@@ -1,10 +1,11 @@
 import os.path
 import numpy as np
-import pandas as pd
 import pickle
 import astropy.units as u
 import json
-from nexoclom.solarsystem import SSObject
+import sqlalchemy as sqla
+import sqlalchemy.dialects.postgresql as pg
+
 from nexoclom.math import rotation_matrix, Histogram2d
 from nexoclom.modelcode.ModelResult import ModelResult
 from nexoclom.modelcode.Output import Output
@@ -103,92 +104,81 @@ class ModelImage(ModelResult):
 
     def save(self, fname, image, packets):
         # Determine the id of the outputfile
-        idnum = int(os.path.basename(fname).split('.')[0])
+        engine = self.inputs.config.create_engine()
+        metadata_obj = sqla.MetaData()
+        outputfile = sqla.Table("outputfile", metadata_obj, autoload_with=engine)
+
+        idnum_query = sqla.select(outputfile.columns.idnum).where(
+            outputfile.columns.filename == fname)
+        with engine.commnect() as con:
+            idnum_= con.execute(idnum_query).first()
+        idnum = idnum_.idnum
 
         # Insert the image into the database
-        if self.quantity == 'radiance':
-            mech = ', '.join(sorted([m for m in self.mechanism]))
-            wave_ = sorted([w.value for w in self.wavelength])
-            wave = ', '.join([str(w) for w in wave_])
-        else:
-            mech = None
-            wave = None
-
-        width = [w.value for w in self.width]
-        center = [c.value for c in self.center]
+        engine = self.inputs.config.create_engine()
+        metadata_obj = sqla.MetaData()
+        table = sqla.Table("modelimages", metadata_obj, autoload_with=engine)
         
-        with self.inputs.config.database_connect() as con:
-            cur = con.cursor()
-            cur.execute(f'''INSERT into modelimages (out_idnum, quantity,
-                                origin, dims, center, width, subobslongitude,
-                                subobslatitude, mechanism, wavelength,
-                                filename)
-                            VALUES (%s, %s, %s, %s::INT[2],
-                                    %s::DOUBLE PRECISION[2],
-                                    %s::DOUBLE PRECISION[2],
-                                    %s, %s, %s, %s, 'temp')''',
-                        (idnum, self.quantity, self.origin.object,
-                         self.dims, center, width,
-                         self.subobslongitude.value, self.subobslatitude.value,
-                         mech, wave))
+        insert_stmt = pg.insert(table).values(
+            out_idnum = idnum,
+            quantity = self.quantity,
+            origin = self.origin.object,
+            dims = self.dims,
+            center = [c.value for c in self.center],
+            width = [w.value for w in self.width],
+            subobslongitude = self.subobslongitude.value,
+            subobslatitude = self.subobslatitude.value,
+            mechanism = self.mechanism,
+            wavelength = [w.value for w in self.wavelength])
 
-        idnum_ = pd.read_sql(f'''SELECT idnum
-                                FROM modelimages
-                                WHERE filename = 'temp';''', con)
-        assert len(idnum_) == 1
-        idnum = int(idnum_.idnum[0])
+        with engine.connect() as con:
+            result = con.execute(insert_stmt)
+            con.commit()
 
-        savefile = os.path.join(os.path.dirname(fname), f'image.{idnum}.pkl')
+        self.idnum = result.inserted_primary_key[0]
+        savefile = os.path.join(os.path.dirname(fname), f'image.{self.idnum}.pkl')
+        update = sqla.update(table).where(table.columns.idnum == self.idnum).values(
+            filename=savefile)
+        with engine.connect() as con:
+            con.execute(update)
+            con.commit()
+
         with open(savefile, 'wb') as f:
             pickle.dump((image, packets), f)
-        cur.execute(f'''UPDATE modelimages
-                        SET filename=%s
-                        WHERE idnum = %s''', (savefile, idnum))
-        con.close()
 
     def restore(self, fname, overwrite=False):
         # Determine the id of the outputfile
-        if self.quantity == 'radiance':
-            mech = ("mechanism = '" +
-                    ", ".join(sorted([m for m in self.mechanism])) +
-                    "'")
-            wave_ = sorted([w.value for w in self.wavelength])
-            wave = ("wavelength = '" +
-                    ", ".join([str(w) for w in wave_]) +
-                    "'")
-        else:
-            mech = 'mechanism is NULL'
-            wave = 'wavelength is NULL'
+        engine = self.inputs.config.create_engine()
+        metadata_obj = sqla.MetaData()
+        outputfile = sqla.Table("outputfile", metadata_obj, autoload_with=engine)
+        
+        idnum_query = sqla.select(outputfile.columns.idnum).where(
+            outputfile.columns.filename == fname)
+        with engine.commnect() as con:
+            idnum_= con.execute(idnum_query).first()
+        oid = idnum_.idnum
 
-        with self.inputs.config.database_connect() as con:
-            idnum_ = pd.read_sql(f'''SELECT idnum
-                                FROM outputfile
-                                WHERE filename='{fname}' ''', con)
-            oid = idnum_.idnum[0]
-
-            result = pd.read_sql(
-                f'''SELECT filename FROM modelimages
-                    WHERE out_idnum = {oid} and
-                          quantity = '{self.quantity}' and
-                          origin = '{self.origin.object}' and
-                          dims[1] = {self.dims[0]} and
-                          dims[2] = {self.dims[1]} and
-                          center[1] = {self.center[0].value} and
-                          center[2] = {self.center[1].value} and
-                          width[1] = {self.width[0].value} and
-                          width[2] = {self.width[1].value} and
-                          subobslongitude = {self.subobslongitude.value} and
-                          subobslatitude = {self.subobslatitude.value} and
-                          {mech} and
-                          {wave}''', con)
+        images = sqla.Table("modelimages", metadata_obj, autoload_with=engine)
+        im_query = sqla.select(images.columns.filename).where(
+            images.columns.out_idnum == oid,
+            images.columns.quantity == self.quantity,
+            images.columns.origin == self.origin.object,
+            images.columns.dims == self.dims,
+            images.columns.center == [s.value for s in self.center],
+            images.columns.width == [w.value for w in self.width],
+            images.columns.subobslongitude == self.subobslongitude.value,
+            images.columns.subobslatitude == self.subobslatitude.value,
+            images.columns.mechanism == self.mechanism,
+            images.columns.wavelength == self.wavelength)
+        
+        with engine.connect() as con:
+            result = con.execute(im_query).first()
 
         if (len(result) == 1) and overwrite:
-            if os.path.exists(result.filename[0]):
-                os.remove(result.filename[0])
-            with self.inputs.config.database_connect() as con:
-                cur = con.cursor()
-                cur.execute('''DELETE FROM modelimages
-                               WHERE filename = %s''', (result.filename[0],))
+            delete = sqla.delete(images).where(
+                images.columns.filename == result.filename)
+            if os.path.exists(result.filename):
+                os.remove(result.filename)
             image, packets = None, None
         elif len(result) == 1:
             image, packets = pickle.load(open(result.filename[0], 'rb'))

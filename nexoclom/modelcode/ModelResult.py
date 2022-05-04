@@ -116,10 +116,8 @@ class ModelResult:
             self.mechanism = ['resonant scattering']
     
             if 'wavelength' in self.params:
-                self.wavelength = tuple(
-                    int(m.strip())*u.AA
-                    for m
-                    in self.params['wavelength'].split(','))
+                self.wavelength = tuple(sorted(int(m.strip())*u.AA for m
+                    in self.params['wavelength'].split(',')))
             elif self.inputs.options.species is None:
                 raise InputError('ModelImage.__init__',
                                  'Must provide either species or params.wavelength')
@@ -250,13 +248,13 @@ class ModelResult:
                              np.sin(point[1])]).reshape((1, 3))
         ind = tree.query_radius(point_xyz, radius)
 
-        source_point = self._calculate_histograms(X0.iloc[ind[0]], normalize, 
+        source_point = self._calculate_histograms(X0.iloc[ind[0]], normalize,
             weight=True, nlonbins=0, nlatbins=0, nvelbins=nvelbins, nazbins=nazbins,
             naltbins=naltbins)
         
         if self.__dict__.get('fitted', False):
             available_point = self._calculate_histograms(X0.iloc[ind[0]], normalize,
-                weight=False, nlonbins=0, nlatbins=0, nvelbins=nvelbins, 
+                weight=False, nlonbins=0, nlatbins=0, nvelbins=nvelbins,
                 nazbins=nazbins, naltbins=naltbins)
         else:
             available_point = None

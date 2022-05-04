@@ -29,6 +29,8 @@ import os.path
 import numpy as np
 import pandas as pd
 from astropy.time import Time
+import sqlalchemy as sqla
+import sqlalchemy.dialects.postgresql as pg
 from nexoclom.modelcode.Output import Output
 from nexoclom.utilities import NexoclomConfig
 from nexoclom.modelcode.input_classes import (Geometry, SurfaceInteraction,
@@ -159,25 +161,33 @@ class Input:
         if None in [geo_id, sint_id, for_id, spat_id, spd_id, ang_id, opt_id]:
             return [], [], 0., 0.
         else:
-            query = f'''SELECT idnum, filename, npackets, totalsource
-                        FROM outputfile
-                        WHERE geo_type = '{self.geometry.type}' and
-                              geo_id = {geo_id} and
-                              sint_type = '{self.surfaceinteraction.sticktype}' and
-                              sint_id = {sint_id} and
-                              force_id = {for_id} and
-                              spatdist_type = '{self.spatialdist.type}' and
-                              spatdist_id = {spat_id} and
-                              spddist_type = '{self.speeddist.type}' and
-                              spddist_id = {spd_id} and
-                              angdist_type = '{self.angulardist.type}' and
-                              angdist_id = {ang_id} and
-                              opt_id = {opt_id}'''
-            with self.config.database_connect() as con:
-                result = pd.read_sql(query, con)
+            engine = self.config.create_engine()
+            metadata_obj = sqla.MetaData()
             
-            return (result.idnum.to_list(), result.filename.to_list(),
-                    result.npackets.sum(), result.totalsource.sum())
+            table = sqla.Table("outputfile", metadata_obj, autoload_with=engine)
+            query = sqla.select(table).where(
+                table.columns.geo_type == self.geometry.type,
+                table.columns.geo_id == geo_id,
+                table.columns.sint_type == self.surfaceinteraction.sticktype,
+                table.columns.sint_id == sint_id,
+                table.columns.force_id == for_id,
+                table.columns.spatdist_type == self.spatialdist.type,
+                table.columns.spatdist_id == spat_id,
+                table.columns.spddist_type == self.speeddist.type,
+                table.columns.spddist_id == spd_id,
+                table.columns.angdist_type == self.angulardist.type,
+                table.columns.angdist_id == ang_id,
+                table.columns.opt_id == opt_id)
+            
+            with self.config.create_engine().connect() as con:
+                result = pd.DataFrame(con.execute(query))
+            
+            if len(result) > 0:
+                return (result.idnum.to_list(), result.filename.to_list(),
+                        result.npackets.sum(), result.totalsource.sum())
+            else:
+                return [], [], 0, 0
+
 
     def run(self, npackets, packs_per_it=None, overwrite=False, compress=True):
         """Run the nexoclom model with the current inputs.
@@ -274,76 +284,137 @@ class Input:
 
         """
         idnum, filelist, _, _ = self.search()
-        with self.config.database_connect() as con:
-            cur = con.cursor()
+        engine = self.config.create_engine()
+        metadata_obj = sqla.MetaData()
+        outputfile = sqla.Table("outputfile", metadata_obj, autoload_with=engine)
+        modelimages = sqla.Table("modelimages", metadata_obj, autoload_with=engine)
+        uvvsmodels = sqla.Table("uvvsmodels", metadata_obj, autoload_with=engine)
+        spatdist = sqla.Table("spatdist_fittedoutput", metadata_obj,
+                              autoload_with=engine)
+        speeddist = sqla.Table("speeddist_fittedoutput", metadata_obj,
+                              autoload_with=engine)
+        
+        for outid, outfile in zip(idnum, filelist):
+            # Remove from database and delete file
+            out_del = sqla.delete(outputfile).where(
+                outputfile.columns.idnum == outid)
             
-            for i, f in zip(idnum, filelist):
-                # Remove from database and delete file
-                print(f'Deleting outputfile {os.path.basename(f)}')
-                cur.execute('''DELETE FROM outputfile
-                               WHERE idnum = %s''', (i,))
-                if os.path.exists(f):
-                    os.remove(f)
+            # Delete any model images that depend on this output
+            mod_select = sqla.select(modelimages).where(
+                modelimages.columns.out_idnum == outid)
+            mod_del = sqla.delete(modelimages).where(
+                modelimages.columns.out_idnum == outid)
 
-                # Delete any model images that depend on this output
-                cur.execute('''SELECT idnum, filename FROM modelimages
-                               WHERE out_idnum = %s''', (i,))
-                for mid, mfile in cur.fetchall():
-                    print(f'Deleting model image {os.path.basename(mfile)}')
-                    cur.execute('''DELETE from modelimages
-                                   WHERE idnum = %s''', (mid,))
-                    if os.path.exists(mfile):
-                        os.remove(mfile)
+            # Delete any uvvs models that depend on this output
+            uvvs_select = sqla.select(uvvsmodels).where(
+                uvvsmodels.columns.out_idnum == outid)
+            uvvs_del = sqla.delete(modelimages).where(
+                uvvsmodels.columns.out_idnum == outid)
+            
+            # Delete any fitted uvvs models that depend on this output
+            uvvsfit_select = sqla.select(uvvsmodels).where(
+                uvvsmodels.columns.unfit_idnum == outid)
+            uvvsfit_del = sqla.delete(modelimages).where(
+                uvvsmodels.columns.unfit_idnum == outid)
+
+            # Delete any fitted outputs that depend on this output
+            fitted_spat_select = sqla.select(spatdist.columns.idnum).where(
+                spatdist.columns.unfit_outid == outid)
+            fitted_spat_delete = sqla.delete(spatdist).where(
+                spatdist.columns.unfit_outid == outid)
+            
+            fitted_speed_select = sqla.select(speeddist.columns.idnum).where(
+                speeddist.columns.unfit_outid == outid)
+            fitted_speed_delete = sqla.delete(speeddist).where(
+                speeddist.columns.unfit_outid == outid)
+            
+            fitted_out_spat_select = sqla.select(outputfile).where(
+                outputfile.columns.spatdist_id.in_(fitted_spat_select),
+                outputfile.columns.spatdist_type == 'fitted output')
+            fitted_out_spat_select_ = sqla.select(outputfile.columns.idnum).where(
+                outputfile.columns.spatdist_id.in_(fitted_spat_select),
+                outputfile.columns.spatdist_type == 'fitted output')
+            fitted_out_spat_delete = sqla.select(outputfile).where(
+                outputfile.columns.spatdist_id.in_(fitted_spat_select),
+                outputfile.columns.spatdist_type == 'fitted output')
+            
+            fitted_out_speed_select = sqla.select(outputfile).where(
+                outputfile.columns.spddist_id.in_(fitted_speed_select),
+                outputfile.columns.spddist_type == 'fitted output')
+            fitted_out_speed_select_ = sqla.select(outputfile.columns.idnum).where(
+                outputfile.columns.spddist_id.in_(fitted_speed_select),
+                outputfile.columns.spddist_type == 'fitted output')
+            fitted_out_speed_delete = sqla.select(outputfile).where(
+                outputfile.columns.spddist_id.in_(fitted_speed_select),
+                outputfile.columns.spddist_type == 'fitted output')
+            
+            # Delete any model images that depend on the fitted outputs
+            fitted_images_spat_select = sqla.select(modelimages).where(
+                modelimages.columns.out_idnum.in_(fitted_out_spat_select_))
+            fitted_images_spat_delete = sqla.delete(modelimages).where(
+                modelimages.columns.out_idnum.in_(fitted_out_spat_select_))
+
+            fitted_images_speed_select = sqla.select(modelimages).where(
+                modelimages.columns.out_idnum.in_(fitted_out_speed_select_))
+            fitted_images_speed_delete = sqla.delete(modelimages).where(
+                modelimages.columns.out_idnum.in_(fitted_out_speed_select_))
+
+            with engine.connect() as con:
+                mod_files = con.execute(mod_select)
+                uvvs_files = con.execute(uvvs_select)
+                uvvs_fit_files = con.execute(uvvsfit_select)
+                fitted_out_spat_files = con.execute(fitted_out_spat_select)
+                fitted_out_speed_files = con.execute(fitted_out_speed_select)
+                fitted_images_spat_files = con.execute(fitted_images_spat_select)
+                fitted_images_speed_files = con.execute(fitted_images_speed_select)
                 
-                # Delete any uvvsmodels that depend on this output
-                cur.execute('''SELECT idnum, filename FROM uvvsmodels
-                               WHERE out_idnum = %s''', (i,))
-                for mid, mfile in cur.fetchall():
-                    print(f'Deleting uvvsmodel result {os.path.basename(mfile)}')
-                    cur.execute('''DELETE from uvvsmodels
-                                   WHERE idnum = %s''', (mid,))
-                    if os.path.exists(mfile):
-                        os.remove(mfile)
+                con.execute(out_del)
+                con.execute(mod_del)
+                con.execute(uvvs_del)
+                con.execute(uvvsfit_del)
+                con.execute(fitted_spat_delete)
+                con.execute(fitted_speed_delete)
+                con.execute(fitted_out_spat_delete)
+                con.execute(fitted_out_speed_delete)
+                con.execute(fitted_images_spat_delete)
+                con.execute(fitted_images_speed_delete)
+                con.commit()
+                
+            if os.path.exists(outfile):
+                print(f'Removing file {outfile}')
+                os.remove(outfile)
+                
+            for row in mod_files:
+                if os.path.exists(row.filename):
+                    print(f'Removing file {row.filename}')
+                    os.remove(row.filename)
+                    
+            for row in uvvs_files:
+                if os.path.exists(row.filename):
+                    print(f'Removing file {row.filename}')
+                    os.remove(row.filename)
+                    
+            for row in uvvs_fit_files:
+                if os.path.exists(row.filename):
+                    print(f'Removing file {row.filename}')
+                    os.remove(row.filename)
 
-                # Remove the fitted uvvsmodels that depend on this output
-                uvvsmods = pd.read_sql(
-                    f'''SELECT filename FROM uvvsmodels
-                        WHERE unfit_idnum={i}''', con)
-                for _, uvvsmod in uvvsmods.iterrows():
-                    print(f'Deleting fitted uvvsmodel result ' +
-                          os.path.basename(uvvsmod.filename))
-                    cur.execute(f'''DELETE FROM uvvsmodels
-                                    WHERE filename='{uvvsmod.filename}';''')
-                    if os.path.exists(uvvsmod.filename):
-                        os.remove(uvvsmod.filename)
+            for row in fitted_out_spat_files:
+                if os.path.exists(row.filename):
+                    print(f'Removing file {row.filename}')
+                    os.remove(row.filename)
 
-                # Delete any fitted outputs that depend on this output
-                spatdist_id = pd.read_sql(
-                    f'''SELECT idnum FROM spatdist_fittedoutput
-                        WHERE unfit_outid = {i}''', con)
-                for num in spatdist_id.idnum.to_list():
-                    # Remove the outputfile
-                    fitoutfile = pd.read_sql(
-                        f'''SELECT idnum, filename FROM outputfile
-                            WHERE spatdist_type = 'fitted output' and
-                                  spatdist_id = {num}''', con)
+            for row in fitted_out_speed_files:
+                if os.path.exists(row.filename):
+                    print(f'Removing file {row.filename}')
+                    os.remove(row.filename)
 
-                    for _, row in fitoutfile.iterrows():
-                        print(f'Deleting fitted output ' +
-                              os.path.basename(row.filename))
-                        cur.execute(f'''DELETE FROM outputfile
-                                        WHERE filename='{row.filename}';''')
-                        if os.path.exists(row.filename):
-                            os.remove(row.filename)
-                        
-                        # Remove the modelimages
-                        modims = pd.read_sql(
-                            f'''SELECT filename FROM modelimages
-                                WHERE out_idnum={row.idnum}''', con)
-                        for _, modim in modims.iterrows():
-                            print(f'Deleting model image ' +
-                                  os.path.basename(modim.filename))
-                            cur.execute(f'''DELETE FROM modelimages
-                                            WHERE filename='{modim.filename}';''')
-                            if os.path.exists(modim.filename):
-                                os.remove(modim.filename)
+            for row in fitted_images_spat_files:
+                if os.path.exists(row.filename):
+                    print(f'Removing file {row.filename}')
+                    os.remove(row.filename)
+                    
+            for row in fitted_images_speed_files:
+                if os.path.exists(row.filename):
+                    print(f'Removing file {row.filename}')
+                    os.remove(row.filename)

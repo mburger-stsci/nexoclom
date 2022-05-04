@@ -52,7 +52,7 @@ class SSObject:
             self.GM = -self.mass * const.G
 
             self.moons = [SSObject(moon) for moon in
-                     constants.loc[constants.orbits == self.object, 'Object'].to_list()]
+                constants.loc[constants.orbits == self.object, 'Object'].to_list()]
             if len(self.moons) == 0:
                 self.moons = None
             else:
