@@ -1,4 +1,6 @@
 # NEXOCLOM: Neutral Exosphere and Cloud Model
+## Dr. Mathew Burger, Space Telescope Science Institute
+![STScI](Stsci_logo.png)
 
 ### Packages created by Matthew Burger that need to be installed:
 1. nexoclom
@@ -8,7 +10,8 @@
 
 ### Documentation
 
-https://nexoclom.readthedocs.io/en/latest/ (Reasonably complete and up to date)
+https://nexoclom.readthedocs.io/en/latest/ (Reasonably complete and up to date).
+[This part about writing inputfiles](https://nexoclom.readthedocs.io/en/latest/nexoclom/inputfiles.html) is particularly useful.
 
 ### Installation process
 
@@ -140,7 +143,13 @@ need to be valid.
    (nexoclom) [sunra m🍔 /~/]$ conda env update -f nexoclom_environment.yml
    ```
 
-7. There are some test files at 
+7. There are some test files at https://github.com/mburger-stsci/nexoclom/tree/master/test_files/. Download them to any 
+  working directory. Edit the `model_testing.py` so that *inputfile* points to 
+  directory with the `Ca.isotropic.flat.input`. Then do:
+   ```
+   (nexoclom) [sunra m🍔 /~/]$ python model_testing.py
+   ```
+   This should produce something that looks like https://github.com/mburger-stsci/nexoclom/tree/master/test_files/Ca_Oribt3576_nexoclom.html.
 
 ### Contributing
 
