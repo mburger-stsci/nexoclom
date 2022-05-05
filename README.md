@@ -149,7 +149,7 @@ need to be valid.
    ```
    (nexoclom) [sunra m🍔 /~/]$ python model_testing.py
    ```
-   This should produce something that looks like https://github.com/mburger-stsci/nexoclom/tree/master/test_files/Ca_Oribt3576_nexoclom.html.
+   This should produce something that looks like https://www.stsci.edu/~mburger/nexoclom/Ca_Oribt3576_nexoclom.html
 
 ### Contributing
 
