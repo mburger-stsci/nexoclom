@@ -8,6 +8,7 @@ from nexoclom import math as mathMB
 from nexoclom.atomicdata import gValue
 from nexoclom.modelcode.input_classes import InputError
 from nexoclom.modelcode.Output import Output
+from nexoclom.modelcode.SourceMap import SourceMap
 
 
 class ModelResult:
@@ -340,12 +341,14 @@ class ModelResult:
         else:
             azimuth = None
     
-        source = {'abundance': source,
-                  'speed': velocity,
-                  'altitude': altitude,
-                  'azimuth': azimuth,
-                  'coordinate_system': 'solar-fixed'}
-    
+        source = SourceMap({'abundance': source.histogram,
+                            'longitude': source.x,
+                            'latitude': source.y,
+                            'speed': velocity,
+                            'altitude': altitude,
+                            'azimuth': azimuth,
+                            'coordinate_system': 'solar-fixed'})
+
         return source
     
     def show_source_map(self, filename, which='source', smooth=False, show=True,

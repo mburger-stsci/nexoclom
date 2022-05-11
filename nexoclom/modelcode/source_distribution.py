@@ -6,6 +6,7 @@ import astropy.constants as const
 import nexoclom.math as mathMB
 from nexoclom.atomicdata import atomicmass
 import nexoclom.math.distributions as distributions
+from nexoclom.modelcode.SourceMap import SourceMap
 
 
 def xyz_from_lonlat(lon, lat, isplan, exobase):
@@ -64,20 +65,9 @@ def surface_distribution(outputs):
         if spatialdist.mapfile == 'default':
             mapfile = os.path.join(os.path.dirname(__file__), 'data',
                 f'{outputs.inputs.options.species}_surface_composition.pkl')
-            with open(mapfile, 'rb') as mfile:
-                sourcemap = pickle.load(mfile)
-        elif spatialdist.mapfile.endswith('.pkl'):
-            with open(spatialdist.mapfile, 'rb') as mfile:
-                sourcemap = pickle.load(mfile)
-        elif spatialdist.mapfile.endswith('.sav'):
-            from scipy.io import readsav
-            sourcemap_ = readsav(spatialdist.mapfile)['sourcemap']
-            sourcemap = {'longitude':sourcemap_['longitude'][0]*u.rad,
-                         'latitude':sourcemap_['latitude'][0]*u.rad,
-                         'abundance':sourcemap_['map'][0].transpose(),
-                         'coordinate_system':str(sourcemap_['coordinate_system'][0])}
+            sourcemap = SourceMap('mapfile')
         else:
-            assert 0, 'Mapfile is the wrong format.'
+            sourcemap = SourceMap(spatialdist.mapfile)
 
         lon, lat = mathMB.random_deviates_2d(sourcemap['abundance'],
                                              sourcemap['longitude'],

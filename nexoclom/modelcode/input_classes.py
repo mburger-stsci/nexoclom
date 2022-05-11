@@ -9,6 +9,7 @@ import sqlalchemy as sqla
 import sqlalchemy.dialects.postgresql as pg
 from nexoclom.solarsystem import SSObject
 from nexoclom.utilities import InputError, NexoclomConfig
+from nexoclom.modelcode.SourceMap import SourceMap
 
 
 dtor = np.pi/180.
@@ -284,14 +285,8 @@ class SurfaceInteraction:
             self.stick_mapfile = sparam.get('stick_mapfile', 'default')
 
             if os.path.exists(self.stick_mapfile):
-                if self.stick_mapfile.endswith('.pkl'):
-                    with open(self.stick_mapfile, 'rb') as f:
-                        sourcemap = pickle.load(f)
-                    self.coordinate_system = sourcemap.get('coordinate_system',
-                                                           'solar-fixed')
-                else:
-                    self.coordinate_system = 'solar-fixed'
-                    # assert 0, 'Not set up yet'
+                sourcemap = SourceMap(self.stick_mapfile)
+                self.coordinate_system = sourcemap.coordinate_system
             else:
                 print('Warning: mapfile does not exist')
                 self.coordinate_system = 'solar-fixed'
@@ -557,19 +552,11 @@ class SpatialDist:
             self.mapfile = sparam.get('mapfile', 'default')
             
             if os.path.exists(self.mapfile):
-                if self.mapfile.endswith('.pkl'):
-                    with open(self.mapfile, 'rb') as f:
-                        sourcemap = pickle.load(f)
-                    coord_systems = ['planet-fixed', 'solar-fixed']
-                    assert sourcemap['coordinate_system'] in coord_systems, (
-                        'source map must be in planet-fixed or solar-fixed coordinates.')
-                    self.coordinate_system = sourcemap['coordinate_system']
-                else:
-                    self.coordinate_system = 'solar-fixed'
-                    # assert 0, 'Not set up yet'
+                sourcemap = SourceMap(self.mapfile)
+                self.coordinate_system = sourcemap.coordinate_system
             else:
                 print('Warning: mapfile does not exist')
-                self.coordinate_system = 'planet-fixed'
+                self.coordinate_system = 'solar-fixed'
 
             if (self.coordinate_system == 'planet-fixed'):
                 self.subsolarlon = sparam.get('subsolarlon', 0.)*u.rad
