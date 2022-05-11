@@ -45,18 +45,19 @@ are probably ways around that.
       For prefix, you want `$HOME/anaconda3/...`, but `$HOME` needs to be the
       specific path.
 
-   4. Create the envirnoment:
+   3. Create the envirnoment:
       ```
       (base) [sunra m🍔 /~/]$ conda env create -f nexoclom_environment.yml
       ```
-   5. To use this environment run:
+   4. To use this environment run:
       ```
       (base) [sunra m🍔 /~/]$ conda activate nexoclom
       WARNING: overwriting environment variables set in the machine
       overwriting variable PGDATA
       ```
-      Activating nexoclom sets the environment variables `PGDATA` and `
-      `
+      Activating nexoclom sets the environment variables `PGDATA` and 
+      `NEXOCLOMCONFIG`
+      
       None of this will work if the correct environment is not active. You will 
 know it's active because your prompt will change and `python` will point to a 
 different executable:

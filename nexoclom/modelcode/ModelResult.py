@@ -2,6 +2,7 @@ import os.path
 import numpy as np
 import copy
 import astropy.units as u
+import pandas as pd
 from sklearn.neighbors import KDTree
 from nexoclom import math as mathMB
 from nexoclom.atomicdata import gValue
@@ -75,7 +76,7 @@ class ModelResult:
         self.npackets = 0
         self.totalsource = 0.
         self.atoms_per_packet = 0.
-        self.sourcerate = 0.
+        self.sourcerate = 0. * u.def_unit('10**23 atoms/s', 1e23 / u.s)
         if isinstance(params, str):
             if os.path.exists(params):
                 self.params = {}
@@ -182,8 +183,8 @@ class ModelResult:
             if X0 is None:
                 X0 = output.X0[['x', 'y', 'z', 'vx', 'vy', 'vz', 'frac']]
             else:
-                X0 = X0.append(output.X0[['x', 'y', 'z', 'vx', 'vy', 'vz', 'frac']],
-                               ignore_index=True)
+                X0 = pd.concat([X0, output.X0[['x', 'y', 'z', 'vx', 'vy', 'vz',
+                                              'frac']]], ignore_index=True)
             del output
 
         velocity = (np.array([X0.vx.values, X0.vy.values, X0.vz.values]) *
@@ -283,8 +284,9 @@ class ModelResult:
                 #   https://onlinelibrary.wiley.com/doi/epdf/10.1111/tgis.12636, eqn 1
                 # (b) Multiply by source rate
                 _, gridlatitude = np.meshgrid(source.x, source.y)
-                area = (self.inputs.geometry.planet.radius**2 * source.dx *
-                        (np.sin(gridlatitude + source.dy / 2) - np.sin(gridlatitude - source.dy / 2)))
+                area = (self.inputs.geometry.planet.radius**2 * source.dx.value *
+                        (np.sin(gridlatitude + source.dy / 2) -
+                         np.sin(gridlatitude - source.dy / 2)))
             
                 source.histogram = (source.histogram / X0.frac.sum() /
                                     area.T.to(u.cm**2) *
@@ -338,11 +340,11 @@ class ModelResult:
         else:
             azimuth = None
     
-        source = {'abundance':source,
-                  'speed':velocity,
-                  'altitude':altitude,
-                  'azimuth':azimuth,
-                  'coordinate_system':'solar-fixed'}
+        source = {'abundance': source,
+                  'speed': velocity,
+                  'altitude': altitude,
+                  'azimuth': azimuth,
+                  'coordinate_system': 'solar-fixed'}
     
         return source
     
