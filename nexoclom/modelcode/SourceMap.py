@@ -10,16 +10,24 @@ class SourceMap:
         self.longitude = None
         self.latitude = None
         self.speed = None
+        self.speed_dist = None
         self.azimuth = None
+        self.azimuth_dist = None
         self.altitude = None
+        self.altitude_dist = None
         self.coordinate_system = 'solar-fixed'
 
         if isinstance(sourcemap, dict):
             self.load_dict(sourcemap)
         elif isinstance(sourcemap, str) and sourcemap.endswith('.pkl'):
-            with open(sourcemap, 'r') as file:
+            with open(sourcemap, 'rb') as file:
                 sourcemap_ = pickle.load(file)
+            if isinstance(sourcemap_, SourceMap):
+                self.load_dict(sourcemap_.__dict__)
+            elif isinstance(sourcemap_, dict):
                 self.load_dict(sourcemap_)
+            else:
+                raise InputError('SourceMap', 'problem with mapfile')
         elif isinstance(sourcemap, str) and sourcemap.endswith('.sav'):
             sourcemap_ = readsav(sourcemap)
             self.abundance = sourcemap_.get('abundance', None)
@@ -58,6 +66,8 @@ class SourceMap:
 
             self.coordinate_system = str(sourcemap_.get('coordinate_system',
                                                         'solar-fixed'))
+        else:
+            raise InputError('SourceMap', 'problem')
             
     def load_dict(self, sourcemap):
         self.abundance = sourcemap.get('abundance', None)

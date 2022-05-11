@@ -62,25 +62,28 @@ def surface_distribution(outputs):
                (2*np.pi*u.rad))
     elif spatialdist.type == 'surface map':
         # Choose lon, lat based on predetermined map
-        if spatialdist.mapfile == 'default':
-            mapfile = os.path.join(os.path.dirname(__file__), 'data',
-                f'{outputs.inputs.options.species}_surface_composition.pkl')
-            sourcemap = SourceMap('mapfile')
+        if spatialdist.sourcemap is None:
+            if spatialdist.mapfile == 'default':
+                mapfile = os.path.join(os.path.dirname(__file__), 'data',
+                    f'{outputs.inputs.options.species}_surface_composition.pkl')
+                spatialdist.sourcemap = SourceMap(mapfile)
+            else:
+                spatialdist.sourcemap = SourceMap(spatialdist.mapfile)
         else:
-            sourcemap = SourceMap(spatialdist.mapfile)
+            pass
 
-        lon, lat = mathMB.random_deviates_2d(sourcemap['abundance'],
-                                             sourcemap['longitude'],
-                                             np.sin(sourcemap['latitude']),
+        lon, lat = mathMB.random_deviates_2d(spatialdist.sourcemap.abundance.value,
+                                             spatialdist.sourcemap.longitude.value,
+                                             np.sin(spatialdist.sourcemap.latitude.value),
                                              npack)
         lat = np.arcsin(lat)
         
-        if (('planet' in sourcemap['coordinate_system']) and
+        if (('planet' in spatialdist.sourcemap.coordinate_system) and
             (outputs.inputs.spatialdist.subsolarlon is not None)):
             # Need to rotate to model coordinate system
             lon = ((outputs.inputs.spatialdist.subsolarlon.value - lon +
                     2*np.pi) % (2*np.pi))
-        elif ('planet' in sourcemap['coordinate_system']):
+        elif ('planet' in spatialdist.sourcemap.coordinate_system):
             raise ValueError('inputs.spatialdist.subsolarlon is None')
         else:
             pass
@@ -117,9 +120,9 @@ def surface_distribution(outputs):
     outputs.X0['x'] = X_[0,:]
     outputs.X0['y'] = X_[1,:]
     outputs.X0['z'] = X_[2,:]
-    outputs.X0['longitude'] = lon.value
-    outputs.X0['latitude'] = lat.value
-    local_time = (lon.value * 12/np.pi + 12) % 24
+    outputs.X0['longitude'] = lon
+    outputs.X0['latitude'] = lat
+    local_time = (lon * 12/np.pi + 12) % 24
     outputs.X0['local_time'] = local_time
 
 
@@ -159,9 +162,13 @@ def speed_distribution(outputs):
         v0 = (outputs.randgen.random(npackets)*2*speeddist.delv +
               speeddist.vprob - speeddist.delv)
     elif speeddist.type == 'user defined':
-        source = SourceMap(speeddist.vdistfile)
-        v0 = mathMB.random_deviates_1d(source.speed.value, source.speed_dist,
-                                       npackets) * source.speed.unit
+        if speeddist.vdist is None:
+            speeddist.vdist = SourceMap(speeddist.vdistfile)
+        else:
+            pass
+        v0 = mathMB.random_deviates_1d(speeddist.vdist.speed.value,
+                                       speeddist.vdist.speed_dist.value,
+                                       npackets) * speeddist.vdist.speed.unit
     else:
         # Need to add more distributions
         assert 0, 'Distribtuion does not exist'

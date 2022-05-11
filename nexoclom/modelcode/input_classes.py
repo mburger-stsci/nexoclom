@@ -283,18 +283,16 @@ class SurfaceInteraction:
         elif sticktype == 'surface map':
             self.sticktype = sticktype
             self.stick_mapfile = sparam.get('stick_mapfile', 'default')
-
             if os.path.exists(self.stick_mapfile):
-                sourcemap = SourceMap(self.stick_mapfile)
-                self.coordinate_system = sourcemap.coordinate_system
+                self.stick_map = SourceMap(self.stick_mapfile)
             else:
-                print('Warning: mapfile does not exist')
-                self.coordinate_system = 'solar-fixed'
-
-            if (self.coordinate_system == 'planet-fixed'):
-                self.subsolarlon = sparam.get('subsolarlon', 0.) * u.rad
+                print('Warning: stick_mapfile does not exist')
+                self.stick_map = None
+            self.subsolarlon = sparam.get('subsolarlon', None)
+            if self.subsolarlon is not None:
+                self.subsolarlon *= u.rad
             else:
-                self.subsolarlon = None
+                pass
 
             if 'accomfactor' in sparam:
                 self.accomfactor = float(sparam['accomfactor'])
@@ -550,18 +548,17 @@ class SpatialDist:
                             else 1.)  # Unit gets set later
             
             self.mapfile = sparam.get('mapfile', 'default')
-            
             if os.path.exists(self.mapfile):
-                sourcemap = SourceMap(self.mapfile)
-                self.coordinate_system = sourcemap.coordinate_system
+                self.sourcemap = SourceMap(self.mapfile)
             else:
                 print('Warning: mapfile does not exist')
-                self.coordinate_system = 'solar-fixed'
-
-            if (self.coordinate_system == 'planet-fixed'):
-                self.subsolarlon = sparam.get('subsolarlon', 0.)*u.rad
+                self.sourcemap = None
+                
+            self.subsolarlon = sparam.get('subsolarlon', None)
+            if self.subsolarlon is not None:
+                self.subsolarlon *= u.rad
             else:
-                self.subsolarlon = None
+                pass
         elif self.type == 'surface spot':
             self.exobase = (float(sparam['exobase'])
                             if 'exobase' in sparam
@@ -781,6 +778,11 @@ class SpeedDist:
                                  'SpeedDist.delv not given.')
         elif self.type == 'user defined':
             self.vdistfile = sparam.get('vdistfile', 'default')
+            if os.path.exists(self.vdistfile):
+                self.vdist = SourceMap(self.vdistfile)
+            else:
+                print('Warning: vdistfile does not exist')
+                self.vdist = None
         elif self.type == 'fitted output':
             self.unfit_outid = -1
             self.query = None
