@@ -159,9 +159,9 @@ def speed_distribution(outputs):
         v0 = (outputs.randgen.random(npackets)*2*speeddist.delv +
               speeddist.vprob - speeddist.delv)
     elif speeddist.type == 'user defined':
-        source = pickle.load(open(speeddist.vdistfile, 'rb'))
-        v0 = mathMB.random_deviates_1d(source['velocity'].value, source['vdist'],
-                                       npackets) * source['velocity'].unit
+        source = SourceMap(speeddist.vdistfile)
+        v0 = mathMB.random_deviates_1d(source.speed.value, source.speed_dist,
+                                       npackets) * source.speed.unit
     else:
         # Need to add more distributions
         assert 0, 'Distribtuion does not exist'

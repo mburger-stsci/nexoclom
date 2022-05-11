@@ -335,7 +335,7 @@ class ModelResult:
             azimuth.dx = azimuth.dx * u.rad
             if normalize:
                 azimuth.histogram = (self.sourcerate * azimuth.histogram /
-                                    azimuth.histogram.sum() / azimuth.dx)
+                                     azimuth.histogram.sum() / azimuth.dx)
             else:
                 pass
         else:
@@ -344,9 +344,12 @@ class ModelResult:
         source = SourceMap({'abundance': source.histogram,
                             'longitude': source.x,
                             'latitude': source.y,
-                            'speed': velocity,
-                            'altitude': altitude,
-                            'azimuth': azimuth,
+                            'speed': velocity.x,
+                            'speed_dist': velocity.histogram,
+                            'altitude': altitude.x,
+                            'altitude_dist': altitude.histogram,
+                            'azimuth': azimuth.x,
+                            'azimuth_dist': azimuth.histogram,
                             'coordinate_system': 'solar-fixed'})
 
         return source
@@ -366,9 +369,6 @@ class ModelResult:
         else:
             raise InputError
         
-        
-        
-
     # def transform_reference_frame(self, output):
     #     """If the image center is not the planet, transform to a
     #        moon-centric reference frame."""
