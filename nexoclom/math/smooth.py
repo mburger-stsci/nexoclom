@@ -30,9 +30,9 @@ def smooth(array, num=7, method='mean', wrap=False):
         raise TypeError
 
 
-def smooth2d(array, num=3, method='gaussian', wrap=False):
+def smooth2d(array, num=1, method='gaussian', wrap=False):
     if method.casefold() == 'gaussian':
-        kernel = Gaussian2DKernel(x_stddev=1)
+        kernel = Gaussian2DKernel(x_stddev=num)
         boundary = 'wrap' if wrap else 'extend'
         smoothed = convolve(array, kernel, boundary=boundary)
     else:
