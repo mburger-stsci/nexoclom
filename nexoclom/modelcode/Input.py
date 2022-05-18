@@ -30,7 +30,6 @@ import numpy as np
 import pandas as pd
 from astropy.time import Time
 import sqlalchemy as sqla
-import sqlalchemy.dialects.postgresql as pg
 from nexoclom.modelcode.Output import Output
 from nexoclom.utilities import NexoclomConfig
 from nexoclom.modelcode.input_classes import (Geometry, SurfaceInteraction,

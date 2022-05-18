@@ -1,4 +1,5 @@
 import numpy as np
+from astropy.convolution import Gaussian2DKernel, convolve
 
 
 def smooth(array, num=7, method='mean', wrap=False):
@@ -28,6 +29,18 @@ def smooth(array, num=7, method='mean', wrap=False):
     else:
         raise TypeError
 
+
+def smooth2d(array, num=3, method='gaussian', wrap=False):
+    if method.casefold() == 'gaussian':
+        kernel = Gaussian2DKernel(x_stddev=1)
+        boundary = 'wrap' if wrap else 'extend'
+        smoothed = convolve(array, kernel, boundary=boundary)
+    else:
+        raise TypeError
+    
+    return smoothed
+
+
 # def smooth_sphere(array, longitude, latitude, dphi=np.deg2rad(5), method='mean'):
 #     dlon, dlat = (longitude[1] - longitude[0]) / 2, (latitude[1] - latitude[0]) / 2
 #     longitude_, latitude_ = np.meshgrid(longitude[:-1] + dlon,
@@ -54,5 +67,3 @@ def smooth(array, num=7, method='mean', wrap=False):
 #         raise TypeError
 #
 #     return result.reshape(array.shape)
-
-

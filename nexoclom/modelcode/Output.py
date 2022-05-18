@@ -3,7 +3,6 @@ import os.path
 import pandas as pd
 import numpy as np
 import pickle
-import random
 import astropy.units as u
 import sqlalchemy as sqla
 import sqlalchemy.dialects.postgresql as pg
@@ -131,8 +130,7 @@ class Output:
         # set up surface accommodation + maybe other things if needed
         if (('stickcoef' not in inputs.surfaceinteraction.__dict__) or
             (inputs.surfaceinteraction.stickcoef != 1)):
-            self.surfaceint = SurfaceInteraction(inputs,
-                                                 nt=201, nv=101, nprob=101)
+            self.surfaceint = SurfaceInteraction(inputs, nt=201, nv=101, nprob=101)
 
         # Define the time that packets will run
         if inputs.options.step_size > 0:

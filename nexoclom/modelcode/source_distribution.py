@@ -50,7 +50,7 @@ def surface_distribution(outputs):
         # ll = (np.sin(lat0[0]), np.sin(lat0[1]))
         ll = tuple(map(np.sin, spatialdist.latitude))
         sinlat = ll[0] + (ll[1]-ll[0]) * outputs.randgen.random(npack)
-        lat = np.arcsin(sinlat)
+        lat = np.arcsin(sinlat).value
     
         # Choose the longitude: f(lon) = 1/(lonmax-lonmin)
         lon0 = spatialdist.longitude
@@ -59,7 +59,7 @@ def surface_distribution(outputs):
         else:
             pass
         lon = ((lon0[0] + (lon0[1]-lon0[0]) * outputs.randgen.random(npack)) %
-               (2*np.pi*u.rad))
+               (2*np.pi*u.rad)).value
     elif spatialdist.type == 'surface map':
         # Choose lon, lat based on predetermined map
         if spatialdist.sourcemap is None:
@@ -108,8 +108,8 @@ def surface_distribution(outputs):
         phi = np.arccos(cosphi)
         sourcemap = np.exp(-phi/sigma0.value)
     
-        lon, lat = mathMB.random_deviates_2d(sourcemap, longitude,
-                                             np.sin(latitude), npack)
+        lon, lat = mathMB.random_deviates_2d(sourcemap, longitude.value,
+                                             np.sin(latitude.value), npack)
         lat = np.arcsin(lat)
     else:
         assert 0, "Can't get here"

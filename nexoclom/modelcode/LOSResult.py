@@ -449,12 +449,12 @@ fitted = {self.fitted}'''
                     'saved_packets': pd.Series((np.ndarray((0,), dtype=int)
                                                 for _ in range(data.shape[0])),
                                                index=data.index),
-                   'weighting': pd.Series((np.ndarray((0,))
+                    'weighting': pd.Series((np.ndarray((0,))
+                                            for _ in range(ind0.shape[0])),
+                                           index=ind0),
+                    'included': pd.Series((np.ndarray((0,), dtype=np.int)
                                            for _ in range(ind0.shape[0])),
-                                          index=ind0),
-                   'included': pd.Series((np.ndarray((0,), dtype=np.int)
-                                          for _ in range(ind0.shape[0])),
-                                          index=ind0)}
+                                           index=ind0)}
                     
                 print(f'{data.shape[0]} spectra taken.')
                 for i, spectrum in data.iterrows():
@@ -564,7 +564,6 @@ fitted = {self.fitted}'''
             self.totalsource += iteration_result.totalsource
             self.modelfiles[iteration_result.outputfile] = iteration_result.modelfile
         
-        self.outputfiles = self.modelfiles.keys()
         model_rate = self.totalsource/self.inputs.options.endtime.value
         self.atoms_per_packet = 1e23 / model_rate
         self.radiance *= self.atoms_per_packet/1e3*u.kR
@@ -662,7 +661,7 @@ fitted = {self.fitted}'''
         self.radiance *= self.atoms_per_packet/1e3  # kR
         self.determine_source_rate(scdata)
         self.atoms_per_packet *= self.sourcerate.unit
-        self.outputfiles = self.modelfiles.keys()
+        self.outputfiles = list(self.modelfiles.keys())
         
         print(self.totalsource, self.atoms_per_packet)
         
