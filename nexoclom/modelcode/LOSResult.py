@@ -2,7 +2,6 @@ import os.path
 import numpy as np
 import pandas as pd
 import pickle
-import random
 import copy
 import astropy.units as u
 from astropy.modeling import models, fitting
@@ -665,8 +664,7 @@ fitted = {self.fitted}'''
         
         print(self.totalsource, self.atoms_per_packet)
         
-        # self.sourcemap = self.make_source_map(longitude, latitude, velocity,
-        #                                       weight)
+        self.sourcemap = self.make_source_map()
         
     def determine_source_rate(self, scdata):
         mask, sigmalimit = self.make_mask(scdata.data)

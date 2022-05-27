@@ -15,6 +15,7 @@ class SourceMap:
         self.azimuth_dist = None
         self.altitude = None
         self.altitude_dist = None
+        self.fraction_observed = None
         self.coordinate_system = 'solar-fixed'
 
         if isinstance(sourcemap, dict):
@@ -63,7 +64,8 @@ class SourceMap:
             self.altitude_dist = sourcemap_.get('altitude_dist', None)
             if self.altitude_dist is not None:
                 self.altitude_dist *= u.rad
-
+                
+            self.fraction_observed= sourcemap_.get('fraction_observed', None)
             self.coordinate_system = str(sourcemap_.get('coordinate_system',
                                                         'solar-fixed'))
         else:
@@ -79,4 +81,5 @@ class SourceMap:
         self.azimuth_dist = sourcemap.get('azimuth_dist', None)
         self.altitude = sourcemap.get('altitude', None)
         self.altitude_dist = sourcemap.get('altitude_dist', None)
+        self.fraction_observed = sourcemap.get('fraction_observed', None)
         self.coordinate_system = sourcemap.get('coordinate_system', 'solar-fixed')

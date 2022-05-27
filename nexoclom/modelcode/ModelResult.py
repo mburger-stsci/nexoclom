@@ -1,14 +1,24 @@
 import os.path
+import sys
 import numpy as np
 import copy
+import shutil
 import astropy.units as u
 import pandas as pd
-from sklearn.neighbors import KDTree
+import pickle
+from sklearn.neighbors import BallTree
+import time
+import tempfile
 from nexoclom import math as mathMB
 from nexoclom.atomicdata import gValue
 from nexoclom.modelcode.input_classes import InputError
 from nexoclom.modelcode.Output import Output
 from nexoclom.modelcode.SourceMap import SourceMap
+import nexoclom.__file__ as basefile
+try:
+    import condorMB
+except:
+    pass
 
 
 class ModelResult:
@@ -138,7 +148,7 @@ class ModelResult:
             
         self.unit = u.def_unit('R_' + self.inputs.geometry.planet.object,
                                self.inputs.geometry.planet.radius)
-
+        
     def packet_weighting(self, packets, out_of_shadow, aplanet):
         """
         Determine weighting factor for each packet
@@ -170,7 +180,9 @@ class ModelResult:
 
         assert np.all(np.isfinite(packets['weight'])), 'Non-finite weights'
 
-    def make_source_map(self, normalize=True):
+    def make_source_map(self, smear_radius=10*np.pi/180, nlonbins=180,
+                        nlatbins=90, nvelbins=100, nazbins=90, naltbins=23,
+                        use_condor=False, normalize=True):
         """
         At each point in lon/lat grid want:
             * Source flux (atoms/cm2/s
@@ -178,6 +190,15 @@ class ModelResult:
             * Azimuthal distribution (f_az vs az) -> measured CCW from north
             * Altitude distribution (f_alt vs alt) -> tangent = 0, normal = 90
         """
+        params = {'smear_radius': smear_radius,
+                  'nlonbins': nlonbins,
+                  'nlatbins': nlatbins,
+                  'nvelbins': nvelbins,
+                  'nazbins': nazbins,
+                  'naltbins': naltbins,
+                  'use_condor': use_condor,
+                  'normalize': normalize}
+
         X0 = None
         for outputfile in self.outputfiles:
             output = Output.restore(outputfile)
@@ -185,34 +206,34 @@ class ModelResult:
                 X0 = output.X0[['x', 'y', 'z', 'vx', 'vy', 'vz', 'frac']]
             else:
                 X0 = pd.concat([X0, output.X0[['x', 'y', 'z', 'vx', 'vy', 'vz',
-                                              'frac']]], ignore_index=True)
+                                               'frac']]], ignore_index=True)
             del output
-
-        velocity = (np.array([X0.vx.values, X0.vy.values, X0.vz.values]) *
+            
+        velocity = (X0[['vx', 'vy', 'vz']].values *
                     self.inputs.geometry.planet.radius.value)
-        speed = np.linalg.norm(velocity, axis=0)
+        speed = np.linalg.norm(velocity, axis=1)
 
         # Radial, east, north unit vectors
-        rad = np.array([X0.x.values, X0.y.values, X0.z.values])
-        rad_ = np.linalg.norm(rad, axis=0)
-        rad = rad/rad_[np.newaxis, :]
+        rad = X0[['x', 'y', 'z']].values
+        rad_ = np.linalg.norm(rad, axis=1)
+        rad = rad/rad_[:, np.newaxis]
 
-        east = np.array([X0.y.values, -X0.x.values, np.zeros_like(X0.z.values)])
-        n = np.zeros_like(rad)
-        n[2,:] = 1
-        east_ = np.linalg.norm(east, axis=0)
-        east = east/east_[np.newaxis, :]
+        east = X0[['y', 'x', 'z']].values
+        east[:,1] = -1*east[:,1]
+        east[:,2] = 0
+        east_ = np.linalg.norm(east, axis=1)
+        east = east/east_[:, np.newaxis]
 
         # north = np.array([-X0.z.values * X0.x.values,
         #                   -X0.z.values * X0.y.values,
         #                   X0.x.values**2 + X0.y.values**2])
-        north = np.cross(rad, east, axis=0)
-        north_ = np.linalg.norm(north, axis=0)
-        north = north/north_[np.newaxis, :]
+        north = np.cross(rad, east, axis=1)
+        north_ = np.linalg.norm(north, axis=1)
+        north = north/north_[:, np.newaxis]
 
-        v_rad = np.sum(velocity * rad, axis=0)
-        v_east = np.sum(velocity * east, axis=0)
-        v_north = np.sum(velocity * north, axis=0)
+        v_rad = np.sum(velocity * rad, axis=1)
+        v_east = np.sum(velocity * east, axis=1)
+        v_north = np.sum(velocity * north, axis=1)
 
         v_rad_over_speed = v_rad/speed
         v_rad_over_speed[v_rad_over_speed > 1] = 1
@@ -228,60 +249,164 @@ class ModelResult:
         X0['longitude'] = (np.arctan2(X0.x.values, -X0.y.values) + 2*np.pi) % (2*np.pi)
         X0['latitude'] = np.arcsin(X0.z.values)
 
-        source = self._calculate_histograms(X0, normalize, weight=True)
+        source = self._calculate_histograms(X0, params, weight=True)
+
         if  self.__dict__.get('fitted', False):
-            available = self._calculate_histograms(X0, normalize, weight=False)
+            available = self._calculate_histograms(X0, params, weight=False)
+        
+            # Compute the abundance scaling factors based on phase space filling factor
+            source.fraction_observed = self._phase_space_filling_factor(
+                X0, source, params, weight=True)
+            available.fraction_observed = self._phase_space_filling_factor(
+                X0, available, params, weight=False)
         else:
-            available = None
+            available, scalefactor_fit, scalefactor_avail = None, None, None
 
         return source, available, X0
+
+    def _phase_space_filling_factor(self, X0, source, params, weight):
+        if weight:
+            X0['weight'] = X0.frac
+        else:
+            X0['weight'] = np.ones_like(X0.frac.values)
     
-    def velocity_distribution_at_point(self, point, radius=5*np.pi/180, X0=None,
-                                       nvelbins=100, nazbins=180, naltbins=45,
-                                       normalize=True):
-        if X0 is None:
-            _, _, X0 = self.make_source_map()
-        else:
-            pass
+        # Figure out the v, alt, and az axis
+        # Speed isn't used right now, but probably want to account for filling factor
+        speed, azimuth, altitude = source.speed, source.azimuth, source.altitude
+    
+        gridazimuth, gridaltitude = np.meshgrid(azimuth, altitude)
+        gridazimuth, gridaltitude = gridazimuth.T, gridaltitude.T
+        lowalt = altitude < 85*u.deg
+    
+        # Area of each bin
+        dalt, daz = altitude[1]-altitude[0], azimuth[1]-azimuth[0]
+        dOmega = dalt * daz * np.cos(gridaltitude)
+    
+        tree = BallTree(X0[['latitude', 'longitude']], metric='haversine')
+        gridlatitude, gridlongitude = np.meshgrid(source.latitude,
+                                                  source.longitude)
+    
+        points = np.array([gridlatitude.flatten(), gridlongitude.flatten()]).T
+        ind = tree.query_radius(points, params['smear_radius'])
+        fraction_observed = np.ndarray((points.shape[0], ))
+    
+        if params['use_condor']:
+            # cmd = '/bin/bash'
+            # script = ('/Users/mburger/Work/Research/Mercury/model_fitting/'
+            #           'calculation_step.sh')
+            #
+            # tempdir = '/Users/mburger/Work/Research/Mercury/model_fitting/temp/'
+            
+            env = [piece for piece in sys.executable.split('/') if 'nexoclom' in piece][0]
+            python = f'/user/mburger/anaconda3/envs/{env}/bin/python'
+            pyfile = os.path.join(os.path.dirname(basefile), 'modelcode',
+                                  'calculation_step.py')
+            tempdir = tempfile.mkdtemp()
         
-        tree = KDTree(X0[['x', 'y', 'z']].values)
-        point_xyz = np.array([np.sin(point[0]) * np.cos(point[1]),
-                             -np.cos(point[0]) * np.cos(point[1]),
-                             np.sin(point[1])]).reshape((1, 3))
-        ind = tree.query_radius(point_xyz, radius)
-
-        source_point = self._calculate_histograms(X0.iloc[ind[0]], normalize,
-            weight=True, nlonbins=0, nlatbins=0, nvelbins=nvelbins, nazbins=nazbins,
-            naltbins=naltbins)
-        
-        if self.__dict__.get('fitted', False):
-            available_point = self._calculate_histograms(X0.iloc[ind[0]], normalize,
-                weight=False, nlonbins=0, nlatbins=0, nvelbins=nvelbins,
-                nazbins=nazbins, naltbins=naltbins)
+            # Save the data
+            # Break it down into pieces
+            ct, nper = 0, points.shape[0]//condorMB.nCPUs() + 1
+            datafiles = []
+            while ct < points.shape[0]:
+                inds = ind[ct:min(ct+nper, points.shape[0])]
+                inds_ = []
+                for idx in inds:
+                    inds_.extend(idx)
+                inds_ = list(set(inds_))
+                sub = X0.loc[inds_]
+            
+                datafile = os.path.join(tempdir, f'data_{ct}.pkl')
+                with open(datafile, 'wb') as file:
+                    pickle.dump((sub, inds, params, lowalt, dOmega), file)
+                datafiles.append(datafile)
+                print(datafile)
+            
+                # submit to condor
+                logfile = os.path.join(tempdir, f'{ct}.log')
+                outfile = os.path.join(tempdir, f'{ct}.out')
+                errfile = os.path.join(tempdir, f'{ct}.err')
+            
+                condorMB.submit_to_condor(python,
+                                 delay=1,
+                                 arguments=f'{pyfile} {datafile}',
+                                 logfile=logfile,
+                                 outlogfile=outfile,
+                                 errlogfile=errfile,
+                                 njobs=30)
+                ct += nper
         else:
-            available_point = None
-
-        return source_point, available_point
-
-    def _calculate_histograms(self, X0, normalize, weight=False, nlonbins=72, nlatbins=36,
-                             nvelbins=100, nazbins=180, naltbins=45):
+            for index in range(points.shape[0]):
+                sub = X0.iloc[ind[index]]
+            
+                # Speed, az/alt phase space distribution in cell
+                speed = mathMB.Histogram(sub.speed, bins=params['nvelbins'],
+                                         weights=sub.weight,
+                                         range=[0, sub.speed.max()])
+            
+                angdist = mathMB.Histogram2d(sub.azimuth, sub.altitude,
+                                             weights=sub.weight,
+                                             bins=(params['nazbins'],
+                                                   params['naltbins']),
+                                             range=[[0, 2*np.pi], [0, np.pi/2]])
+            
+                # Convolve with gaussian to smooth things out
+                ang = mathMB.smooth2d(angdist.histogram, 3, wrap=True)
+            
+                az_max = np.zeros((2, params['nazbins']))
+                alt_max = np.zeros((2, params['naltbins']))
+                for i in range(params['nazbins']):
+                    row = mathMB.smooth(ang[i,:], 7, wrap=True)
+                    az_max[:,i] = [np.where(row == row.max())[0].mean(), row.max()]
+                for i in range(params['naltbins']):
+                    row = mathMB.smooth(ang[:,i], 7, wrap=True)
+                    alt_max[:,i] = [np.where(row == row.max())[0][0], row.max()]
+            
+                # Ignore high altitudes (bad statistics)
+                top = np.mean([az_max[1,:].max(), alt_max[1, lowalt].max()])
+                ang /= top
+                integral = np.sum(ang * dOmega)
+                fraction_observed[index] = integral.value/(2*np.pi)
+            
+                if index % 500 == 0:
+                    print(f'weight = {weight}: {index+1}/{points.shape[0]} completed')
+    
+        if params['use_condor']:
+            while condorMB.n_condor_jobs() > 0:
+                print(f'{condorMB.n_condor_jobs()} to go.')
+                time.sleep(10)
+        
+            for datafile in datafiles:
+                fracfile = datafile.replace('data', 'fraction')
+                with open(fracfile, 'rb') as file:
+                    fraction = pickle.load(file)
+                ct = int(datafile[5:7])
+                fraction_observed[ct:ct+len(fraction)] = fraction
+                
+            shutil.rmtree(tempdir)
+    
+        fraction_observed = fraction_observed.reshape(gridlongitude.shape)
+    
+        return fraction_observed
+    
+    def _calculate_histograms(self, X0, params, weight=True):
         if weight:
             w = X0.frac.values
         else:
             w = np.ones_like(X0.frac.values)
     
         # Determine source distribution
-        if (nlonbins > 0) and (nlatbins > 0):
+        if (params['nlonbins'] > 0) and (params['nlatbins'] > 0):
             source = mathMB.Histogram2d(X0.longitude, X0.latitude, weights=w,
                                         range=[[0, 2*np.pi], [-np.pi/2, np.pi/2]],
-                                        bins=(nlonbins, nlatbins))
+                                        bins=(params['nlonbins'], params['nlatbins']))
             source.x, source.dx = source.x * u.rad, source.dx * u.rad
             source.y, source.dy = source.y * u.rad, source.dy * u.rad
         
-            if normalize:
+            if params['normalize']:
                 # Convert histogram to flux
                 # (a) divide by area of a grid cell
-                #   Surface area of a grid cell = R**2 (lambda_2 - lambda_1) (sin(phi2)-sin(phi1))
+                #   Surface area of a grid cell =
+                #       R**2 (lambda_2 - lambda_1) (sin(phi2)-sin(phi1))
                 #   https://onlinelibrary.wiley.com/doi/epdf/10.1111/tgis.12636, eqn 1
                 # (b) Multiply by source rate
                 _, gridlatitude = np.meshgrid(source.x, source.y)
@@ -290,50 +415,49 @@ class ModelResult:
                          np.sin(gridlatitude - source.dy / 2)))
             
                 source.histogram = (source.histogram / X0.frac.sum() /
-                                    area.T.to(u.cm**2) *
-                                    self.sourcerate.to(1 / u.s))
+                                    area.T.to(u.cm**2) * self.sourcerate.to(1 / u.s))
             else:
                 pass
         else:
             source = None
-    
+        
         # Velocity flux atoms/s/(km/s)
-        if nvelbins > 0:
-            velocity = mathMB.Histogram(X0.speed, bins=nvelbins,
+        if params['nvelbins'] > 0:
+            velocity = mathMB.Histogram(X0.speed, bins=params['nvelbins'],
                                         range=[0, X0.speed.max()], weights=w)
             velocity.x = velocity.x * u.km / u.s
             velocity.dx = velocity.dx * u.km / u.s
-            if normalize:
+            if params['normalize']:
                 velocity.histogram = (self.sourcerate * velocity.histogram /
-                                    velocity.histogram.sum() / velocity.dx)
+                                      velocity.histogram.sum() / velocity.dx)
                 velocity.histogram = velocity.histogram.to(self.sourcerate.unit *
-                                                           u.def_unit('(km/s)^-1', u.s/u.km))
+                    u.def_unit('(km/s)^-1', u.s/u.km))
             else:
                 pass
         else:
             velocity = None
     
         # Altitude distribution
-        if naltbins > 0:
-            altitude = mathMB.Histogram(X0.altitude, bins=naltbins,
+        if params['naltbins'] > 0:
+            altitude = mathMB.Histogram(X0.altitude, bins=params['naltbins'],
                                         range=[0, np.pi / 2], weights=w)
             altitude.x = altitude.x * u.rad
             altitude.dx = altitude.dx * u.rad
-            if normalize:
+            if params['normalize']:
                 altitude.histogram = (self.sourcerate * altitude.histogram /
-                                    altitude.histogram.sum() / altitude.dx)
+                                      altitude.histogram.sum() / altitude.dx)
             else:
                 pass
         else:
             altitude = None
     
         # Azimuth distribution
-        if nazbins > 0:
-            azimuth = mathMB.Histogram(X0.azimuth, bins=nazbins,
+        if params['nazbins'] > 0:
+            azimuth = mathMB.Histogram(X0.azimuth, bins=params['nazbins'],
                                        range=[0, 2 * np.pi], weights=w)
             azimuth.x = azimuth.x * u.rad
             azimuth.dx = azimuth.dx * u.rad
-            if normalize:
+            if params['normalize']:
                 azimuth.histogram = (self.sourcerate * azimuth.histogram /
                                      azimuth.histogram.sum() / azimuth.dx)
             else:
@@ -351,7 +475,7 @@ class ModelResult:
                             'azimuth': azimuth.x,
                             'azimuth_dist': azimuth.histogram,
                             'coordinate_system': 'solar-fixed'})
-
+    
         return source
     
     def show_source_map(self, filename, which='source', smooth=False, show=True,
@@ -368,7 +492,7 @@ class ModelResult:
             touse = available
         else:
             raise InputError
-        
+    
     # def transform_reference_frame(self, output):
     #     """If the image center is not the planet, transform to a
     #        moon-centric reference frame."""
