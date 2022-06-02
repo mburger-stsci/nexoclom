@@ -14,7 +14,7 @@ from nexoclom.atomicdata import gValue
 from nexoclom.modelcode.input_classes import InputError
 from nexoclom.modelcode.Output import Output
 from nexoclom.modelcode.SourceMap import SourceMap
-import nexoclom.__file__ as basefile
+from nexoclom import __file__ as basefile
 try:
     import condorMB
 except:
@@ -295,13 +295,14 @@ class ModelResult:
             # script = ('/Users/mburger/Work/Research/Mercury/model_fitting/'
             #           'calculation_step.sh')
             #
-            # tempdir = '/Users/mburger/Work/Research/Mercury/model_fitting/temp/'
-            
+
+            import sys
             env = [piece for piece in sys.executable.split('/') if 'nexoclom' in piece][0]
-            python = f'/user/mburger/anaconda3/envs/{env}/bin/python'
+            python = f'/Users/mburger/anaconda3/envs/{env}/bin/python'
             pyfile = os.path.join(os.path.dirname(basefile), 'modelcode',
                                   'calculation_step.py')
-            tempdir = tempfile.mkdtemp()
+            tempdir = '/Users/mburger/Work/Research/Mercury/model_fitting/temp/'
+            # tempdir = tempfile.mkdtemp()
         
             # Save the data
             # Break it down into pieces
@@ -334,6 +335,9 @@ class ModelResult:
                                  errlogfile=errfile,
                                  njobs=30)
                 ct += nper
+                from IPython import embed; embed()
+                import sys; sys.exit()
+                
         else:
             for index in range(points.shape[0]):
                 sub = X0.iloc[ind[index]]
