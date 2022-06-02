@@ -303,7 +303,10 @@ class ModelResult:
             pyfile = os.path.join(os.path.dirname(basefile), 'modelcode',
                                   'calculation_step.py')
             # tempdir = '/Users/mburger/Work/Research/Mercury/model_fitting/temp/'
-            tempdir = tempfile.mkdtemp()
+            # tempdir = tempfile.mkdtemp()
+            tempdir = '/user/mburger/Mercury/model_fitting/temp'
+            if not os.path.exists(tempdir):
+                os.makedirs(tempdir)
         
             # Save the data
             # Break it down into pieces
