@@ -299,7 +299,7 @@ class ModelResult:
             import sys
             env = [piece for piece in sys.executable.split('/') if 'nexoclom' in piece][0]
             # python = f'/Users/mburger/anaconda/envs/{env}/bin/python'
-            python = f'/users/mburger/anaconda3/envs/{env}/bin/python'
+            python = f'/user/mburger/anaconda3/envs/{env}/bin/python'
             pyfile = os.path.join(os.path.dirname(basefile), 'modelcode',
                                   'calculation_step.py')
             # tempdir = '/Users/mburger/Work/Research/Mercury/model_fitting/temp/'
