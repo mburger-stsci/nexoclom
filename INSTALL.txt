@@ -46,7 +46,7 @@ mesdatabase = messengeruvvsdb
 <fullpath> does not need to be the same in all lines, but the directories all
 need to be valid.
 
-(3) Initialize the postgres server if necessary:
+(4) Initialize the postgres server if necessary:
     (a) In your .bashrc or .bash_profile file (the file that runs when you
     start a terminal window) add the line:
         export PGDATA=/Users/mburger/.postgres/main
@@ -61,7 +61,7 @@ need to be valid.
     (g) > createdb messengeruvvsdb
         * This needs to match mesdatabase in the .nexoclom file
 
-(4) Configure the MESSENGER UVVS database
+(5) Configure the MESSENGER UVVS database
     (a) Download the MESSENGERdata package. Get the link from Matt.
     (b) Put the file in the mesdatapath directory and untar it.
         > tar -xvzf Level1.tar.gz
@@ -76,8 +76,6 @@ need to be valid.
     In [2]: initialize_MESSENGERdata()
 
     This will take a while to run (hours probably).
-
-(5)
 
 (6) To install updates, run:
     (nexoclom) pip install --upgrade nexoclom
