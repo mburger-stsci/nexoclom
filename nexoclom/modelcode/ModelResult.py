@@ -339,9 +339,6 @@ class ModelResult:
                                  errlogfile=errfile,
                                  njobs=30)
                 ct += nper
-                from IPython import embed; embed()
-                import sys; sys.exit()
-                
         else:
             for index in range(points.shape[0]):
                 sub = X0.iloc[ind[index]]
