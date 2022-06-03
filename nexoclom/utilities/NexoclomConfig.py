@@ -76,14 +76,24 @@ class NexoclomConfig:
     
     def verify_database_running(self):
         # verify database is running; start it if it isn't
-        proc = subprocess.run('pg_ctl status', capture_output=True, shell=True)
-        if 'server is running' in str(proc.stdout):
+        if self.dbhost:
+            proc = subprocess.run(f'pg_isready -h {self.dbhost}',
+                                  capture_output=True, shell=True)
+        else:
+            proc = subprocess.run('pg_isready', capture_output=True, shell=True)
+        if 'accepting connections' in str(proc.stdout):
             return 'Database Already Running'
         else:
             pg_log_dir = os.path.join(os.path.expandvars(os.environ['PGDATA']),
                                       'logfile')
-            subprocess.run(f'pg_ctl -o "-p {self.port}" start -l {pg_log_dir}',
-                           shell=True)
+            if self.dbhost:
+                subprocess.run(f'pg_ctl -o "-p {self.port}" start '
+                               f'-l {pg_log_dir} -h {self.dbhost}',
+                               shell=True)
+            else:
+                subprocess.run(f'pg_ctl -o "-p {self.port}" start -l {pg_log_dir}',
+                               shell=True)
+                
             return 'Started Database'
 
     def create_engine(self, database=None):
