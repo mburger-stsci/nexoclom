@@ -1,5 +1,6 @@
 import os
 import os.path
+import sys
 import pandas as pd
 import numpy as np
 import pickle
@@ -542,3 +543,5 @@ class Output:
     def restore(cls, filename):
         output = pickle.load(open(filename, 'rb'))
         return output
+
+#if __name__ == '__main__':

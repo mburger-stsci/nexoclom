@@ -26,6 +26,8 @@ Options
 """
 import os
 import os.path
+import sys
+
 import numpy as np
 import pandas as pd
 from astropy.time import Time
@@ -36,6 +38,7 @@ from nexoclom.modelcode.input_classes import (Geometry, SurfaceInteraction,
                                              Forces, SpatialDist, SpeedDist,
                                              AngularDist, Options)
 from nexoclom.modelcode.ModelImage import ModelImage
+from nexoclom import __file__ as basefile
 
 class Input:
     def __init__(self, infile):
@@ -246,6 +249,14 @@ class Input:
 
             for _ in range(nits):
                 if use_condor:
+                    python = sys.executable
+                    pyfile = os.path.join(os.path.dirname(basefile), 'modelcode',
+                                          'Output.py')
+
+                    tempdir = f'/tmp/mburger/{np.random.randint(1000000)}'
+                    if not os.path.exists(tempdir):
+                        os.makedirs(tempdir)
+                    
                     pass
                 else:
                     tit0_ = Time.now()

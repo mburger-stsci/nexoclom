@@ -327,8 +327,7 @@ class ModelResult:
                                                 arguments=f'{pyfile} {datafile}',
                                                 logfile=logfile,
                                                 outlogfile=outfile,
-                                                errlogfile=errfile,
-                                                njobs=30)
+                                                errlogfile=errfile)
                 jobs.append(job)
                 ct += nper
         else:
