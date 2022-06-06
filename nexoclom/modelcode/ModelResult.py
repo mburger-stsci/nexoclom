@@ -291,27 +291,18 @@ class ModelResult:
         fraction_observed = np.ndarray((points.shape[0], ))
     
         if params['use_condor']:
-            # cmd = '/bin/bash'
-            # script = ('/Users/mburger/Work/Research/Mercury/model_fitting/'
-            #           'calculation_step.sh')
-            #
-
-            import sys
-            env = [piece for piece in sys.executable.split('/') if 'nexoclom' in piece][0]
-            # python = f'/Users/mburger/anaconda/envs/{env}/bin/python'
-            python = f'/user/mburger/anaconda3/envs/{env}/bin/python'
+            python = sys.executable
             pyfile = os.path.join(os.path.dirname(basefile), 'modelcode',
                                   'calculation_step.py')
-            # tempdir = '/Users/mburger/Work/Research/Mercury/model_fitting/temp/'
-            # tempdir = tempfile.mkdtemp()
-            tempdir = '/user/mburger/Mercury/model_fitting/temp'
+            tempdir = f'/tmp/mburger/{np.random.randint(1000000)}'
             if not os.path.exists(tempdir):
                 os.makedirs(tempdir)
         
             # Save the data
             # Break it down into pieces
-            ct, nper = 0, points.shape[0]//condorMB.nCPUs() + 1
+            ct, nper = 0, points.shape[0]//(condorMB.nCPUs()-1) + 1
             datafiles = []
+            jobs = []
             while ct < points.shape[0]:
                 inds = ind[ct:min(ct+nper, points.shape[0])]
                 inds_ = []
@@ -331,13 +322,14 @@ class ModelResult:
                 outfile = os.path.join(tempdir, f'{ct}.out')
                 errfile = os.path.join(tempdir, f'{ct}.err')
             
-                condorMB.submit_to_condor(python,
-                                 delay=1,
-                                 arguments=f'{pyfile} {datafile}',
-                                 logfile=logfile,
-                                 outlogfile=outfile,
-                                 errlogfile=errfile,
-                                 njobs=30)
+                job = condorMB.submit_to_condor(python,
+                                                delay=1,
+                                                arguments=f'{pyfile} {datafile}',
+                                                logfile=logfile,
+                                                outlogfile=outfile,
+                                                errlogfile=errfile,
+                                                njobs=30)
+                jobs.append(job)
                 ct += nper
         else:
             for index in range(points.shape[0]):
@@ -376,15 +368,16 @@ class ModelResult:
                     print(f'weight = {weight}: {index+1}/{points.shape[0]} completed')
     
         if params['use_condor']:
-            while condorMB.n_condor_jobs() > 0:
-                print(f'{condorMB.n_condor_jobs()} to go.')
+            while condorMB.n_to_go(jobs):
+                print(f'{condorMB.n_to_go(jobs)} to go.')
                 time.sleep(10)
         
             for datafile in datafiles:
                 fracfile = datafile.replace('data', 'fraction')
                 with open(fracfile, 'rb') as file:
                     fraction = pickle.load(file)
-                ct = int(datafile[5:7])
+                dfile = os.path.basename(datafile)
+                ct = int(''.join([x for x in dfile if x.isdigit()]))
                 fraction_observed[ct:ct+len(fraction)] = fraction
                 
             shutil.rmtree(tempdir)

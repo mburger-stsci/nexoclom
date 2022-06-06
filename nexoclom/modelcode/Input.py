@@ -188,7 +188,8 @@ class Input:
                 return [], [], 0, 0
 
 
-    def run(self, npackets, packs_per_it=None, overwrite=False, compress=True):
+    def run(self, npackets, packs_per_it=None, overwrite=False, compress=True,
+            use_condor=False):
         """Run the nexoclom model with the current inputs.
         
         **Parameters**
@@ -244,14 +245,17 @@ class Input:
             print(f'Will complete {nits} iterations of {packs_per_it} packets.')
 
             for _ in range(nits):
-                tit0_ = Time.now()
-                print(f'Starting iteration #{_+1} of {nits}')
+                if use_condor:
+                    pass
+                else:
+                    tit0_ = Time.now()
+                    print(f'Starting iteration #{_+1} of {nits}')
 
-                # Create an output object
-                Output(self, packs_per_it, compress=compress)
-                tit1_ = Time.now()
-                print(f'Completed iteration #{_+1} in '
-                      f'{(tit1_ - tit0_).sec} seconds.')
+                    # Create an output object
+                    Output(self, packs_per_it, compress=compress)
+                    tit1_ = Time.now()
+                    print(f'Completed iteration #{_+1} in '
+                          f'{(tit1_ - tit0_).sec} seconds.')
         else:
             pass
 
