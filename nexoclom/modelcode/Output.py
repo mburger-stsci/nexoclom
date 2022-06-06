@@ -22,7 +22,7 @@ from nexoclom.modelcode.SurfaceInteraction import SurfaceInteraction
 
 
 class Output:
-    def __init__(self, inputs, npackets, compress=True, logger=None):
+    def __init__(self, inputs, npackets, compress=True):
         """Determine and store packet trajectories.
         
         **Parameters**
@@ -544,4 +544,10 @@ class Output:
         output = pickle.load(open(filename, 'rb'))
         return output
 
-#if __name__ == '__main__':
+if __name__ == '__main__':
+    datafile = sys.argv[1]
+    npackets = sys.argv[2]
+    with open(datafile, 'rb') as file:
+        inputs = pickle.load(file)
+    
+    output = Output(inputs, npackets)

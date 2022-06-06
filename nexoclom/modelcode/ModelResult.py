@@ -294,7 +294,8 @@ class ModelResult:
             python = sys.executable
             pyfile = os.path.join(os.path.dirname(basefile), 'modelcode',
                                   'calculation_step.py')
-            tempdir = f'/tmp/mburger/{np.random.randint(1000000)}'
+            tempdir = os.path.join(self.inputs.config.savepath, 'temp',
+                                   str(np.random.randint(1000000)))
             if not os.path.exists(tempdir):
                 os.makedirs(tempdir)
         
@@ -315,7 +316,6 @@ class ModelResult:
                 with open(datafile, 'wb') as file:
                     pickle.dump((sub, inds, params, lowalt, dOmega), file)
                 datafiles.append(datafile)
-                print(datafile)
             
                 # submit to condor
                 logfile = os.path.join(tempdir, f'{ct}.log')
@@ -367,6 +367,7 @@ class ModelResult:
                     print(f'weight = {weight}: {index+1}/{points.shape[0]} completed')
     
         if params['use_condor']:
+            jobs = set(jobs)
             while condorMB.n_to_go(jobs):
                 print(f'{condorMB.n_to_go(jobs)} to go.')
                 time.sleep(10)

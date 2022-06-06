@@ -25,13 +25,15 @@ Options
     Configure other model parameters
 """
 import os
-import os.path
 import sys
-
+import time
+import pickle
+import shutil
 import numpy as np
 import pandas as pd
 from astropy.time import Time
 import sqlalchemy as sqla
+import condorMB
 from nexoclom.modelcode.Output import Output
 from nexoclom.utilities import NexoclomConfig
 from nexoclom.modelcode.input_classes import (Geometry, SurfaceInteraction,
@@ -247,18 +249,44 @@ class Input:
             print('Running Model')
             print(f'Will complete {nits} iterations of {packs_per_it} packets.')
 
-            for _ in range(nits):
-                if use_condor:
-                    python = sys.executable
-                    pyfile = os.path.join(os.path.dirname(basefile), 'modelcode',
-                                          'Output.py')
+            if use_condor:
+                python = sys.executable
+                pyfile = os.path.join(os.path.dirname(basefile), 'modelcode',
+                                      'Output.py')
 
-                    tempdir = f'/tmp/mburger/{np.random.randint(1000000)}'
-                    if not os.path.exists(tempdir):
-                        os.makedirs(tempdir)
+                tempdir = os.path.join(self.config.savepath, 'temp',
+                                       str(np.random.randint(1000000)))
+                if not os.path.exists(tempdir):
+                    os.makedirs(tempdir)
+                
+                datafiles = []
+                jobs = []
+                for ct in range(nits):
+                    datafile = os.path.join(tempdir, f'inputs_{ct}.pkl')
+                    with open(datafile, 'wb') as file:
+                        pickle.dump(self, file)
+                    datafiles.append(datafile)
                     
-                    pass
-                else:
+                    # submit to condor
+                    logfile = os.path.join(tempdir, f'{ct}.log')
+                    outfile = os.path.join(tempdir, f'{ct}.out')
+                    errfile = os.path.join(tempdir, f'{ct}.err')
+
+                    job = condorMB.submit_to_condor(python,
+                                                    delay=1,
+                                                    arguments=f'{pyfile} {datafile} {npackets}',
+                                                    l1ogfile=logfile,
+                                                    outlogfile=outfile,
+                                                    errlogfile=errfile)
+                    jobs.append(job)
+                    
+                while condorMB.n_to_go(jobs):
+                    print(f'{condorMB.n_to_go(jobs)} to go.')
+                    time.sleep(10)
+                    
+                shutil.rmtree(tempdir)
+            else:
+                for _ in range(nits):
                     tit0_ = Time.now()
                     print(f'Starting iteration #{_+1} of {nits}')
 
