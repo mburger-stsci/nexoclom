@@ -71,7 +71,6 @@ class Input:
         """
         # Read the configuration file
         self.config = NexoclomConfig()
-        # self._savepath = NexoclomConfig().savepath
 
         # Read in the input file:
         self._inputfile = infile
@@ -266,6 +265,7 @@ class Input:
                     with open(datafile, 'wb') as file:
                         pickle.dump(self, file)
                     datafiles.append(datafile)
+                    print(datafile)
                     
                     # submit to condor
                     logfile = os.path.join(tempdir, f'{ct}.log')
@@ -273,18 +273,18 @@ class Input:
                     errfile = os.path.join(tempdir, f'{ct}.err')
 
                     job = condorMB.submit_to_condor(python,
-                                                    delay=1,
-                                                    arguments=f'{pyfile} {datafile} {npackets}',
-                                                    l1ogfile=logfile,
-                                                    outlogfile=outfile,
-                                                    errlogfile=errfile)
+                        delay=5,
+                        arguments=f'{pyfile} {datafile} {packs_per_it}',
+                        logfile=logfile,
+                        outlogfile=outfile,
+                        errlogfile=errfile)
                     jobs.append(job)
                     
                 while condorMB.n_to_go(jobs):
                     print(f'{condorMB.n_to_go(jobs)} to go.')
                     time.sleep(10)
                     
-                shutil.rmtree(tempdir)
+                # shutil.rmtree(tempdir)
             else:
                 for _ in range(nits):
                     tit0_ = Time.now()

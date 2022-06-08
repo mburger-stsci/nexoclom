@@ -546,7 +546,7 @@ class Output:
 
 if __name__ == '__main__':
     datafile = sys.argv[1]
-    npackets = sys.argv[2]
+    npackets = int(sys.argv[2])
     with open(datafile, 'rb') as file:
         inputs = pickle.load(file)
     

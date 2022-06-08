@@ -316,6 +316,7 @@ class ModelResult:
                 with open(datafile, 'wb') as file:
                     pickle.dump((sub, inds, params, lowalt, dOmega), file)
                 datafiles.append(datafile)
+                print(datafile)
             
                 # submit to condor
                 logfile = os.path.join(tempdir, f'{ct}.log')
