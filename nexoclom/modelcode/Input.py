@@ -33,7 +33,10 @@ import numpy as np
 import pandas as pd
 from astropy.time import Time
 import sqlalchemy as sqla
-import condorMB
+try:
+    import condorMB
+except:
+    pass
 from nexoclom.modelcode.Output import Output
 from nexoclom.utilities import NexoclomConfig
 from nexoclom.modelcode.input_classes import (Geometry, SurfaceInteraction,
@@ -250,8 +253,10 @@ class Input:
 
             if use_condor:
                 python = sys.executable
+                # pyfile = os.path.join(os.path.dirname(basefile), 'modelcode',
+                #                       'Output.py')
                 pyfile = os.path.join(os.path.dirname(basefile), 'modelcode',
-                                      'Output.py')
+                                      'Output_wrapper.py')
 
                 tempdir = os.path.join(self.config.savepath, 'temp',
                                        str(np.random.randint(1000000)))

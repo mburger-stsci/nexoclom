@@ -12,11 +12,8 @@ from nexoclom.utilities import InputError, NexoclomConfig
 from nexoclom.modelcode.SourceMap import SourceMap
 
 
-dtor = np.pi/180.
 # Tolerances for floating point values
-dtaa = 2.*dtor
-
-
+dtaa = np.radians(2.)
 config = NexoclomConfig()
 
 

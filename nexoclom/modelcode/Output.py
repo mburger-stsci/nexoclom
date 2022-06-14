@@ -536,18 +536,11 @@ class Output:
         if self.inputs.surfaceinteraction.sticktype == 'temperature dependent':
             self.surfaceint.stickcoef = 'FUNCTION'
             
-        with open(self.filename, 'wb') as f:
-            pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
+        with open(self.filename, 'wb') as file:
+            pickle.dump(self, file, protocol=pickle.HIGHEST_PROTOCOL)
 
     @classmethod
     def restore(cls, filename):
-        output = pickle.load(open(filename, 'rb'))
+        with open(filename, 'rb') as file:
+            output = pickle.load(file)
         return output
-
-if __name__ == '__main__':
-    datafile = sys.argv[1]
-    npackets = int(sys.argv[2])
-    with open(datafile, 'rb') as file:
-        inputs = pickle.load(file)
-    
-    output = Output(inputs, npackets)

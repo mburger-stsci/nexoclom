@@ -8,7 +8,6 @@ import pandas as pd
 import pickle
 from sklearn.neighbors import BallTree
 import time
-import tempfile
 from nexoclom import math as mathMB
 from nexoclom.atomicdata import gValue
 from nexoclom.modelcode.input_classes import InputError

@@ -9,8 +9,8 @@ from nexoclom.modelcode.surface_temperature import surface_temperature
 def surface_interaction_setup(inputs):
     # Set up accommodation factor
     if inputs.surfaceinteraction.accomfactor != 0:
-        longitude = np.arange(361)*np.pi/180.
-        latitude = np.arange(181)*np.pi/180. - np.pi/2.
+        longitude = np.radians(np.arange(361))
+        latitude = np.radians(np.arange(181)) - np.pi/2.
         longrid, latgrid = np.meshgrid(longitude, latitude)
         tsurf = surface_temperature(inputs.geometry, longrid.flatten(),
                                     latgrid.flatten())
@@ -40,4 +40,3 @@ def surface_interaction_setup(inputs):
     surfaceint = {'v_accom': v_interp}
     
     return surfaceint
-    

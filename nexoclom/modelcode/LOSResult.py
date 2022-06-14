@@ -232,8 +232,6 @@ fitted = {self.fitted}'''
             if len(result) == 0:
                 search_results[outputfile] = None
             else:
-                # from IPython import embed; embed()
-                # import sys; sys.exit()
                 search_results[outputfile] = (result.loc[0, 'idnum'],
                                               result.loc[0, 'unfit_idnum'],
                                               result.loc[0, 'filename'])

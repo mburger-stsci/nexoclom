@@ -9,6 +9,7 @@ import sqlalchemy.dialects.postgresql as pg
 from nexoclom.math import rotation_matrix, Histogram2d
 from nexoclom.modelcode.ModelResult import ModelResult
 from nexoclom.modelcode.Output import Output
+from nexoclom import __file__ as basefile
 
 import bokeh.plotting as bkp
 from bokeh.palettes import Inferno256
@@ -110,7 +111,7 @@ class ModelImage(ModelResult):
 
         idnum_query = sqla.select(outputfile.columns.idnum).where(
             outputfile.columns.filename == fname)
-        with engine.commnect() as con:
+        with engine.connect() as con:
             idnum_= con.execute(idnum_query).first()
         idnum = idnum_.idnum
 
@@ -154,7 +155,7 @@ class ModelImage(ModelResult):
         
         idnum_query = sqla.select(outputfile.columns.idnum).where(
             outputfile.columns.filename == fname)
-        with engine.commnect() as con:
+        with engine.connect() as con:
             idnum_= con.execute(idnum_query).first()
         oid = idnum_.idnum
 
@@ -169,20 +170,21 @@ class ModelImage(ModelResult):
             images.columns.subobslongitude == self.subobslongitude.value,
             images.columns.subobslatitude == self.subobslatitude.value,
             images.columns.mechanism == self.mechanism,
-            images.columns.wavelength == self.wavelength)
+            images.columns.wavelength == [w.value for w in self.wavelength])
         
         with engine.connect() as con:
-            result = con.execute(im_query).first()
+            result = con.execute(im_query)
 
-        if (len(result) == 1) and overwrite:
-            delete = sqla.delete(images).where(
-                images.columns.filename == result.filename)
+        if (result.rowcount == 1) and overwrite:
+            result_ = result.fetchone()
+            sqla.delete(images).where(images.columns.filename == result_.filename)
             if os.path.exists(result.filename):
                 os.remove(result.filename)
             image, packets = None, None
-        elif len(result) == 1:
-            image, packets = pickle.load(open(result.filename[0], 'rb'))
-        elif len(result) == 0:
+        elif result.rowcount == 1:
+            result_ = result.fetchone()
+            image, packets = pickle.load(open(result_.filename, 'rb'))
+        elif result.rowcount == 0:
             image, packets = None, None
         else:
             raise RuntimeError('ModelImage.restore',
@@ -252,7 +254,7 @@ class ModelImage(ModelResult):
                     ('y', '$y{0.1f} ' + ustr),
                     (rname, '@image ' + runit)]
         
-        curdoc().theme = Theme(os.path.join(os.path.dirname(__file__),
+        curdoc().theme = Theme(os.path.join(os.path.dirname(basefile),
                                             'data', 'bokeh.yml'))
 
         if log:
