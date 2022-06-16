@@ -362,6 +362,9 @@ class ModelResult:
                 ang /= top
                 integral = np.sum(ang * dOmega)
                 fraction_observed[index] = integral.value/(2*np.pi)
+                from IPython import embed; embed()
+                sys.exit()
+                
             
                 if index % 500 == 0:
                     print(f'weight = {weight}: {index+1}/{points.shape[0]} completed')
