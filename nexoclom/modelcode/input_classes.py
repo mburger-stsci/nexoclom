@@ -545,12 +545,6 @@ class SpatialDist:
                             else 1.)  # Unit gets set later
             
             self.mapfile = sparam.get('mapfile', 'default')
-            if os.path.exists(self.mapfile):
-                self.sourcemap = SourceMap(self.mapfile)
-            else:
-                print('Warning: mapfile does not exist')
-                self.sourcemap = None
-                
             self.subsolarlon = sparam.get('subsolarlon', None)
             if self.subsolarlon is not None:
                 self.subsolarlon *= u.rad
@@ -775,11 +769,6 @@ class SpeedDist:
                                  'SpeedDist.delv not given.')
         elif self.type == 'user defined':
             self.vdistfile = sparam.get('vdistfile', 'default')
-            if os.path.exists(self.vdistfile):
-                self.vdist = SourceMap(self.vdistfile)
-            else:
-                print('Warning: vdistfile does not exist')
-                self.vdist = None
         elif self.type == 'fitted output':
             self.unfit_outid = -1
             self.query = None

@@ -7,6 +7,7 @@ import nexoclom.math as mathMB
 from nexoclom.atomicdata import atomicmass
 import nexoclom.math.distributions as distributions
 from nexoclom.modelcode.SourceMap import SourceMap
+from nexoclom.utilities.exceptions import InputError
 
 
 def xyz_from_lonlat(lon, lat, isplan, exobase):
@@ -62,28 +63,27 @@ def surface_distribution(outputs):
                (2*np.pi*u.rad)).value
     elif spatialdist.type == 'surface map':
         # Choose lon, lat based on predetermined map
-        if spatialdist.sourcemap is None:
-            if spatialdist.mapfile == 'default':
-                mapfile = os.path.join(os.path.dirname(__file__), 'data',
-                    f'{outputs.inputs.options.species}_surface_composition.pkl')
-                spatialdist.sourcemap = SourceMap(mapfile)
-            else:
-                spatialdist.sourcemap = SourceMap(spatialdist.mapfile)
+        if spatialdist.mapfile == 'default':
+            mapfile = os.path.join(os.path.dirname(__file__), 'data',
+                f'{outputs.inputs.options.species}_surface_composition.pkl')
+            sourcemap = SourceMap(mapfile)
         else:
-            pass
+            sourcemap = SourceMap(spatialdist.mapfile)
 
-        lon, lat = mathMB.random_deviates_2d(spatialdist.sourcemap.abundance.value,
-                                             spatialdist.sourcemap.longitude.value,
-                                             np.sin(spatialdist.sourcemap.latitude.value),
+        lon, lat = mathMB.random_deviates_2d(sourcemap.abundance.value,
+                                             sourcemap.longitude.value,
+                                             np.sin(sourcemap.latitude.value),
                                              npack)
         lat = np.arcsin(lat)
         
-        if (('planet' in spatialdist.sourcemap.coordinate_system) and
+        if (('planet' in sourcemap.coordinate_system) and
             (outputs.inputs.spatialdist.subsolarlon is not None)):
             # Need to rotate to model coordinate system
             lon = ((outputs.inputs.spatialdist.subsolarlon.value - lon +
                     2*np.pi) % (2*np.pi))
-        elif ('planet' in spatialdist.sourcemap.coordinate_system):
+            # Need to be able to override this if starting from data
+            assert False, 'Need to verify this works'
+        elif ('planet' in sourcemap.coordinate_system):
             raise ValueError('inputs.spatialdist.subsolarlon is None')
         else:
             pass
@@ -162,13 +162,13 @@ def speed_distribution(outputs):
         v0 = (outputs.randgen.random(npackets)*2*speeddist.delv +
               speeddist.vprob - speeddist.delv)
     elif speeddist.type == 'user defined':
-        if speeddist.vdist is None:
-            speeddist.vdist = SourceMap(speeddist.vdistfile)
+        if os.path.exists(speeddist.vdistfile):
+            vdist = SourceMap(speeddist.vdistfile)
         else:
-            pass
-        v0 = mathMB.random_deviates_1d(speeddist.vdist.speed.value,
-                                       speeddist.vdist.speed_dist.value,
-                                       npackets) * speeddist.vdist.speed.unit
+            raise InputError('speed_distribution', f'{speeddist.vdistfile} not found.')
+            
+        v0 = mathMB.random_deviates_1d(vdist.speed.value, vdist.speed_dist.value,
+                                       npackets) * vdist.speed.unit
     else:
         # Need to add more distributions
         assert 0, 'Distribtuion does not exist'

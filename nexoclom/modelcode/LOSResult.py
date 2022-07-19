@@ -2,16 +2,16 @@ import os.path
 import numpy as np
 import pandas as pd
 import pickle
-import copy
 import astropy.units as u
 from astropy.modeling import models, fitting
 from astropy.visualization import PercentileInterval
-from sklearn.neighbors import KDTree, BallTree
+from sklearn.neighbors import KDTree
 import sqlalchemy as sqla
 import sqlalchemy.dialects.postgresql as pg
 from nexoclom.modelcode.ModelResult import ModelResult
 from nexoclom.modelcode.Output import Output
 from nexoclom.modelcode.input_classes import SpatialDist, SpeedDist
+
 
 xcols = ['x', 'y', 'z']
 borecols = ['xbore', 'ybore', 'zbore']
@@ -27,17 +27,9 @@ class IterationResult:
         self.modelfile = None
         self.model_idnum = None
         self.fitted = False
+        self.used_packets = iteration.get('used', None)
+        self.used_packets0 = iteration.get('used0', None)
         
-class FittedIterationResult(IterationResult):
-    def __init__(self, iteration):
-        super().__init__(iteration)
-        
-        self.unfit_outputfile = iteration['unfit_outputfile']
-        self.unfit_outid = iteration['unfit_outid']
-        self.fitted = True
-        self.saved_packets = None
-        self.weighting = None
-        self.included = None
 
 class LOSResult(ModelResult):
     """Class to contain the LOS result from multiple outputfiles.
@@ -126,17 +118,12 @@ class LOSResult(ModelResult):
         self.fit_method = kwargs.get('fit_method', None)
         self.label = kwargs.get('label', 'LOSResult')
 
-        if self.fitted:
-            self.unfit_outid = None
-            self.unfit_outputfiles = None
-        else:
-            pass
-        
     def __repr__(self):
         return self.__str__()
         
     def __str__(self):
-        return f'''quantity = {self.quantity}
+        return f'''Model Label = {self.label}
+quantity = {self.quantity}
 npackets = {self.npackets}
 totalsource = {self.totalsource}
 atoms per packet = {self.atoms_per_packet}
@@ -145,29 +132,12 @@ dphi = {self.dphi}
 fit_method = {self.fit_method}
 fitted = {self.fitted}'''
     
-    # Helper functions
-    @staticmethod
-    def _should_add_weight(index, saved):
-        return index in saved
-
-    @staticmethod
-    def _add_weight(x, ratio):
-        return np.append(x, ratio)
-
-    @staticmethod
-    def _add_index(x, i):
-        return np.append(x, i)
-
-    def save(self, iteration_result):
+    def save(self, iteration_result, ufit_id=None):
         '''
         Insert the result of a LOS iteration into the database
         :param iteration_result: LOS result from a single outputfile
         :return: name of saved file
         '''
-        if isinstance(iteration_result, FittedIterationResult):
-            ufit_id = iteration_result.unfit_outid
-        else:
-            ufit_id = None
 
         # Insert the result into the database
         engine = self.inputs.config.create_engine()
@@ -238,7 +208,7 @@ fitted = {self.fitted}'''
         
         return search_results
     
-    def restore(self, search_result):
+    def restore(self, search_result, save_ufit_id=False):
         # Restore is on an outputfile basis
         idnum, ufit_idnum, modelfile = search_result
         print(f'Restoring modelfile {modelfile}.')
@@ -247,111 +217,13 @@ fitted = {self.fitted}'''
         
         iteration_result.modelfile = modelfile
         iteration_result.model_idnum = idnum
-        if isinstance(iteration_result, FittedIterationResult):
+        if save_ufit_id:
             self.ufit_idnum = ufit_idnum
         else:
             pass
         
         return iteration_result
     
-    def _data_setup(self, data):
-        # distance of s/c from planet
-        dist_from_plan = np.sqrt(data.x**2 + data.y**2 + data.z**2)
-        
-        # Angle between look direction and planet.
-        ang = np.arccos((-data.x * data.xbore - data.y * data.ybore -
-                         data.z * data.zbore) / dist_from_plan)
-        
-        # Check to see if look direction intersects the planet anywhere
-        asize_plan = np.arcsin(1. / dist_from_plan)
-        
-        # Don't worry about lines of sight that don't hit the planet
-        dist_from_plan.loc[ang > asize_plan] = 1e30
-        
-        return dist_from_plan
-    
-    def _spectrum_process(self, spectrum, packets, tree, dist,
-                          i=None, find_weighting=False, weight_info=None):
-        x_sc = spectrum[xcols].values.astype(float)
-        bore = spectrum[borecols].values.astype(float)
-        
-        dd = 30  # Furthest distance we need to look
-        x_far = x_sc + bore * dd
-        while np.linalg.norm(x_far) > self.oedge:
-            dd -= 0.1
-            x_far = x_sc + bore * dd
-        
-        t = [0.05]
-        while t[-1] < dd:
-            t.append(t[-1] + t[-1] * np.sin(self.dphi))
-        t = np.array(t)
-        Xbore = x_sc[np.newaxis, :] + bore[np.newaxis, :] * t[:, np.newaxis]
-        
-        wid = t * np.sin(self.dphi)
-        ind = np.concatenate(tree.query_radius(Xbore, wid))
-        ilocs = np.unique(ind).astype(int)
-        indicies = packets.iloc[ilocs].index
-        subset = packets.loc[indicies]
-        
-        xpr = subset[xcols] - x_sc[np.newaxis, :]
-        rpr = np.sqrt(xpr['x'] * xpr['x'] +
-                      xpr['y'] * xpr['y'] +
-                      xpr['z'] * xpr['z'])
-        
-        losrad = np.sum(xpr * bore[np.newaxis, :], axis=1)
-        inview = rpr < dist
-        
-        if np.any(inview):
-            # used_packets = inview.index
-            # used_packets0 = packets.Index[inview.index].unique()
-            
-            Apix = np.pi * (rpr[inview] * np.sin(self.dphi))**2 * (
-                self.unit.to(u.cm))**2
-            wtemp = subset.loc[inview, 'weight'] / Apix
-            if self.quantity == 'radiance':
-                # Determine if any packets are in shadow
-                # Projection of packet onto LOS
-                # Point along LOS the packet represents
-                losrad_ = losrad[inview].values
-                hit = (x_sc[np.newaxis, :] +
-                       bore[np.newaxis, :] * losrad_[:, np.newaxis])
-                rhohit = np.linalg.norm(hit[:, [0, 2]], axis=1)
-                out_of_shadow = (rhohit > 1) | (hit[:, 1] < 0)
-                wtemp *= out_of_shadow
-                
-                rad = wtemp.sum()
-                pack = np.sum(inview)
-                
-                if (rad > 0) and find_weighting:
-                    ratio = spectrum.radiance / rad
-                    
-                    # Save which packets are used for each spectrum
-                    weight_info['saved_packets'].loc[i] = subset.loc[inview, 'Index'].unique()
-                    
-                    should = weight_info['weighting'].index.to_series().apply(
-                        self._should_add_weight, args=(weight_info['saved_packets'].loc[i],))
-                    
-                    weight_info['weighting'].loc[should] = (
-                        weight_info['weighting'].loc[should].apply(self._add_weight,
-                                                                   args=(ratio,)))
-                    weight_info['included'].loc[should] = (
-                        weight_info['included'].loc[should].apply(self._add_index,
-                                                                  args=(i,)))
-                else:
-                    pass
-            else:
-                assert False, 'Other quantities not set up.'
-        else:
-            rad, pack, = 0., 0
-            
-        return rad, pack
-    
-    def _tree(self, values, type='KDTree'):
-        if type == 'KDTree':
-            return KDTree(values)
-        elif type == 'BallTree':
-            return BallTree(values)
-        
     def make_mask(self, data):
         mask = np.array([True for _ in data.radiance])
         sigmalimit = None
@@ -383,193 +255,6 @@ fitted = {self.fitted}'''
         
         return mask, sigmalimit
 
-    def determine_source_from_data(self, scdata):
-        # Search for unfitted outputfiles
-        self.fitted = True
-        self.inputs.options.fitted = False
-        unfit_outid, unfit_outputfiles, unfit_npackets, _ = self.inputs.search()
-        if unfit_npackets == 0:
-            raise RuntimeError('No packets found for these Inputs.')
-        else:
-            self.unfit_outid, self.unfit_outputfiles = unfit_outid, unfit_outputfiles
-            self.inputs.options.fitted = True
-            
-            self.inputs.spatialdist = SpatialDist({'type': 'fitted output'})
-            self.inputs.spatialdist.query = scdata.query
-            
-            self.inputs.speeddist= SpeedDist({'type': 'fitted output'})
-            self.inputs.speeddist.query = scdata.query
-
-        data = scdata.data
-        iteration_results = []
-        dist_from_plan = self._data_setup(data)
-
-        # Determine which points should be used for the fit
-        mask, _ = self.make_mask(data)
-
-        for ufit_id, ufit_out in zip(self.unfit_outid, self.unfit_outputfiles):
-            # Search for fitted outputfiles
-            self.inputs.spatialdist.unfit_outid = ufit_id
-            self.inputs.speeddist.unfit_outid = ufit_id
-            self.outid, self.outputfiles, _, _ = self.inputs.search()
-            assert len(self.outid) <= 1
-            
-            # Search for completed fitted models
-            search_results = self.search()
-            if len(self.outid) == 1:
-                search_result = search_results.get(self.outputfiles[0], None)
-            else:
-                search_result = None
-            
-            if search_result is None:
-                output = Output.restore(ufit_out)
-                
-                packets = copy.deepcopy(output.X)
-                packets['radvel_sun'] = (packets['vy'] +
-                                         output.vrplanet.to(self.unit / u.s).value)
-
-                self.oedge = output.inputs.options.outeredge * 2
-                
-                # Will base shadow on line of sight, not the packets
-                out_of_shadow = np.ones(packets.shape[0])
-                self.packet_weighting(packets, out_of_shadow, output.aplanet)
-                
-                # This sets limits on regions where packets might be
-                tree = self._tree(packets[xcols].values)
-                
-                # rad = modeled radiance
-                # weighting = list of the weights that should be applied
-                #   - Final weighting for each packet is mean of weights
-                rad = pd.Series(np.zeros(data.shape[0]), index=data.index)
-                ind0 = packets.Index.unique()
-                weight_info = {
-                    'saved_packets': pd.Series((np.ndarray((0,), dtype=int)
-                                                for _ in range(data.shape[0])),
-                                               index=data.index),
-                    'weighting': pd.Series((np.ndarray((0,))
-                                            for _ in range(ind0.shape[0])),
-                                           index=ind0),
-                    'included': pd.Series((np.ndarray((0,), dtype=np.int)
-                                           for _ in range(ind0.shape[0])),
-                                           index=ind0)}
-                    
-                print(f'{data.shape[0]} spectra taken.')
-                for i, spectrum in data.iterrows():
-                    rad_, _ = self._spectrum_process(spectrum, packets, tree,
-                                                     dist_from_plan[i],
-                                                     find_weighting=mask[i],
-                                                     i=i, weight_info=weight_info)
-                    rad.loc[i] = rad_
-                    
-                    if len(data) > 10:
-                        ind = data.index.get_loc(i)
-                        if (ind % (len(data) // 10)) == 0:
-                            print(f'Completed {ind + 1} spectra')
-                    
-                assert np.all(weight_info['weighting'].apply(len) ==
-                              weight_info['included'].apply(len))
-
-                # Determine the proper weightings
-                new_weight = weight_info['weighting'].apply(
-                    lambda x:x.mean() if x.shape[0] > 0 else 0.)
-                new_weight /= new_weight[new_weight > 0].mean()
-                assert np.all(np.isfinite(new_weight))
-                
-                if np.any(new_weight > 0):
-                    multiplier = new_weight.loc[output.X['Index']].values
-                    output.X.loc[:, 'frac'] = output.X.loc[:, 'frac'] * multiplier
-                    output.X0.loc[:, 'frac'] = output.X0.loc[:, 'frac'] * new_weight
-                    
-                    output.X = output.X[output.X.frac > 0]
-                    output.X0 = output.X0[output.X0.frac > 0]
-                    output.totalsource = output.X0['frac'].sum() * output.nsteps
-                    
-                    # Save the fitted output
-                    output.inputs = self.inputs
-                    output.save()
-                    
-                    # Find the radiance again with the new output
-                    packets = copy.deepcopy(output.X)
-                    packets['radvel_sun'] = (packets['vy'] +
-                                             output.vrplanet.to(self.unit / u.s).value)
-                    out_of_shadow = np.ones(packets.shape[0])
-                    self.packet_weighting(packets, out_of_shadow, output.aplanet)
-                    tree = self._tree(packets[xcols].values)
-                    rad = pd.Series(np.zeros(data.shape[0]), index=data.index)
-
-                    for i, spectrum in data.iterrows():
-                        rad_, _ = self._spectrum_process(spectrum, packets, tree,
-                                                         dist_from_plan[i],
-                                                         find_weighting=False,
-                                                         i=i)
-                        rad.loc[i] = rad_
-    
-                        if len(data) > 10:
-                            ind = data.index.get_loc(i)
-                            if (ind % (len(data) // 10)) == 0:
-                                print(f'Completed {ind + 1} spectra')
-
-                    # Save the starting state for making a source map
-                    # longitude = np.append(longitude, output.X0.longitude)
-                    # latitude = np.append(latitude, output.X0.latitude)
-                    # vel_ = np.sqrt(output.X0.vx**2 + output.X0.vy**2 +
-                    #                output.X0.vz**2) * self.inputs.geometry.planet.radius
-                    # velocity = np.append(velocity, vel_)
-                    # weight = np.append(weight, output.X0.frac)
-                    
-                    iteration = {'radiance': rad,
-                                 'npackets': output.X0.frac.sum(),
-                                 'totalsource': output.totalsource,
-                                 'outputfile': output.filename,
-                                 'out_idnum': output.idnum,
-                                 'unfit_outputfile': ufit_out,
-                                 'unfit_outid': ufit_id}
-                    iteration_result = FittedIterationResult(iteration)
-                    iteration_result.saved_packets = weight_info['saved_packets']
-                    iteration_result.weighting = weight_info['weighting']
-                    iteration_result.included = weight_info['included']
-                else:
-                    iteration = {'radiance': rad,
-                                 'npackets': 0.,
-                                 'totalsource': 0.,
-                                 'outputfile': output.filename,
-                                 'out_idnum': output.idnum,
-                                 'unfit_outputfile': ufit_out,
-                                 'unfit_outid': ufit_id}
-                    iteration_result = FittedIterationResult(iteration)
-                    iteration_result.saved_packets = weight_info['saved_packets']
-                    iteration_result.weighting = weight_info['weighting']
-                    iteration_result.included = weight_info['included']
-
-                modelfile = self.save(iteration_result)
-                iteration_result.modelfile = modelfile
-                iteration_results.append(iteration_result)
-                del output
-            else:
-                # Restore saved result
-                print(f'Using saved file {search_result[2]}')
-                iteration_result = self.restore(search_result)
-                assert len(iteration_result.radiance) == len(data)
-                iteration_result.model_idnum = search_result[0]
-                iteration_result.modelfile = search_result[2]
-                iteration_results.append(iteration_result)
-
-        # Combine iteration_results into single new result
-        self.modelfiles = {}
-        for iteration_result in iteration_results:
-            self.radiance += iteration_result.radiance
-            self.totalsource += iteration_result.totalsource
-            self.modelfiles[iteration_result.outputfile] = iteration_result.modelfile
-        
-        model_rate = self.totalsource/self.inputs.options.endtime.value
-        self.atoms_per_packet = 1e23 / model_rate
-        self.radiance *= self.atoms_per_packet/1e3*u.kR
-        self.determine_source_rate(scdata)
-        self.atoms_per_packet *= self.sourcerate.unit
-        self.outputfiles = list(self.modelfiles.keys())
-
-        print(self.totalsource, self.atoms_per_packet)
-    
     def simulate_data_from_inputs(self, scdata):
         """Given a set of inputs, determine what the spacecraft should see.
         Models should have already been run.
@@ -582,62 +267,142 @@ fitted = {self.fitted}'''
             self.inputs.spatialdist.subsolarlon = scdata.subslong.median() * u.rad
         else:
             pass
-        
-        # This is will work with fitted or non-fitted outputfiles
+    
+        # Find the output files that have already been run for these inputs
         self.outid, self.outputfiles, self.npackets, self.totalsource = self.inputs.search()
         if self.npackets == 0:
             raise RuntimeError('No packets found for these Inputs.')
-
+    
+        # Find any model results that have been run for these inputs
         data = scdata.data
         search_results = self.search()
         iteration_results = []
-        
+    
         # Do this step if will need to compute any iteration results
-        dist_from_plan = (self._data_setup(data)
-                          if None in search_results.values()
-                          else None)
+        if None in search_results.values():
+            # distance of s/c from planet
+            # This is used to determine if the line of sight needs to be cut
+            # short because it intersects the planet.
+            dist_from_plan = np.sqrt(data.x**2 + data.y**2 + data.z**2)
+        
+            # Angle between look direction and planet.
+            ang = np.arccos((-data.x * data.xbore - data.y * data.ybore -
+                             data.z * data.zbore) / dist_from_plan)
+        
+            # Check to see if look direction intersects the planet anywhere
+            asize_plan = np.arcsin(1. / dist_from_plan)
+        
+            # Don't worry about lines of sight that don't hit the planet
+            dist_from_plan.loc[ang > asize_plan] = 1e30
+        else:
+            dist_from_plan = None
+    
         for outputfile, search_result in search_results.items():
             if search_result is None:
                 # simulate the data
                 output = Output.restore(outputfile)
-                
-                packets = copy.deepcopy(output.X)
+            
+                packets = output.X.copy()
                 packets['radvel_sun'] = (packets['vy'] +
                                          output.vrplanet.to(self.unit / u.s).value)
-                self.oedge = output.inputs.options.outeredge * 2
-                
-                # Will base shadow on line of sight, not the packets
-                out_of_shadow = np.ones(len(packets))
-                self.packet_weighting(packets, out_of_shadow, output.aplanet)
-                
+            
+                # Note: A packet is in shadow if the line-of-sight it is on is
+                #       in shadow. This is because the cone used is larger than
+                #       the slit.
+                self.packet_weighting(packets, output.aplanet)
+            
                 # This sets limits on regions where packets might be
-                tree = self._tree(packets[xcols].values)
-                
+                tree = KDTree(packets[xcols].values)
+            
                 rad = pd.Series(np.zeros(data.shape[0]), index=data.index)
                 npack = pd.Series(np.zeros(data.shape[0]), index=data.index,
                                   dtype=int)
+                used = pd.Series([set() for _ in range(data.shape[0])], index=data.index)
+                used0 = pd.Series([set() for _ in range(data.shape[0])], index=data.index)
+            
                 print(f'{data.shape[0]} spectra taken.')
                 for i, spectrum in data.iterrows():
-                    rad_, pack_ = self._spectrum_process(spectrum, packets, tree,
-                                                         dist_from_plan[i])
-                    rad.loc[i] = rad_
-                    npack.loc[i] = pack_
+                    x_sc = spectrum[xcols].values.astype(float)
+                    bore = spectrum[borecols].values.astype(float)
+                
+                    # Distance from spacecraft to edge of field of view
+                    a = 1
+                    b = 2*np.sum(x_sc*bore)
+                    c = np.linalg.norm(x_sc)**2 - self.inputs.options.outeredge**2
+                    dd = (-b + np.sqrt(b**2 - 4*a*c))/2
+                
+                    # Compute coordinates of the LOS spaced farther apart the farther out
+                    t = [np.sin(self.dphi)]
+                    while t[-1] < dd:
+                        t.append(t[-1] + t[-1] * np.sin(self.dphi))
+                    t = np.array(t)
+                    Xbore = x_sc[np.newaxis, :] + bore[np.newaxis, :] * t[:, np.newaxis]
+                
+                    # Narrow down number of packets
+                    wid = t * np.sin(self.dphi*2)
+                    ind = np.concatenate(tree.query_radius(Xbore, wid))
+                    ilocs = np.unique(ind).astype(int)
+                
+                    subset = packets.iloc[ilocs]
+                    subset_rel_sc = subset[xcols].values - x_sc[np.newaxis, :]
+                    subset_dist_sc = np.linalg.norm(subset_rel_sc, axis=1)
+                    losrad = np.sum(subset_rel_sc * bore[np.newaxis, :], axis=1)
+                    cosang = np.sum(subset_rel_sc * bore[np.newaxis, :], axis=1)/subset_dist_sc
+                    cosang[cosang > 1] = 1
+                    ang = np.arccos(cosang)
+                    assert np.all(np.isfinite(ang))
+                
+                    # Projection of packet onto line of sight
+                    inview = (losrad < dist_from_plan.loc[i]) & (ang <= self.dphi)
+                
+                    if np.any(inview):
+                        subset = subset.loc[inview]
+                        subset_dist_sc = subset_dist_sc[inview]
+                        losrad = losrad[inview]
                     
+                        Apix = np.pi * (subset_dist_sc * np.sin(self.dphi))**2 * (
+                            self.unit.to(u.cm))**2
+                        wtemp = subset['weight'] / Apix
+                    
+                        if self.quantity == 'radiance':
+                            # Determine if any packets are in shadow
+                            # Projection of packet onto LOS
+                            # Point along LOS the packet represents
+                            hit = (x_sc[np.newaxis, :] +
+                                   bore[np.newaxis, :] * losrad[:, np.newaxis])
+                            rhohit = np.linalg.norm(hit[:, [0, 2]], axis=1)
+                            out_of_shadow = (rhohit > 1) | (hit[:, 1] < 0)
+                            wtemp *= out_of_shadow
+                        
+                            rad_ = wtemp.sum()
+                            npack_ = np.sum(inview)
+                            used.loc[i] = set(subset.loc[wtemp > 0].index)
+                            used0.loc[i] = set(subset.loc[wtemp > 0, 'Index'])
+                        else:
+                            assert False, 'Other quantities not set up.'
+                    
+                        rad.loc[i] = rad_
+                        npack.loc[i] = npack_
+                
                     if len(data) > 10:
                         ind = data.index.get_loc(i)
                         if (ind % (len(data) // 10)) == 0:
                             print(f'Completed {ind + 1} spectra')
-                
+            
                 iteration_ = {'radiance': rad,
                               'npackets': npack,
                               'totalsource': output.totalsource,
                               'outputfile': outputfile,
                               'out_idnum': output.idnum,
-                              'query': scdata.query}
+                              'query': scdata.query,
+                              'used': used,
+                              'used0': used0}
                 iteration_result = IterationResult(iteration_)
                 modelfile = self.save(iteration_result)
                 iteration_result.modelfile = modelfile
                 iteration_results.append(iteration_result)
+                
+                del output, packets
             else:
                 print(f'Using saved result {search_result[2]}')
                 iteration_result = self.restore(search_result)
@@ -645,13 +410,13 @@ fitted = {self.fitted}'''
                 iteration_result.modelfile = search_result[2]
                 assert len(iteration_result.radiance) == len(data)
                 iteration_results.append(iteration_result)
-
+    
         # combine iteration_results
         self.modelfiles = {}
         for iteration_result in iteration_results:
             self.radiance += iteration_result.radiance
             self.modelfiles[iteration_result.outputfile] = iteration_result.modelfile
-            
+    
         # need model rate for this output
         model_rate = self.totalsource / self.inputs.options.endtime.value
         self.atoms_per_packet = 1e23 / model_rate
@@ -659,10 +424,8 @@ fitted = {self.fitted}'''
         self.determine_source_rate(scdata)
         self.atoms_per_packet *= self.sourcerate.unit
         self.outputfiles = list(self.modelfiles.keys())
-        
+    
         print(self.totalsource, self.atoms_per_packet)
-        
-        self.sourcemap = self.make_source_map()
         
     def determine_source_rate(self, scdata):
         mask, sigmalimit = self.make_mask(scdata.data)

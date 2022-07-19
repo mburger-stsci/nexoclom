@@ -148,7 +148,7 @@ class ModelResult:
         self.unit = u.def_unit('R_' + self.inputs.geometry.planet.object,
                                self.inputs.geometry.planet.radius)
         
-    def packet_weighting(self, packets, out_of_shadow, aplanet):
+    def packet_weighting(self, packets, aplanet, out_of_shadow=1.):
         """
         Determine weighting factor for each packet
         :param packets: DataFrame with packet parameters
@@ -201,13 +201,17 @@ class ModelResult:
         X0 = None
         for outputfile in self.outputfiles:
             output = Output.restore(outputfile)
+            included = output.X.loc[output.X.frac > 0, 'Index'].unique()
             if X0 is None:
                 X0 = output.X0[['x', 'y', 'z', 'vx', 'vy', 'vz', 'frac']]
+                X0.loc[included, 'included'] = True
             else:
-                X0 = pd.concat([X0, output.X0[['x', 'y', 'z', 'vx', 'vy', 'vz',
-                                               'frac']]], ignore_index=True)
+                X0_ = output.X0[['x', 'y', 'z', 'vx', 'vy', 'vz', 'frac']]
+                X0_.loc[included, 'included'] = True
+                X0 = pd.concat([X0, X0_], ignore_index=True)
             del output
             
+        X0.included.fillna(False, inplace=True)
         velocity = (X0[['vx', 'vy', 'vz']].values *
                     self.inputs.geometry.planet.radius.value)
         speed = np.linalg.norm(velocity, axis=1)
@@ -239,27 +243,23 @@ class ModelResult:
         v_rad_over_speed[v_rad_over_speed < -1] = -1
 
         assert np.all(np.isclose(v_rad**2 + v_east**2 + v_north**2, speed**2))
-        X0['altitude'] = np.arcsin(v_rad_over_speed)
-        X0['azimuth'] = (np.arctan2(v_north, v_east) + 2*np.pi) % (2*np.pi)
-        X0['v_rad'] = v_rad
-        X0['v_east'] = v_east
-        X0['v_north'] = v_north
-        X0['speed'] = speed
-        X0['longitude'] = (np.arctan2(X0.x.values, -X0.y.values) + 2*np.pi) % (2*np.pi)
-        X0['latitude'] = np.arcsin(X0.z.values)
+        X0.loc[:, 'altitude'] = np.arcsin(v_rad_over_speed)
+        X0.loc[:, 'azimuth'] = (np.arctan2(v_north, v_east) + 2*np.pi) % (2*np.pi)
+        X0.loc[:, 'v_rad'] = v_rad
+        X0.loc[:, 'v_east'] = v_east
+        X0.loc[:, 'v_north'] = v_north
+        X0.loc[:, 'speed'] = speed
+        X0.loc[:, 'longitude'] = (np.arctan2(X0.x.values, -X0.y.values) + 2*np.pi) % (2*np.pi)
+        X0.loc[:, 'latitude'] = np.arcsin(X0.z.values)
 
-        source = self._calculate_histograms(X0, params, weight=True)
+        source = self._calculate_histograms(X0[X0.frac > 0], params, weight=True)
+        available = self._calculate_histograms(X0[X0.frac > 0], params, weight=False)
 
-        if  self.__dict__.get('fitted', False):
-            available = self._calculate_histograms(X0, params, weight=False)
-        
-            # Compute the abundance scaling factors based on phase space filling factor
-            source.fraction_observed = self._phase_space_filling_factor(
-                X0, source, params, weight=True)
-            available.fraction_observed = self._phase_space_filling_factor(
-                X0, available, params, weight=False)
-        else:
-            available, scalefactor_fit, scalefactor_avail = None, None, None
+        # Compute the abundance scaling factors based on phase space filling factor
+        source.fraction_observed = self._phase_space_filling_factor(
+            X0, source, params, weight=True)
+        available.fraction_observed = self._phase_space_filling_factor(
+            X0, available, params, weight=False)
 
         return source, available, X0
 
@@ -269,18 +269,6 @@ class ModelResult:
         else:
             X0['weight'] = np.ones_like(X0.frac.values)
     
-        # Figure out the v, alt, and az axis
-        # Speed isn't used right now, but probably want to account for filling factor
-        speed, azimuth, altitude = source.speed, source.azimuth, source.altitude
-    
-        gridazimuth, gridaltitude = np.meshgrid(azimuth, altitude)
-        gridazimuth, gridaltitude = gridazimuth.T, gridaltitude.T
-        lowalt = altitude < 85*u.deg
-    
-        # Area of each bin
-        dalt, daz = altitude[1]-altitude[0], azimuth[1]-azimuth[0]
-        dOmega = dalt * daz * np.cos(gridaltitude)
-    
         tree = BallTree(X0[['latitude', 'longitude']], metric='haversine')
         gridlatitude, gridlongitude = np.meshgrid(source.latitude,
                                                   source.longitude)
@@ -288,107 +276,14 @@ class ModelResult:
         points = np.array([gridlatitude.flatten(), gridlongitude.flatten()]).T
         ind = tree.query_radius(points, params['smear_radius'])
         fraction_observed = np.ndarray((points.shape[0], ))
-    
-        if params['use_condor']:
-            python = sys.executable
-            pyfile = os.path.join(os.path.dirname(basefile), 'modelcode',
-                                  'calculation_step.py')
-            tempdir = os.path.join(self.inputs.config.savepath, 'temp',
-                                   str(np.random.randint(1000000)))
-            if not os.path.exists(tempdir):
-                os.makedirs(tempdir)
-        
-            # Save the data
-            # Break it down into pieces
-            ct, nper = 0, points.shape[0]//(condorMB.nCPUs()-1) + 1
-            datafiles = []
-            jobs = []
-            while ct < points.shape[0]:
-                inds = ind[ct:min(ct+nper, points.shape[0])]
-                inds_ = []
-                for idx in inds:
-                    inds_.extend(idx)
-                inds_ = list(set(inds_))
-                sub = X0.loc[inds_]
-            
-                datafile = os.path.join(tempdir, f'data_{ct}.pkl')
-                with open(datafile, 'wb') as file:
-                    pickle.dump((sub, inds, params, lowalt, dOmega), file)
-                datafiles.append(datafile)
-                print(datafile)
-            
-                # submit to condor
-                logfile = os.path.join(tempdir, f'{ct}.log')
-                outfile = os.path.join(tempdir, f'{ct}.out')
-                errfile = os.path.join(tempdir, f'{ct}.err')
-            
-                job = condorMB.submit_to_condor(python,
-                                                delay=1,
-                                                arguments=f'{pyfile} {datafile}',
-                                                logfile=logfile,
-                                                outlogfile=outfile,
-                                                errlogfile=errfile)
-                jobs.append(job)
-                ct += nper
-        else:
-            for index in range(points.shape[0]):
-                sub = X0.iloc[ind[index]]
-            
-                # Speed, az/alt phase space distribution in cell
-                speed = mathMB.Histogram(sub.speed, bins=params['nvelbins'],
-                                         weights=sub.weight,
-                                         range=[0, sub.speed.max()])
-            
-                angdist = mathMB.Histogram2d(sub.azimuth, sub.altitude,
-                                             weights=sub.weight,
-                                             bins=(params['nazbins'],
-                                                   params['naltbins']),
-                                             range=[[0, 2*np.pi], [0, np.pi/2]])
-            
-                # Convolve with gaussian to smooth things out
-                ang = mathMB.smooth2d(angdist.histogram, 3, wrap=True)
-            
-                az_max = np.zeros((2, params['nazbins']))
-                alt_max = np.zeros((2, params['naltbins']))
-                for i in range(params['nazbins']):
-                    row = mathMB.smooth(ang[i,:], 7, wrap=True)
-                    az_max[:,i] = [np.where(row == row.max())[0].mean(), row.max()]
-                for i in range(params['naltbins']):
-                    row = mathMB.smooth(ang[:,i], 7, wrap=True)
-                    alt_max[:,i] = [np.where(row == row.max())[0][0], row.max()]
-            
-                # Ignore high altitudes (bad statistics)
-                top = np.mean([az_max[1,:].max(), alt_max[1, lowalt].max()])
-                ang /= top
-                integral = np.sum(ang * dOmega)
-                fraction_observed[index] = integral.value/(2*np.pi)
-                from IPython import embed; embed()
-                sys.exit()
-                
-            
-                if index % 500 == 0:
-                    print(f'weight = {weight}: {index+1}/{points.shape[0]} completed')
-    
-        if params['use_condor']:
-            jobs = set(jobs)
-            while condorMB.n_to_go(jobs):
-                print(f'{condorMB.n_to_go(jobs)} to go.')
-                time.sleep(10)
-        
-            for datafile in datafiles:
-                fracfile = datafile.replace('data', 'fraction')
-                with open(fracfile, 'rb') as file:
-                    fraction = pickle.load(file)
-                dfile = os.path.basename(datafile)
-                ct = int(''.join([x for x in dfile if x.isdigit()]))
-                fraction_observed[ct:ct+len(fraction)] = fraction
-                
-            shutil.rmtree(tempdir)
-    
+        for index in range(points.shape[0]):
+            included = X0.loc[ind[index], 'included']
+            fraction_observed[index] = sum(included)/included.shape[0]
+
         fraction_observed = fraction_observed.reshape(gridlongitude.shape)
-    
+        
         return fraction_observed
-    
+
     def _calculate_histograms(self, X0, params, weight=True):
         if weight:
             w = X0.frac.values

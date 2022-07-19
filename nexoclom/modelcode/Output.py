@@ -22,7 +22,7 @@ from nexoclom.modelcode.SurfaceInteraction import SurfaceInteraction
 
 
 class Output:
-    def __init__(self, inputs, npackets, compress=True):
+    def __init__(self, inputs, npackets, compress=False):
         """Determine and store packet trajectories.
         
         **Parameters**
@@ -543,4 +543,22 @@ class Output:
     def restore(cls, filename):
         with open(filename, 'rb') as file:
             output = pickle.load(file)
+            
+        # Convert to 64 bit
+        for column in output.X0:
+            if output.X0[column].dtype == np.int32:
+                output.X0[column] = output.X0[column].astype(np.int64)
+            elif output.X0[column].dtype == np.float32:
+                output.X0[column] = output.X0[column].astype(np.float64)
+            else:
+                pass
+
+        for column in output.X:
+            if output.X[column].dtype == np.int32:
+                output.X[column] = output.X[column].astype(np.int64)
+            elif output.X[column].dtype == np.float32:
+                output.X[column] = output.X[column].astype(np.float64)
+            else:
+                pass
+
         return output
