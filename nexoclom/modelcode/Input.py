@@ -195,7 +195,7 @@ class Input:
                 return [], [], 0, 0
 
 
-    def run(self, npackets, packs_per_it=None, overwrite=False, compress=False,
+    def run(self, npackets, packs_per_it=None, overwrite=False, compress=True,
             use_condor=False):
         """Run the nexoclom model with the current inputs.
         

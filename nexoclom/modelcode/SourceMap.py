@@ -83,3 +83,37 @@ class SourceMap:
         self.altitude_dist = sourcemap.get('altitude_dist', None)
         self.fraction_observed = sourcemap.get('fraction_observed', None)
         self.coordinate_system = sourcemap.get('coordinate_system', 'solar-fixed')
+        
+    # def show_source_map:
+    
+    # def transform_reference_frame(self, output):
+    #     """If the image center is not the planet, transform to a
+    #        moon-centric reference frame."""
+    #     assert 0, 'Not ready yet.'
+    #
+    #     # Load output
+    #
+    #     # # Transform to moon-centric frame if necessary
+    #     # if result.origin != result.inputs.geometry.planet:
+    #     #     assert 0, 'Need to do transparamsion for a moon.'
+    #     # else:
+    #     #     origin = np.array([0., 0., 0.])*output.x.unit
+    #     #     sc = 1.
+    #
+    #     # Choose which packets to use
+    #     # touse = output.frac >= 0 if keepall else output.frac > 0
+    #
+    #     # packet positions relative to origin -- not rotated
+    #     # pts_sun = np.array((output.x[touse]-origin[0],
+    #     #                     output.y[touse]-origin[1],
+    #     #                     output.z[touse]-origin[2]))*output.x.unit
+    #     #
+    #     # # Velocities relative to sun
+    #     # vels_sun = np.array((output.vx[touse],
+    #     #                      output.vy[touse],
+    #     #                      output.vz[touse]))*output.vx.unit
+    #
+    #     # Fractional content
+    #     # frac = output.frac[touse]
+    #
+    #     return output #, pts_sun, vels_sun, frac

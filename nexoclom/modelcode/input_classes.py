@@ -814,7 +814,7 @@ class SpeedDist:
                 insert_stmt = pg.insert(table).values(
                     alpha=self.alpha,
                     beta=self.beta,
-                    U=self.U.value)
+                    u=self.U.value)
             elif self.type == 'maxwellian':
                 table = sqla.Table('speeddist_maxwellian',
                                    metadata_obj,
@@ -879,8 +879,7 @@ class SpeedDist:
             query = sqla.select(table.columns.idnum).where(
                 table.columns.alpha == self.alpha,
                 table.columns.beta == self.beta,
-                table.columns.U == self.U.value)
-            
+                table.columns.u == self.U.value)
         elif self.type == 'maxwellian':
             table = sqla.Table('speeddist_maxwellian',
                                metadata_obj,
