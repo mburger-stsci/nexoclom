@@ -191,9 +191,10 @@ class ModelResult:
         """
         source, available = {}, {}
         for outputfile in self.outputfiles:
+            print(outputfile)
             output = Output.restore(outputfile)
-            included = output.X.loc[output.X.frac > 0, 'Index'].unique()
-            X0 = output.X0[['x', 'y', 'z', 'vx', 'vy', 'vz', 'frac']]
+            included = list(output.X.loc[output.X.frac > 0, 'Index'].unique())
+            X0 = output.X0
             X0.loc[included, 'included'] = True
             del output
             
@@ -241,26 +242,30 @@ class ModelResult:
             
             tree = BallTree(X0[['latitude', 'longitude']], metric='haversine')
 
-            X0_ = X0[X0.frac > 0]
+            X0_subset = X0[X0.frac > 0]
             # Calculate the histograms and available fraction
             for which in (0, 1):
                 if which == 0:
+                    print('Determining modeled source')
                     distribution = copy.deepcopy(source)
-                    weight = X0_.frac
+                    weight = X0_subset.frac
                 else:
+                    print('Determining available source')
                     distribution = copy.deepcopy(available)
-                    weight = np.ones_like(X0_.frac.values)
+                    weight = np.ones_like(X0_subset.frac.values)
 
                 if (nlonbins > 0) and (nlatbins > 0):
-                    abundance = mathMB.Histogram2d(X0_.longitude, X0_.latitude, weights=weight,
-                                                range=[[0, 2*np.pi], [-np.pi/2, np.pi/2]],
-                                                bins=(nlonbins, nlatbins))
-                    abundance.x, abundance.dx = abundance.x * u.rad, abundance.dx * u.rad
-                    abundance.y, abundance.dy = abundance.y * u.rad, abundance.dy * u.rad
+                    abundance = mathMB.Histogram2d(X0_subset.longitude,
+                                                   X0_subset.latitude,
+                                                   weights=weight,
+                                                   range=[[0, 2*np.pi],
+                                                          [-np.pi/2, np.pi/2]],
+                                                   bins=(nlonbins, nlatbins))
+                    gridlatitude, gridlongitude = np.meshgrid(abundance.y,
+                                                              abundance.x)
 
-                    gridlatitude, gridlongitude = np.meshgrid(abundance.y, abundance.x)
-
-                    points = np.array([gridlatitude.flatten(), gridlongitude.flatten()]).T
+                    points = np.array([gridlatitude.flatten(),
+                                       gridlongitude.flatten()]).T
                     ind = tree.query_radius(points, smear_radius)
                     fraction_observed = np.ndarray((points.shape[0], ))
                     for index in range(points.shape[0]):
@@ -268,68 +273,58 @@ class ModelResult:
                         fraction_observed[index] = sum(included)/included.shape[0]
 
                     if 'abundance' in distribution:
-                        distribution['abundance'] += abundance.histogram
+                        distribution['abundance'] += abundance.histogram / u.s
                         distribution['fraction_observed'] += fraction_observed.reshape(
                             gridlongitude.shape)/len(self.outputfiles)
                     else:
-                        distribution['abundance'] = abundance.histogram
-                        distribution['longitude'] = abundance.x
-                        distribution['latitude'] = abundance.y
+                        distribution['abundance'] = abundance.histogram / u.s
+                        distribution['longitude'] = abundance.x * u.rad
+                        distribution['latitude'] = abundance.y * u.rad
                         distribution['fraction_observed'] = fraction_observed.reshape(
                             gridlongitude.shape)/len(self.outputfiles)
                 else:
                     pass
 
                 if nvelbins > 0:
-                    velocity = mathMB.Histogram(X0_.speed, bins=nvelbins,
-                                                range=[0, X0_.speed.max()],
+                    velocity = mathMB.Histogram(X0_subset.speed, bins=nvelbins,
+                                                range=[0, X0_subset.speed.max()],
                                                 weights=weight)
-                    velocity.x = velocity.x * u.km / u.s
-                    velocity.dx = velocity.dx * u.km / u.s
-                    
                     if 'speed' in distribution:
-                        distribution['speed_dist'] += velocity.histogram
+                        distribution['speed_dist'] += velocity.histogram * u.s/u.km
                     else:
-                        distribution['speed'] = velocity.x
-                        distribution['speed_dist'] = velocity.histogram
+                        distribution['speed'] = velocity.x * u.km/u.s
+                        distribution['speed_dist'] = velocity.histogram * u.s/u.km
                 else:
                     pass
 
                 if naltbins > 0:
-                    altitude = mathMB.Histogram(X0_.altitude, bins=naltbins,
+                    altitude = mathMB.Histogram(X0_subset.altitude, bins=naltbins,
                                                 range=[0, np.pi / 2], weights=weight)
-                    altitude.x = altitude.x * u.rad
-                    altitude.dx = altitude.dx * u.rad
-                    
                     if 'altitude' in distribution:
-                        distribution['altitude_dist'] += altitude.histogram
+                        distribution['altitude_dist'] += altitude.histogram / u.rad
                     else:
-                        distribution['altitude'] = altitude.x
-                        distribution['altitude_dist'] = altitude.histogram
+                        distribution['altitude'] = altitude.x * u.rad
+                        distribution['altitude_dist'] = altitude.histogram / u.rad
                 else:
                      pass
                 
                 if nazbins > 0:
-                    azimuth = mathMB.Histogram(X0_.azimuth, bins=nazbins,
+                    azimuth = mathMB.Histogram(X0_subset.azimuth, bins=nazbins,
                                                range=[0, 2 * np.pi], weights=weight)
-                    azimuth.x = azimuth.x * u.rad
-                    azimuth.dx = azimuth.dx * u.rad
-                    
                     if 'azimuth' in distribution:
-                        distribution['azimuth_dist'] += azimuth.histogram
+                        distribution['azimuth_dist'] += azimuth.histogram / u.rad
                     else:
-                        distribution['azimuth'] = azimuth.x
-                        distribution['azimuth_dist'] = azimuth.histogram
+                        distribution['azimuth'] = azimuth.x * u.rad
+                        distribution['azimuth_dist'] = azimuth.histogram / u.rad
                 else:
                     pass
                     
-            if which == 0:
-                source = distribution
-            else:
-                available = distribution
-                
-            del X0, X0_, output
-            
+                if which == 0:
+                    source = copy.deepcopy(distribution)
+                else:
+                    available = copy.deepcopy(distribution)
+            del X0, X0_subset
+
         ## normalization
         if normalize:
             for which in (0, 1):
@@ -353,16 +348,15 @@ class ModelResult:
                             (np.sin(gridlatitude + dy / 2) -
                              np.sin(gridlatitude - dy / 2)))
         
-                    source.histogram = (distribution['abundance'] /
-                                        distribution['abundance'].sum() /
-                                        area.T.to(u.cm**2) * self.sourcerate.to(1 / u.s))
-                    from IPython import embed; embed()
-                    import sys; sys.exit()
+                    distribution['histogram'] = (distribution['abundance'] /
+                                                 distribution['abundance'].sum() /
+                                                 area.T.to(u.cm**2) *
+                                                 self.sourcerate.to(1 / u.s))
                 else:
                     pass
                 
             if 'speed' in distribution:
-                dv = distribution['speeed'][1] - distribution['speed'][0]
+                dv = distribution['speed'][1] - distribution['speed'][0]
                 distribution['speed_dist'] = (self.sourcerate *
                                               distribution['speed_dist'] /
                                               distribution['speed_dist'].sum() / dv)
@@ -386,10 +380,10 @@ class ModelResult:
                 pass
             
             if which == 0:
-                source = distribution
+                source = copy.deepcopy(distribution)
             else:
-                available = distribution
+                available = copy.deepcopy(distribution)
         else:
             pass
-            
-        return source, available
+
+        return SourceMap(source), SourceMap(available)
