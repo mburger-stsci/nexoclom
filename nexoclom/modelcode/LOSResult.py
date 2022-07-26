@@ -1,35 +1,26 @@
-import os.path
+import os
+import shutil
+import sys
 import numpy as np
 import pandas as pd
+import time
 import pickle
 import astropy.units as u
 from astropy.modeling import models, fitting
 from astropy.visualization import PercentileInterval
-from sklearn.neighbors import KDTree
 import sqlalchemy as sqla
 import sqlalchemy.dialects.postgresql as pg
+try:
+    import condorMB
+except:
+    pass
 from nexoclom.modelcode.ModelResult import ModelResult
-from nexoclom.modelcode.Output import Output
-from nexoclom.modelcode.input_classes import SpatialDist, SpeedDist
-
+from nexoclom.modelcode.compute_iteration import compute_iteration
+from nexoclom import __file__ as basefile
 
 xcols = ['x', 'y', 'z']
 borecols = ['xbore', 'ybore', 'zbore']
 
-
-class IterationResult:
-    def __init__(self, iteration):
-        self.radiance = iteration['radiance']
-        self.npackets = iteration['npackets']
-        self.totalsource = iteration['totalsource']
-        self.outputfile = iteration['outputfile']
-        self.out_idnum = iteration['out_idnum']
-        self.modelfile = None
-        self.model_idnum = None
-        self.fitted = False
-        self.used_packets = iteration.get('used', None)
-        self.used_packets0 = iteration.get('used0', None)
-        
 
 class LOSResult(ModelResult):
     """Class to contain the LOS result from multiple outputfiles.
@@ -255,7 +246,7 @@ fitted = {self.fitted}'''
         
         return mask, sigmalimit
 
-    def simulate_data_from_inputs(self, scdata):
+    def simulate_data_from_inputs(self, scdata, use_condor=False):
         """Given a set of inputs, determine what the spacecraft should see.
         Models should have already been run.
         
@@ -296,113 +287,44 @@ fitted = {self.fitted}'''
             dist_from_plan.loc[ang > asize_plan] = 1e30
         else:
             dist_from_plan = None
-    
+
+        jobs, datafiles, ct = [], [], 0
         for outputfile, search_result in search_results.items():
             if search_result is None:
-                # simulate the data
-                output = Output.restore(outputfile)
-            
-                packets = output.X.copy()
-                packets['radvel_sun'] = (packets['vy'] +
-                                         output.vrplanet.to(self.unit / u.s).value)
-            
-                # Note: A packet is in shadow if the line-of-sight it is on is
-                #       in shadow. This is because the cone used is larger than
-                #       the slit.
-                self.packet_weighting(packets, output.aplanet)
-            
-                # This sets limits on regions where packets might be
-                tree = KDTree(packets[xcols].values)
-            
-                rad = pd.Series(np.zeros(data.shape[0]), index=data.index)
-                npack = pd.Series(np.zeros(data.shape[0]), index=data.index,
-                                  dtype=int)
-                used = pd.Series([set() for _ in range(data.shape[0])], index=data.index)
-                used0 = pd.Series([set() for _ in range(data.shape[0])], index=data.index)
-            
-                print(f'{data.shape[0]} spectra taken.')
-                for i, spectrum in data.iterrows():
-                    x_sc = spectrum[xcols].values.astype(float)
-                    bore = spectrum[borecols].values.astype(float)
-                
-                    # Distance from spacecraft to edge of field of view
-                    a = 1
-                    b = 2*np.sum(x_sc*bore)
-                    c = np.linalg.norm(x_sc)**2 - self.inputs.options.outeredge**2
-                    dd = (-b + np.sqrt(b**2 - 4*a*c))/2
-                
-                    # Compute coordinates of the LOS spaced farther apart the farther out
-                    t = [np.sin(self.dphi)]
-                    while t[-1] < dd:
-                        t.append(t[-1] + t[-1] * np.sin(self.dphi))
-                    t = np.array(t)
-                    Xbore = x_sc[np.newaxis, :] + bore[np.newaxis, :] * t[:, np.newaxis]
-                
-                    # Narrow down number of packets
-                    wid = t * np.sin(self.dphi*2)
-                    ind = np.concatenate(tree.query_radius(Xbore, wid))
-                    ilocs = np.unique(ind).astype(int)
-                
-                    subset = packets.iloc[ilocs]
-                    subset_rel_sc = subset[xcols].values - x_sc[np.newaxis, :]
-                    subset_dist_sc = np.linalg.norm(subset_rel_sc, axis=1)
-                    losrad = np.sum(subset_rel_sc * bore[np.newaxis, :], axis=1)
-                    cosang = np.sum(subset_rel_sc * bore[np.newaxis, :], axis=1)/subset_dist_sc
-                    cosang[cosang > 1] = 1
-                    ang = np.arccos(cosang)
-                    assert np.all(np.isfinite(ang))
-                
-                    # Projection of packet onto line of sight
-                    inview = (losrad < dist_from_plan.loc[i]) & (ang <= self.dphi)
-                
-                    if np.any(inview):
-                        subset = subset.loc[inview]
-                        subset_dist_sc = subset_dist_sc[inview]
-                        losrad = losrad[inview]
-                    
-                        Apix = np.pi * (subset_dist_sc * np.sin(self.dphi))**2 * (
-                            self.unit.to(u.cm))**2
-                        wtemp = subset['weight'] / Apix
-                    
-                        if self.quantity == 'radiance':
-                            # Determine if any packets are in shadow
-                            # Projection of packet onto LOS
-                            # Point along LOS the packet represents
-                            hit = (x_sc[np.newaxis, :] +
-                                   bore[np.newaxis, :] * losrad[:, np.newaxis])
-                            rhohit = np.linalg.norm(hit[:, [0, 2]], axis=1)
-                            out_of_shadow = (rhohit > 1) | (hit[:, 1] < 0)
-                            wtemp *= out_of_shadow
+                if use_condor:
+                    python = sys.executable
+                    pyfile = os.path.join(os.path.dirname(basefile), 'modelcode',
+                                          'LOS_wrapper.py')
+
+                    tempdir = os.path.join(self.inputs.config.savepath, 'temp',
+                                           str(np.random.randint(1000000)))
+                    if not os.path.exists(tempdir):
+                        os.makedirs(tempdir)
                         
-                            rad_ = wtemp.sum()
-                            npack_ = np.sum(inview)
-                            used.loc[i] = set(subset.loc[wtemp > 0].index)
-                            used0.loc[i] = set(subset.loc[wtemp > 0, 'Index'])
-                        else:
-                            assert False, 'Other quantities not set up.'
-                    
-                        rad.loc[i] = rad_
-                        npack.loc[i] = npack_
-                
-                    if len(data) > 10:
-                        ind = data.index.get_loc(i)
-                        if (ind % (len(data) // 10)) == 0:
-                            print(f'Completed {ind + 1} spectra')
-            
-                iteration_ = {'radiance': rad,
-                              'npackets': npack,
-                              'totalsource': output.totalsource,
-                              'outputfile': outputfile,
-                              'out_idnum': output.idnum,
-                              'query': scdata.query,
-                              'used': used,
-                              'used0': used0}
-                iteration_result = IterationResult(iteration_)
-                modelfile = self.save(iteration_result)
-                iteration_result.modelfile = modelfile
-                iteration_results.append(iteration_result)
-                
-                del output, packets
+                    datafile = os.path.join(tempdir, f'inputs_{ct}.pkl')
+                    with open(datafile, 'wb') as file:
+                        pickle.dump((self, outputfile, scdata), file)
+                    datafiles.append(datafile)
+                    print(datafile)
+
+                    # submit to condor
+                    logfile = os.path.join(tempdir, f'{ct}.log')
+                    outfile = os.path.join(tempdir, f'{ct}.out')
+                    errfile = os.path.join(tempdir, f'{ct}.err')
+
+                    job = condorMB.submit_to_condor(
+                        python,
+                        delay=5,
+                        arguments=f'{pyfile} {datafile}',
+                        logfile=logfile,
+                        outlogfile=outfile,
+                        errlogfile=errfile)
+                    jobs.append(job)
+                    ct += 1
+                else:
+                    print(f'LOSResult: {os.path.basename(outputfile)}')
+                    iteration_result = compute_iteration(self, outputfile, scdata)
+                    iteration_results.append(iteration_result)
             else:
                 print(f'Using saved result {search_result[2]}')
                 iteration_result = self.restore(search_result)
@@ -410,6 +332,23 @@ fitted = {self.fitted}'''
                 iteration_result.modelfile = search_result[2]
                 assert len(iteration_result.radiance) == len(data)
                 iteration_results.append(iteration_result)
+                
+        if use_condor:
+            while condorMB.n_to_go(jobs):
+                print(f'{condorMB.n_to_go(jobs)} to go.')
+                time.sleep(10)
+
+            search_results = self.search()
+            iteration_results = []
+            for outputfile, search_result in search_results.items():
+                assert search_result is not None
+                iteration_result = self.restore(search_result)
+                iteration_result.model_idnum = search_result[0]
+                iteration_result.modelfile = search_result[2]
+                assert len(iteration_result.radiance) == len(data)
+                iteration_results.append(iteration_result)
+        else:
+            pass
     
         # combine iteration_results
         self.modelfiles = {}

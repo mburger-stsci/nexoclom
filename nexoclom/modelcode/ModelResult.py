@@ -1,23 +1,36 @@
 import os.path
-import sys
 import numpy as np
 import copy
-import shutil
 import astropy.units as u
-import pandas as pd
-import pickle
 from sklearn.neighbors import BallTree
-import time
 from nexoclom import math as mathMB
 from nexoclom.atomicdata import gValue
 from nexoclom.modelcode.input_classes import InputError
 from nexoclom.modelcode.Output import Output
 from nexoclom.modelcode.SourceMap import SourceMap
-from nexoclom import __file__ as basefile
-try:
-    import condorMB
-except:
-    pass
+
+
+class IterationResult:
+    def __init__(self, iteration):
+        self.radiance = iteration['radiance']
+        self.npackets = iteration['npackets']
+        self.totalsource = iteration['totalsource']
+        self.outputfile = iteration['outputfile']
+        self.out_idnum = iteration['out_idnum']
+        self.modelfile = None
+        self.model_idnum = None
+        self.fitted = False
+        self.used_packets = iteration.get('used', None)
+        self.used_packets0 = iteration.get('used0', None)
+
+
+class IterationResultFitted(IterationResult):
+    def __init__(self, iteration):
+        super().__init__(iteration)
+        
+        self.unfit_outputfile = iteration['unfit_outputfile']
+        self.unfit_outid = iteration['unfit_outid']
+        self.fitted = True
 
 
 class ModelResult:
@@ -238,7 +251,6 @@ class ModelResult:
             X0.loc[:, 'speed'] = speed
             X0.loc[:, 'longitude'] = (np.arctan2(X0.x.values, -X0.y.values) + 2*np.pi) % (2*np.pi)
             X0.loc[:, 'latitude'] = np.arcsin(X0.z.values)
-            
             
             tree = BallTree(X0[['latitude', 'longitude']], metric='haversine')
 

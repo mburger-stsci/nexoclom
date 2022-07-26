@@ -25,10 +25,10 @@ Options
     Configure other model parameters
 """
 import os
+import shutil
 import sys
 import time
 import pickle
-import shutil
 import numpy as np
 import pandas as pd
 from astropy.time import Time
@@ -253,8 +253,6 @@ class Input:
 
             if use_condor:
                 python = sys.executable
-                # pyfile = os.path.join(os.path.dirname(basefile), 'modelcode',
-                #                       'Output.py')
                 pyfile = os.path.join(os.path.dirname(basefile), 'modelcode',
                                       'Output_wrapper.py')
 
@@ -263,8 +261,7 @@ class Input:
                 if not os.path.exists(tempdir):
                     os.makedirs(tempdir)
                 
-                datafiles = []
-                jobs = []
+                jobs, datafiles = [], []
                 for ct in range(nits):
                     datafile = os.path.join(tempdir, f'inputs_{ct}.pkl')
                     with open(datafile, 'wb') as file:
@@ -289,7 +286,7 @@ class Input:
                     print(f'{condorMB.n_to_go(jobs)} to go.')
                     time.sleep(10)
                     
-                # shutil.rmtree(tempdir)
+                shutil.rmtree(tempdir)
             else:
                 for _ in range(nits):
                     tit0_ = Time.now()

@@ -3,22 +3,14 @@ import pandas as pd
 import pickle
 import astropy.units as u
 import sqlalchemy as sqla
-from sklearn.neighbors import KDTree
 from nexoclom import Output
-from nexoclom.modelcode.LOSResult import LOSResult, IterationResult
+from nexoclom.modelcode.LOSResult import LOSResult
+from nexoclom.modelcode.ModelResult import IterationResultFitted
 
 
 xcols = ['x', 'y', 'z']
 borecols = ['xbore', 'ybore', 'zbore']
 
-
-class IterationResultFitted(IterationResult):
-    def __init__(self, iteration):
-        super().__init__(iteration)
-        
-        self.unfit_outputfile = iteration['unfit_outputfile']
-        self.unfit_outid = iteration['unfit_outid']
-        self.fitted = True
 
 class LOSResultFitted(LOSResult):
     def __init__(self, scdata, inputs, params=None, dphi=1*u.deg, **kwargs):
@@ -65,7 +57,7 @@ class LOSResultFitted(LOSResult):
         else:
             assert False, 'Error'
 
-    def determine_source_from_data(self, scdata, label):
+    def determine_source_from_data(self, scdata, label, use_condor=False):
         """Determine the source using a previous LOSResult
         scdata = spacecraft data with at least one model result saved
         label = Label for the model result that should be used as the starting point
