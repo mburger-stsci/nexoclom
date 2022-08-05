@@ -69,8 +69,8 @@ class SourceMap:
             self.coordinate_system = str(sourcemap_.get('coordinate_system',
                                                         'solar-fixed'))
         else:
-            raise InputError('SourceMap', 'problem')
-            
+            print('No source map created')
+        
     def load_dict(self, sourcemap):
         self.abundance = sourcemap.get('abundance', None)
         self.longitude = sourcemap.get('longitude', None)

@@ -173,17 +173,17 @@ class Input:
             table = sqla.Table("outputfile", metadata_obj, autoload_with=engine)
             query = sqla.select(table).where(
                 table.columns.geo_type == self.geometry.type,
-                table.columns.geo_id == geo_id,
+                table.columns.geo_id.in_(geo_id),
                 table.columns.sint_type == self.surfaceinteraction.sticktype,
-                table.columns.sint_id == sint_id,
-                table.columns.force_id == for_id,
+                table.columns.sint_id.in_(sint_id),
+                table.columns.force_id.in_(for_id),
                 table.columns.spatdist_type == self.spatialdist.type,
-                table.columns.spatdist_id == spat_id,
+                table.columns.spatdist_id.in_(spat_id),
                 table.columns.spddist_type == self.speeddist.type,
-                table.columns.spddist_id == spd_id,
+                table.columns.spddist_id.in_(spd_id),
                 table.columns.angdist_type == self.angulardist.type,
-                table.columns.angdist_id == ang_id,
-                table.columns.opt_id == opt_id)
+                table.columns.angdist_id.in_(ang_id),
+                table.columns.opt_id.in_(opt_id))
             
             with self.config.create_engine().connect() as con:
                 result = pd.DataFrame(con.execute(query))
@@ -275,7 +275,7 @@ class Input:
                     errfile = os.path.join(tempdir, f'{ct}.err')
 
                     job = condorMB.submit_to_condor(python,
-                        delay=5,
+                        delay=10,
                         arguments=f'{pyfile} {datafile} {packs_per_it}',
                         logfile=logfile,
                         outlogfile=outfile,

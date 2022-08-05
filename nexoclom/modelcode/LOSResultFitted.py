@@ -1,8 +1,11 @@
+import os
+
 import numpy as np
 import pandas as pd
 import pickle
 import astropy.units as u
 import sqlalchemy as sqla
+import sqlalchemy.dialects.postgresql as pg
 from nexoclom import Output
 from nexoclom.modelcode.LOSResult import LOSResult
 from nexoclom.modelcode.ModelResult import IterationResultFitted
@@ -44,7 +47,7 @@ class LOSResultFitted(LOSResult):
             table.columns.dphi == self.dphi,
             table.columns.mechanism == self.mechanism,
             table.columns.wavelength == [w.value for w in self.wavelength],
-            table.columns.fitted is True)
+            table.columns.fitted == True)
         
         with engine.connect() as con:
             result = pd.DataFrame(con.execute(query))
@@ -57,7 +60,8 @@ class LOSResultFitted(LOSResult):
         else:
             assert False, 'Error'
 
-    def determine_source_from_data(self, scdata, label, use_condor=False):
+    def determine_source_from_data(self, scdata, label, overwrite=False,
+                                   use_condor=False):
         """Determine the source using a previous LOSResult
         scdata = spacecraft data with at least one model result saved
         label = Label for the model result that should be used as the starting point
@@ -66,10 +70,27 @@ class LOSResultFitted(LOSResult):
         data = scdata.data
         
         fitted_iteration_results = []
+        print(f'LOSResultFitted: {len(unfit_model_result.outid)} unfitted files.')
         for ufit_id, ufit_outfile in zip(unfit_model_result.outid,
                                          unfit_model_result.outputfiles):
             # Check to see if there is already a result for this
             search_result = self.fitted_iteration_search(ufit_id)
+            
+            if overwrite:
+                engine = self.inputs.config.create_engine()
+                metadata_obj = sqla.MetaData()
+                table = sqla.Table("uvvsmodels", metadata_obj, autoload_with=engine)
+                del_stmt = sqla.delete(table).where(
+                    table.columns.idnum == search_result[0])
+
+                with engine.connect() as con:
+                    con.execute(del_stmt)
+                    con.commit()
+                if os.path.exists(search_result[2]):
+                    os.remove(search_result[2])
+                search_result = None
+            else:
+                pass
             
             if search_result is None:
                 # Need to compute for this unfit output file
@@ -77,7 +98,7 @@ class LOSResultFitted(LOSResult):
                 with open(unfit_model_result.modelfiles[ufit_outfile], 'rb') as file:
                     iteration_unfit = pickle.load(file)
                 assert output.compress is False, ('nexoclom.LOSResult: '
-                                                  'Fitted results must start from uncompressed outputs')
+                    'Fitted results must start from uncompressed outputs')
                 
                 packets = output.X.copy()
                 packets0 = output.X0.copy()

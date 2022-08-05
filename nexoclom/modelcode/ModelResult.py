@@ -194,7 +194,8 @@ class ModelResult:
 
     def make_source_map(self, smear_radius=10*np.pi/180, nlonbins=180,
                         nlatbins=90, nvelbins=100, nazbins=90, naltbins=23,
-                        use_condor=False, normalize=True):
+                        use_condor=False, normalize=True, do_source=True,
+                        do_available=True):
         """
         At each point in lon/lat grid want:
             * Source flux (atoms/cm2/s
@@ -202,7 +203,19 @@ class ModelResult:
             * Azimuthal distribution (f_az vs az) -> measured CCW from north
             * Altitude distribution (f_alt vs alt) -> tangent = 0, normal = 90
         """
-        source, available = {}, {}
+        todo, source, available = [], None, None
+        if do_source:
+            todo.append(0)
+            source = {}
+        else:
+            pass
+
+        if do_available:
+            todo.append(1)
+            available = {}
+        else:
+            pass
+
         for outputfile in self.outputfiles:
             print(outputfile)
             output = Output.restore(outputfile)
@@ -249,14 +262,14 @@ class ModelResult:
             X0.loc[:, 'v_east'] = v_east
             X0.loc[:, 'v_north'] = v_north
             X0.loc[:, 'speed'] = speed
-            X0.loc[:, 'longitude'] = (np.arctan2(X0.x.values, -X0.y.values) + 2*np.pi) % (2*np.pi)
-            X0.loc[:, 'latitude'] = np.arcsin(X0.z.values)
-            
+            # X0.loc[:, 'longitude'] = (np.arctan2(X0.x.values, -X0.y.values) + 2*np.pi) \
+            #                          % (2*np.pi)
+            # X0.loc[:, 'latitude'] = np.arcsin(X0.z.values)
             tree = BallTree(X0[['latitude', 'longitude']], metric='haversine')
 
             X0_subset = X0[X0.frac > 0]
             # Calculate the histograms and available fraction
-            for which in (0, 1):
+            for which in todo:
                 if which == 0:
                     print('Determining modeled source')
                     distribution = copy.deepcopy(source)
@@ -294,6 +307,7 @@ class ModelResult:
                         distribution['latitude'] = abundance.y * u.rad
                         distribution['fraction_observed'] = fraction_observed.reshape(
                             gridlongitude.shape)/len(self.outputfiles)
+                        distribution['abundance'] /= distribution['fraction_observed']
                 else:
                     pass
 
@@ -339,7 +353,7 @@ class ModelResult:
 
         ## normalization
         if normalize:
-            for which in (0, 1):
+            for which in todo:
                 if which == 0:
                     distribution = copy.deepcopy(source)
                 else:
@@ -360,41 +374,41 @@ class ModelResult:
                             (np.sin(gridlatitude + dy / 2) -
                              np.sin(gridlatitude - dy / 2)))
         
-                    distribution['histogram'] = (distribution['abundance'] /
+                    distribution['abundance'] = (distribution['abundance'] /
                                                  distribution['abundance'].sum() /
                                                  area.T.to(u.cm**2) *
                                                  self.sourcerate.to(1 / u.s))
                 else:
                     pass
                 
-            if 'speed' in distribution:
-                dv = distribution['speed'][1] - distribution['speed'][0]
-                distribution['speed_dist'] = (self.sourcerate *
-                                              distribution['speed_dist'] /
-                                              distribution['speed_dist'].sum() / dv)
-                distribution['speed_dist'] = distribution['speed_dist'] * (
-                    self.sourcerate.unit * u.def_unit('(km/s)^-1', u.s/u.km))
-            else:
-                pass
-            
-            if 'altitude' in distribution:
-                dalt = distribution['altitude'][1] - distribution['altitude'][0]
-                distribution['altitude'] = (self.sourcerate * distribution['altitude'] /
-                                            distribution['altitude'].sum() / dalt)
-            else:
-                pass
+                if 'speed' in distribution:
+                    dv = distribution['speed'][1] - distribution['speed'][0]
+                    distribution['speed_dist'] = (self.sourcerate *
+                                                  distribution['speed_dist'] /
+                                                  distribution['speed_dist'].sum() / dv)
+                    distribution['speed_dist'] = distribution['speed_dist'] * (
+                        self.sourcerate.unit * u.def_unit('(km/s)^-1', u.s/u.km))
+                else:
+                    pass
+                
+                if 'altitude' in distribution:
+                    dalt = distribution['altitude'][1] - distribution['altitude'][0]
+                    distribution['altitude'] = (self.sourcerate * distribution['altitude'] /
+                                                distribution['altitude'].sum() / dalt)
+                else:
+                    pass
 
-            if 'azimuth' in distribution:
-                daz = distribution['azimuth'][1] - distribution['azimuth'][0]
-                distribution['azimuth'] = (self.sourcerate * distribution['azimuth'] /
-                                            distribution['azimuth'].sum() / daz)
-            else:
-                pass
-            
-            if which == 0:
-                source = copy.deepcopy(distribution)
-            else:
-                available = copy.deepcopy(distribution)
+                if 'azimuth' in distribution:
+                    daz = distribution['azimuth'][1] - distribution['azimuth'][0]
+                    distribution['azimuth'] = (self.sourcerate * distribution['azimuth'] /
+                                                distribution['azimuth'].sum() / daz)
+                else:
+                    pass
+                
+                if which == 0:
+                    source = copy.deepcopy(distribution)
+                else:
+                    available = copy.deepcopy(distribution)
         else:
             pass
 

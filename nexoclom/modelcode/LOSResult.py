@@ -260,93 +260,89 @@ fitted = {self.fitted}'''
             pass
     
         # Find the output files that have already been run for these inputs
-        self.outid, self.outputfiles, self.npackets, self.totalsource = self.inputs.search()
+        (self.outid, self.outputfiles, self.npackets,
+         self.totalsource) = self.inputs.search()
+        print(f'LOSResult: {len(self.outid)} output files found.')
         if self.npackets == 0:
             raise RuntimeError('No packets found for these Inputs.')
     
         # Find any model results that have been run for these inputs
         data = scdata.data
         search_results = self.search()
-        iteration_results = []
+        
+        # distance of s/c from planet
+        # This is used to determine if the line of sight needs to be cut
+        # short because it intersects the planet.
+        dist_from_plan = np.sqrt(data.x**2 + data.y**2 + data.z**2)
     
-        # Do this step if will need to compute any iteration results
-        if None in search_results.values():
-            # distance of s/c from planet
-            # This is used to determine if the line of sight needs to be cut
-            # short because it intersects the planet.
-            dist_from_plan = np.sqrt(data.x**2 + data.y**2 + data.z**2)
-        
-            # Angle between look direction and planet.
-            ang = np.arccos((-data.x * data.xbore - data.y * data.ybore -
-                             data.z * data.zbore) / dist_from_plan)
-        
-            # Check to see if look direction intersects the planet anywhere
-            asize_plan = np.arcsin(1. / dist_from_plan)
-        
-            # Don't worry about lines of sight that don't hit the planet
-            dist_from_plan.loc[ang > asize_plan] = 1e30
-        else:
-            dist_from_plan = None
+        # Angle between look direction and planet.
+        ang = np.arccos((-data.x * data.xbore - data.y * data.ybore -
+                         data.z * data.zbore) / dist_from_plan)
+    
+        # Check to see if look direction intersects the planet anywhere
+        asize_plan = np.arcsin(1. / dist_from_plan)
+    
+        # Don't worry about lines of sight that don't hit the planet
+        dist_from_plan.loc[ang > asize_plan] = 1e30
 
         jobs, datafiles, ct = [], [], 0
-        for outputfile, search_result in search_results.items():
-            if search_result is None:
-                if use_condor:
-                    python = sys.executable
-                    pyfile = os.path.join(os.path.dirname(basefile), 'modelcode',
-                                          'LOS_wrapper.py')
+        while None in search_results.values():
+            # Will retry if something fails due to memory error
+            print(f'LOSResult: {list(search_results.values()).count(None)} '
+                  'to compute')
+            for outputfile, search_result in search_results.items():
+                if search_result is None:
+                    if use_condor:
+                        python = sys.executable
+                        pyfile = os.path.join(os.path.dirname(basefile),
+                                              'modelcode', 'LOS_wrapper.py')
 
-                    tempdir = os.path.join(self.inputs.config.savepath, 'temp',
-                                           str(np.random.randint(1000000)))
-                    if not os.path.exists(tempdir):
-                        os.makedirs(tempdir)
-                        
-                    datafile = os.path.join(tempdir, f'inputs_{ct}.pkl')
-                    with open(datafile, 'wb') as file:
-                        pickle.dump((self, outputfile, scdata), file)
-                    datafiles.append(datafile)
-                    print(datafile)
+                        tempdir = os.path.join(self.inputs.config.savepath, 'temp',
+                                               str(np.random.randint(1000000)))
+                        if not os.path.exists(tempdir):
+                            os.makedirs(tempdir)
+                            
+                        datafile = os.path.join(tempdir, f'inputs_{ct}.pkl')
+                        with open(datafile, 'wb') as file:
+                            pickle.dump((self, outputfile, scdata), file)
+                        datafiles.append(datafile)
+                        print(datafile)
 
-                    # submit to condor
-                    logfile = os.path.join(tempdir, f'{ct}.log')
-                    outfile = os.path.join(tempdir, f'{ct}.out')
-                    errfile = os.path.join(tempdir, f'{ct}.err')
+                        # submit to condor
+                        logfile = os.path.join(tempdir, f'{ct}.log')
+                        outfile = os.path.join(tempdir, f'{ct}.out')
+                        errfile = os.path.join(tempdir, f'{ct}.err')
 
-                    job = condorMB.submit_to_condor(
-                        python,
-                        delay=5,
-                        arguments=f'{pyfile} {datafile}',
-                        logfile=logfile,
-                        outlogfile=outfile,
-                        errlogfile=errfile)
-                    jobs.append(job)
-                    ct += 1
+                        job = condorMB.submit_to_condor(
+                            python,
+                            delay=10,
+                            arguments=f'{pyfile} {datafile}',
+                            logfile=logfile,
+                            outlogfile=outfile,
+                            errlogfile=errfile)
+                        jobs.append(job)
+                        ct += 1
+                    else:
+                        print(f'LOSResult: {os.path.basename(outputfile)}')
+                        compute_iteration(self, outputfile, scdata)
                 else:
-                    print(f'LOSResult: {os.path.basename(outputfile)}')
-                    iteration_result = compute_iteration(self, outputfile, scdata)
-                    iteration_results.append(iteration_result)
-            else:
-                print(f'Using saved result {search_result[2]}')
-                iteration_result = self.restore(search_result)
-                iteration_result.model_idnum = search_result[0]
-                iteration_result.modelfile = search_result[2]
-                assert len(iteration_result.radiance) == len(data)
-                iteration_results.append(iteration_result)
+                    pass
                 
-        if use_condor:
-            while condorMB.n_to_go(jobs):
-                print(f'{condorMB.n_to_go(jobs)} to go.')
-                time.sleep(10)
+            if use_condor:
+                while condorMB.n_to_go(jobs):
+                    print(f'{condorMB.n_to_go(jobs)} to go.')
+                    time.sleep(10)
 
             search_results = self.search()
-            iteration_results = []
-            for outputfile, search_result in search_results.items():
-                assert search_result is not None
-                iteration_result = self.restore(search_result)
-                iteration_result.model_idnum = search_result[0]
-                iteration_result.modelfile = search_result[2]
-                assert len(iteration_result.radiance) == len(data)
-                iteration_results.append(iteration_result)
+            
+        iteration_results = []
+        for outputfile, search_result in search_results.items():
+            assert search_result is not None
+            iteration_result = self.restore(search_result)
+            iteration_result.model_idnum = search_result[0]
+            iteration_result.modelfile = search_result[2]
+            assert len(iteration_result.radiance) == len(data)
+            iteration_results.append(iteration_result)
         else:
             pass
     

@@ -184,11 +184,10 @@ class Geometry:
             
             ids = result.inserted_primary_key
             assert len(ids) == 1
-            ids = ids[0]
         else:
             pass
         
-        return int(ids)
+        return ids
 
     def search(self):
         engine = config.create_engine()
@@ -239,15 +238,12 @@ class Geometry:
         if len(results) == 0:
             return None
         elif len(results) == 1:
-            return int(results.loc[0, 'idnum'])
+            return [int(results.loc[0, 'idnum'])]
         else:
             diff = np.abs(results.taa - self.taa.value)
             q = np.where(diff == diff.min())[0]
-            if len(q) == 1:
-                return int(results.loc[q, 'idnum'][0])
-            else:
-                raise RuntimeError('geometry.search()',
-                                   'Duplicates in geometry table')
+            ids = [int(x) for x in results.loc[q, 'idnum'].values]
+            return ids
 
 
 class SurfaceInteraction:
@@ -377,11 +373,10 @@ class SurfaceInteraction:
 
             ids = result.inserted_primary_key
             assert len(ids) == 1
-            ids = ids[0]
         else:
             pass
 
-        return int(ids)
+        return ids
 
     def search(self):
         engine = config.create_engine()
@@ -417,11 +412,9 @@ class SurfaceInteraction:
             
         if len(results) == 0:
             return None
-        elif len(results) == 1:
-            return int(results.loc[0, 'idnum'])
         else:
-            raise RuntimeError('SurfaceInteraction.search()',
-                               'Duplicates in surface interaction table')
+            ids = [int(x) for x in results.idnum.values]
+            return ids
 
 
 class Forces:
@@ -473,11 +466,10 @@ class Forces:
                 
             ids  = result.inserted_primary_key
             assert len(ids) == 1
-            ids = ids[0]
         else:
             pass
 
-        return int(ids)
+        return ids
 
     def search(self):
         engine = config.create_engine()
@@ -493,10 +485,9 @@ class Forces:
     
         if len(results) == 0:
             return None
-        elif len(results) == 1:
-            return int(results.loc[0, 'idnum'])
         else:
-            raise RuntimeError('Forces.search()', 'Duplicates in forces table')
+            ids = [int(x) for x in results.idnum.values]
+            return ids
 
 
 class SpatialDist:
@@ -650,11 +641,10 @@ class SpatialDist:
 
             ids  = result.inserted_primary_key
             assert len(ids) == 1
-            ids = ids[0]
         else:
             pass
         
-        return int(ids)
+        return ids
 
     def search(self):
         engine = config.create_engine()
@@ -707,11 +697,9 @@ class SpatialDist:
     
         if len(results) == 0:
             return None
-        elif len(results) == 1:
-            return int(results.loc[0, 'idnum'])
         else:
-            raise RuntimeError('SpatialDist.search()',
-                               'Duplicates in forces table')
+            ids = [int(x) for x in results.idnum.values]
+            return ids
 
 
 class SpeedDist:
@@ -855,11 +843,10 @@ class SpeedDist:
 
             ids = result.inserted_primary_key
             assert len(ids) == 1
-            ids = ids[0]
         else:
             pass
 
-        return int(ids)
+        return ids
 
     def search(self):
         engine = config.create_engine()
@@ -915,11 +902,9 @@ class SpeedDist:
             
         if len(results) == 0:
             return None
-        elif len(results) == 1:
-            return int(results.loc[0, 'idnum'])
         else:
-            raise RuntimeError('SpeedDist.search()',
-                               'Duplicates in speed distribution table')
+            ids = [int(x) for x in results.idnum.values]
+            return ids
     
 
 class AngularDist:
@@ -1011,18 +996,17 @@ class AngularDist:
 
             ids = result.inserted_primary_key
             assert len(ids) == 1
-            ids = ids[0]
         else:
             pass
 
-        return int(ids)
+        return ids
 
     def search(self):
         engine = config.create_engine()
         metadata_obj = sqla.MetaData()
         
         if self.type == 'radial':
-            return 0
+            return [0]
         elif self.type == 'isotropic':
             alt = [a.value for a in self.altitude]
             az = [a.value for a in self.azimuth]
@@ -1041,11 +1025,9 @@ class AngularDist:
             
         if len(results) == 0:
             return None
-        elif len(results) == 1:
-            return int(results.loc[0, 'idnum'])
         else:
-            raise RuntimeError('AngularDist.search()',
-                               'Duplicates in angular distribution table')
+            ids = [int(x) for x in results.idnum.values]
+            return ids
 
 
 class Options:
@@ -1137,11 +1119,10 @@ class Options:
 
             ids = result.inserted_primary_key
             assert len(ids) == 1
-            ids = ids[0]
         else:
             pass
 
-        return int(ids)
+        return ids
 
     def search(self):
         engine = config.create_engine()
@@ -1164,7 +1145,6 @@ class Options:
 
         if len(results) == 0:
             return None
-        elif len(results) == 1:
-            return int(results.loc[0, 'idnum'])
         else:
-            raise RuntimeError('Options.search()', 'Duplicates in options table')
+            ids = [int(x) for x in results.idnum.values]
+            return ids

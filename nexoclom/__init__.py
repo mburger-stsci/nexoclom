@@ -10,7 +10,8 @@ from nexoclom.solarsystem import SSObject
 __name__ = 'nexoclom'
 __author__ = 'Matthew Burger'
 __email__ = 'mburger@stsci.edu'
-__version__ = '3.3.4'
-__date__ = '2022-07-25'
+__version__ = '3.4.5'
+__date__ = '2022-08-04'
+
 
 configure(verbose=False)

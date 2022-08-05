@@ -13,13 +13,13 @@ class Histogram:
         self.dx = x[1]-x[0]  # width of the bin
         self.x = x[:-1] + self.dx/2
         
-    # def __repr__(self):
-    #     string = f"{'x':6}{'#':6}\n"
-    #     string += '-'*12 + '\n'
-    #     for x, h in zip(self.x, self.histogram):
-    #         string += f"{x:6f}{h:6f}\n"
-    #
-    #     return string
+    def __repr__(self):
+        string = f"{'x':6}{'#':6}\n"
+        string += '-'*12 + '\n'
+        for x, h in zip(self.x, self.histogram):
+            string += f"{x:6f}{h:6f}\n"
+
+        return string
     
     def __str__(self):
         return self.__repr__()

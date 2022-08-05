@@ -484,17 +484,17 @@ class Output:
             npackets = self.npackets,
             totalsource = self.totalsource,
             geo_type = self.inputs.geometry.type,
-            geo_id = geo_id,
+            geo_id = geo_id[0],
             sint_type = self.inputs.surfaceinteraction.sticktype,
-            sint_id = sint_id,
-            force_id = for_id,
+            sint_id = sint_id[0],
+            force_id = for_id[0],
             spatdist_type = self.inputs.spatialdist.type,
-            spatdist_id = spat_id,
+            spatdist_id = spat_id[0],
             spddist_type = self.inputs.speeddist.type,
-            spddist_id = spd_id,
+            spddist_id = spd_id[0],
             angdist_type = self.inputs.angulardist.type,
-            angdist_id = ang_id,
-            opt_id = opt_id)
+            angdist_id = ang_id[0],
+            opt_id = opt_id[0])
         
         with engine.connect() as con:
             result = con.execute(insert_stmt)

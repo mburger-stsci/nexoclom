@@ -1,6 +1,5 @@
 import os
 import numpy as np
-import pickle
 import astropy.units as u
 import astropy.constants as const
 import nexoclom.math as mathMB
