@@ -220,7 +220,7 @@ class ModelImage(ModelResult):
         out_of_shadow = (rhosqr_sun > 1) | (pts_sun[:,1] < 0)
 
         # Packet weighting
-        self.packet_weighting(packets, out_of_shadow, output.aplanet)
+        self.packet_weighting(packets, output.aplanet, out_of_shadow)
         packets['weight'] /= self.Apix
 
         pts_obs = pts_obs.transpose()
