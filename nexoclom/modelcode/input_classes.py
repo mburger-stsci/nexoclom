@@ -8,13 +8,13 @@ import astropy.units as u
 import sqlalchemy as sqla
 import sqlalchemy.dialects.postgresql as pg
 from nexoclom.solarsystem import SSObject
-from nexoclom.utilities import InputError, NexoclomConfig
+from nexoclom.utilities import InputError
 from nexoclom.modelcode.SourceMap import SourceMap
+from nexoclom import engine
 
 
 # Tolerances for floating point values
-dtaa = np.radians(2.)
-config = NexoclomConfig()
+dtaa = np.radians(5.)
 
 
 class Geometry:
@@ -134,7 +134,6 @@ class Geometry:
         ids = self.search()
         
         if ids is None:
-            engine = config.create_engine()
             metadata_obj = sqla.MetaData()
             if self.type == 'geometry with starttime':
                 if self.objects is None:
@@ -190,7 +189,6 @@ class Geometry:
         return ids
 
     def search(self):
-        engine = config.create_engine()
         metadata_obj = sqla.MetaData()
 
         if self.objects is None:
@@ -337,7 +335,6 @@ class SurfaceInteraction:
     def insert(self):
         ids = self.search()
         if ids is None:
-            engine = config.create_engine()
             metadata_obj = sqla.MetaData()
             if self.sticktype == 'constant':
                 table = sqla.Table('surface_int_constant',
@@ -379,7 +376,6 @@ class SurfaceInteraction:
         return ids
 
     def search(self):
-        engine = config.create_engine()
         metadata_obj = sqla.MetaData()
         
         if self.sticktype == 'constant':
@@ -453,7 +449,6 @@ class Forces:
         ids = self.search()
         
         if ids is None:
-            engine = config.create_engine()
             metadata_obj = sqla.MetaData()
             table = sqla.Table('forces', metadata_obj, autoload_with=engine)
             insert_stmt = pg.insert(table).values(
@@ -472,7 +467,6 @@ class Forces:
         return ids
 
     def search(self):
-        engine = config.create_engine()
         metadata_obj = sqla.MetaData()
         table = sqla.Table('forces', metadata_obj, autoload_with=engine)
         
@@ -591,7 +585,6 @@ class SpatialDist:
         ids = self.search()
         
         if ids is None:
-            engine = config.create_engine()
             metadata_obj = sqla.MetaData()
             if self.type == 'uniform':
                 long = [l.value for l in self.longitude]
@@ -647,7 +640,6 @@ class SpatialDist:
         return ids
 
     def search(self):
-        engine = config.create_engine()
         metadata_obj = sqla.MetaData()
         
         if self.type == 'uniform':
@@ -784,7 +776,6 @@ class SpeedDist:
     def insert(self):
         ids = self.search()
         if ids is None:
-            engine = config.create_engine()
             metadata_obj = sqla.MetaData()
             if self.type == 'gaussian':
                 table = sqla.Table('speeddist_gaussian',
@@ -849,7 +840,6 @@ class SpeedDist:
         return ids
 
     def search(self):
-        engine = config.create_engine()
         metadata_obj = sqla.MetaData()
         
         if self.type == 'gaussian':
@@ -971,7 +961,6 @@ class AngularDist:
     def insert(self):
         ids = self.search()
         if ids is None:
-            engine = config.create_engine()
             metadata_obj = sqla.MetaData()
             
             if self.type == 'radial':
@@ -1002,7 +991,6 @@ class AngularDist:
         return ids
 
     def search(self):
-        engine = config.create_engine()
         metadata_obj = sqla.MetaData()
         
         if self.type == 'radial':
@@ -1098,7 +1086,6 @@ class Options:
     def insert(self):
         ids = self.search()
         if ids is None:
-            engine = config.create_engine()
             metadata_obj = sqla.MetaData()
             table = sqla.Table('options',
                                metadata_obj,
@@ -1125,7 +1112,6 @@ class Options:
         return ids
 
     def search(self):
-        engine = config.create_engine()
         metadata_obj = sqla.MetaData()
         
         table = sqla.Table('options',

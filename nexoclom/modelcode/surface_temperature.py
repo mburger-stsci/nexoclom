@@ -3,6 +3,7 @@ import numpy as np
 
 def surface_temperature(geometry, longitude, latitude,
                         t0=100., t1=None, n=.25):
+    # Update with equation from OJ
     if geometry.startpoint == 'Mercury':
         if t1 is None:
             t1 = 600. + 125*(np.cos(geometry.taa) - 1)/2.

@@ -5,8 +5,7 @@ import pandas as pd
 import pickle
 import astropy.units as u
 import sqlalchemy as sqla
-import sqlalchemy.dialects.postgresql as pg
-from nexoclom import Output
+from nexoclom import Output, engine
 from nexoclom.modelcode.LOSResult import LOSResult
 from nexoclom.modelcode.ModelResult import IterationResultFitted
 
@@ -16,9 +15,12 @@ borecols = ['xbore', 'ybore', 'zbore']
 
 
 class LOSResultFitted(LOSResult):
-    def __init__(self, scdata, inputs, params=None, dphi=1*u.deg, **kwargs):
+    def __init__(self, scdata, label_for_fitted, params=None, dphi=1*u.deg, **kwargs):
+        inputs = scdata.model_result[label_for_fitted].inputs
+        inputs.options.fitted = True
         super().__init__(scdata, inputs, params=params, dphi=dphi, **kwargs)
 
+        self.unfitted_label = label_for_fitted
         self.unfit_outid = None
         self.unfit_outputfiles = None
 
@@ -36,7 +38,6 @@ class LOSResultFitted(LOSResult):
         return np.append(x, i)
     
     def fitted_iteration_search(self, ufit_id):
-        engine = self.inputs.config.create_engine()
         metadata_obj = sqla.MetaData()
         table = sqla.Table("uvvsmodels", metadata_obj, autoload_with=engine)
 
@@ -47,7 +48,7 @@ class LOSResultFitted(LOSResult):
             table.columns.dphi == self.dphi,
             table.columns.mechanism == self.mechanism,
             table.columns.wavelength == [w.value for w in self.wavelength],
-            table.columns.fitted == True)
+            table.columns.fitted)
         
         with engine.connect() as con:
             result = pd.DataFrame(con.execute(query))
@@ -60,13 +61,12 @@ class LOSResultFitted(LOSResult):
         else:
             assert False, 'Error'
 
-    def determine_source_from_data(self, scdata, label, overwrite=False,
+    def determine_source_from_data(self, scdata, overwrite=False,
                                    use_condor=False):
         """Determine the source using a previous LOSResult
         scdata = spacecraft data with at least one model result saved
-        label = Label for the model result that should be used as the starting point
         """
-        unfit_model_result = scdata.model_result[label]
+        unfit_model_result = scdata.model_result[self.unfitted_label]
         data = scdata.data
         
         fitted_iteration_results = []
@@ -77,7 +77,6 @@ class LOSResultFitted(LOSResult):
             search_result = self.fitted_iteration_search(ufit_id)
             
             if overwrite:
-                engine = self.inputs.config.create_engine()
                 metadata_obj = sqla.MetaData()
                 table = sqla.Table("uvvsmodels", metadata_obj, autoload_with=engine)
                 del_stmt = sqla.delete(table).where(
@@ -95,10 +94,11 @@ class LOSResultFitted(LOSResult):
             if search_result is None:
                 # Need to compute for this unfit output file
                 output = Output.restore(ufit_outfile)
-                with open(unfit_model_result.modelfiles[ufit_outfile], 'rb') as file:
+                unfit_modelfile = unfit_model_result.modelfiles[ufit_outfile]
+                with open(unfit_modelfile, 'rb') as file:
                     iteration_unfit = pickle.load(file)
-                assert output.compress is False, ('nexoclom.LOSResult: '
-                    'Fitted results must start from uncompressed outputs')
+                # assert output.compress is False, ('nexoclom.LOSResult: '
+                #     'Fitted results must start from uncompressed outputs')
                 
                 packets = output.X.copy()
                 packets0 = output.X0.copy()
@@ -114,7 +114,6 @@ class LOSResultFitted(LOSResult):
                 
                 for spnum, spectrum in data.iterrows():
                     used = list(iteration_unfit.used_packets.loc[spnum])
-                    # used0 = list(iteration_unfit.used_packets0.loc[spnum])
                     cts = packets.loc[used, 'Index'].value_counts()
                     weighting.loc[cts.index] += cts.values * ratio[spnum]
                     included.loc[cts.index] += cts.values
@@ -160,7 +159,8 @@ class LOSResultFitted(LOSResult):
                              'outputfile': output.filename,
                              'out_idnum': output.idnum,
                              'unfit_outputfile': ufit_outfile,
-                             'unfit_outid': ufit_id}
+                             'unfit_outid': ufit_id,
+                             'unfit_modelfile': unfit_modelfile}
                 iteration_result = IterationResultFitted(iteration)
                 
                 modelfile = self.save(iteration_result, ufit_id=ufit_id)

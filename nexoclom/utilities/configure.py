@@ -2,7 +2,7 @@
 import os
 import pandas as pd
 from sqlalchemy import text
-from nexoclom.utilities import NexoclomConfig
+from nexoclom.utilities.NexoclomConfig import NexoclomConfig
 from nexoclom import __file__ as basefile
 
 
@@ -13,9 +13,10 @@ def configure_nexoclom(verbose=False):
     # Create the database if necessary
     config = NexoclomConfig(verbose=verbose)
     config.verify_database_running()
+    engine = config.create_engine()
     
     # Validate nexoclom output tables
-    with config.create_engine().begin() as con:
+    with engine.begin() as con:
         with open(os.path.join(basepath, 'data', 'schema.sql'), 'r') as sqlfile:
             done = False
             while not done:
@@ -50,7 +51,7 @@ def configure_nexoclom(verbose=False):
                     pass
                 
                 done = ('DONE' in nextline) or ('DONE' in line)
-    return config
+    return config, engine
 
 def configure_solarsystem():
     # Make a pickle file with the planetary constants
@@ -86,8 +87,8 @@ def configure_atomicdata():
         make_photorates_table()
         
 def configure(verbose=False):
-    config = configure_nexoclom(verbose=True)
+    config, engine = configure_nexoclom(verbose=verbose)
     configure_solarsystem()
     configure_atomicdata()
     
-    return config
+    return config, engine

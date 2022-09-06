@@ -8,6 +8,7 @@ import astropy.units as u
 import sqlalchemy as sqla
 import sqlalchemy.dialects.postgresql as pg
 
+from nexoclom import engine
 import nexoclom.math as mathMB
 from nexoclom.solarsystem import planet_dist
 from nexoclom.atomicdata import RadPresConst
@@ -475,7 +476,6 @@ class Output:
         ang_id = self.inputs.angulardist.insert()
         opt_id = self.inputs.options.insert()
         
-        engine = self.inputs.config.create_engine()
         metadata_obj = sqla.MetaData()
         table = sqla.Table("outputfile", metadata_obj, autoload_with=engine)
         

@@ -38,12 +38,20 @@ try:
 except:
     pass
 from nexoclom.modelcode.Output import Output
-from nexoclom.utilities import NexoclomConfig
+from nexoclom import config, engine
 from nexoclom.modelcode.input_classes import (Geometry, SurfaceInteraction,
                                              Forces, SpatialDist, SpeedDist,
                                              AngularDist, Options)
 from nexoclom.modelcode.ModelImage import ModelImage
 from nexoclom import __file__ as basefile
+
+
+def get_machine(machines):
+    i = 0
+    while i < len(machines):
+        yield machines[i]
+        i = (i + 1) % len(machines)
+
 
 class Input:
     def __init__(self, infile):
@@ -73,7 +81,7 @@ class Input:
         
         """
         # Read the configuration file
-        self.config = NexoclomConfig()
+        self.config = config
 
         # Read in the input file:
         self._inputfile = infile
@@ -167,7 +175,6 @@ class Input:
         if None in [geo_id, sint_id, for_id, spat_id, spd_id, ang_id, opt_id]:
             return [], [], 0., 0.
         else:
-            engine = self.config.create_engine()
             metadata_obj = sqla.MetaData()
             
             table = sqla.Table("outputfile", metadata_obj, autoload_with=engine)
@@ -185,7 +192,7 @@ class Input:
                 table.columns.angdist_id.in_(ang_id),
                 table.columns.opt_id.in_(opt_id))
             
-            with self.config.create_engine().connect() as con:
+            with engine.connect() as con:
                 result = pd.DataFrame(con.execute(query))
             
             if len(result) > 0:
@@ -235,7 +242,7 @@ class Input:
         npackets = int(npackets)
         ntodo = npackets - totalpackets
         
-        if ntodo > 0:
+        while ntodo > 0:
             if (packs_per_it is None) and (self.options.step_size == 0):
                 packs_per_it = 1000000
             elif packs_per_it is None:
@@ -252,6 +259,8 @@ class Input:
             print(f'Will complete {nits} iterations of {packs_per_it} packets.')
 
             if use_condor:
+                njobs, machines = condorMB.nCPUs()
+                machine_gen = get_machine(machines)
                 python = sys.executable
                 pyfile = os.path.join(os.path.dirname(basefile), 'modelcode',
                                       'Output_wrapper.py')
@@ -279,7 +288,8 @@ class Input:
                         arguments=f'{pyfile} {datafile} {packs_per_it}',
                         logfile=logfile,
                         outlogfile=outfile,
-                        errlogfile=errfile)
+                        errlogfile=errfile,
+                        machine=next(machine_gen))
                     jobs.append(job)
                     
                 while condorMB.n_to_go(jobs):
@@ -297,6 +307,12 @@ class Input:
                     tit1_ = Time.now()
                     print(f'Completed iteration #{_+1} in '
                           f'{(tit1_ - tit0_).sec} seconds.')
+            
+            # Check that all packets were completed
+            _, outputfiles, totalpackets, _ = self.search()
+            print(f'Found {len(outputfiles)} files with {totalpackets} '
+                  'packets.')
+            ntodo = npackets - totalpackets
         else:
             pass
 
@@ -328,7 +344,6 @@ class Input:
 
         """
         idnum, filelist, _, _ = self.search()
-        engine = self.config.create_engine()
         metadata_obj = sqla.MetaData()
         outputfile = sqla.Table("outputfile", metadata_obj, autoload_with=engine)
         modelimages = sqla.Table("modelimages", metadata_obj, autoload_with=engine)

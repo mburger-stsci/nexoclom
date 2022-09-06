@@ -6,6 +6,7 @@ import json
 import sqlalchemy as sqla
 import sqlalchemy.dialects.postgresql as pg
 
+from nexoclom import engine
 from nexoclom.math import rotation_matrix, Histogram2d
 from nexoclom.modelcode.ModelResult import ModelResult
 from nexoclom.modelcode.Output import Output
@@ -105,7 +106,6 @@ class ModelImage(ModelResult):
 
     def save(self, fname, image, packets):
         # Determine the id of the outputfile
-        engine = self.inputs.config.create_engine()
         metadata_obj = sqla.MetaData()
         outputfile = sqla.Table("outputfile", metadata_obj, autoload_with=engine)
 
@@ -116,7 +116,6 @@ class ModelImage(ModelResult):
         idnum = idnum_.idnum
 
         # Insert the image into the database
-        engine = self.inputs.config.create_engine()
         metadata_obj = sqla.MetaData()
         table = sqla.Table("modelimages", metadata_obj, autoload_with=engine)
         
@@ -149,7 +148,6 @@ class ModelImage(ModelResult):
 
     def restore(self, fname, overwrite=False):
         # Determine the id of the outputfile
-        engine = self.inputs.config.create_engine()
         metadata_obj = sqla.MetaData()
         outputfile = sqla.Table("outputfile", metadata_obj, autoload_with=engine)
         

@@ -1,5 +1,5 @@
-from nexoclom.utilities.NexoclomConfig import NexoclomConfig
 from nexoclom.utilities.configure import configure
+from nexoclom.utilities.NexoclomConfig import NexoclomConfig
 from nexoclom.utilities.exceptions import *
 
 
