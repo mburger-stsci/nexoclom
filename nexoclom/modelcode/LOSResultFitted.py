@@ -117,7 +117,7 @@ class LOSResultFitted(LOSResult):
                     cts = packets.loc[used, 'Index'].value_counts()
                     weighting.loc[cts.index] += cts.values * ratio[spnum]
                     included.loc[cts.index] += cts.values
-                 
+                    
                 used = included > 0
                 weighting[used] = weighting[used] / included[used]
                 weighting /= weighting[used].mean()

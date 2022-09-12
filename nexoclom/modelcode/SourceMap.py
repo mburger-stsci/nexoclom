@@ -5,7 +5,7 @@ from nexoclom.utilities.exceptions import InputError
 
 
 class SourceMap:
-    def __init__(self, sourcemap):
+    def __init__(self, sourcemap=None):
         self.abundance = None
         self.longitude = None
         self.latitude = None

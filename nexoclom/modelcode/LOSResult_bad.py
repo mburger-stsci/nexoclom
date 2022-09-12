@@ -388,7 +388,7 @@ fitted = {self.fitted}'''
         self.goodness_of_fit = None
         self.mask = mask
 
-    def make_source_map(self, smear_radius=np.radians(10), nlonbins=180,
+    def make_source_map(self, smear_radius=10*np.pi/180, nlonbins=180,
                         nlatbins=90, nvelbins=100, nazbins=90, naltbins=23,
                         use_condor=False, normalize=True, do_source=True,
                         do_available=True):
@@ -413,23 +413,14 @@ fitted = {self.fitted}'''
             pass
         
         for which in todo:
+            distribution = {}
             if which == 0:
                 print('Determining modeled source')
             else:
                 print('Determining available source')
-            distribution = {'abundance_uncor': np.zeros((nlonbins, nlatbins)) / u.s,
-                            'abundance': np.zeros((nlonbins, nlatbins)) / u.s,
-                            'fraction_observed': np.zeros((nlonbins, nlatbins)),
-                            'speed_dist_map': np.zeros((nlonbins, nlatbins,
-                                                        nvelbins)) * u.s/u.km,
-                            'n_included': np.zeros((nlonbins, nlatbins)),
-                            'n_total': np.zeros((nlonbins, nlatbins)),
-                            'speed_dist': np.zeros(nvelbins) * u.s / u.km,
-                            'altitude_dist': np.zeros(naltbins) / u.rad,
-                            'azimuth_dist': np.zeros(nazbins) / u.rad}
-            vmax = None
 
             for outputfile, modelfile in self.modelfiles.items():
+                # Setup
                 print(outputfile)
                 output = Output.restore(outputfile)
                 
@@ -455,10 +446,6 @@ fitted = {self.fitted}'''
                 velocity = (X0[['vx', 'vy', 'vz']].values *
                             self.inputs.geometry.planet.radius.value)
                 speed = np.linalg.norm(velocity, axis=1)
-                if vmax is None:
-                    vmax = np.ceil(speed.max())
-                else:
-                    pass
 
                 # Convert v_x, v_y, v_z -> v_east, v_north, v_radial vectors
                 # Radial, east, north unit vectors
@@ -498,7 +485,7 @@ fitted = {self.fitted}'''
                 #                          % (2*np.pi)
                 # X0.loc[:, 'latitude'] = np.arcsin(X0.z.values)
                 tree = BallTree(X0[['latitude', 'longitude']], metric='haversine')
-                
+
                 X0_subset = X0[X0.included]
                 if which == 0:
                     weight = X0.frac
@@ -506,7 +493,7 @@ fitted = {self.fitted}'''
                 else:
                     weight = np.ones_like(X0.frac.values)
                     weight_subset = np.ones_like(X0_subset.frac.values)
-                
+                    
                 # Calculate the histograms and available fraction
                 abundance = mathMB.Histogram2d(X0_subset.longitude,
                                                X0_subset.latitude,
@@ -522,121 +509,125 @@ fitted = {self.fitted}'''
                 ind = tree.query_radius(points, smear_radius)
                 n_included = np.zeros((points.shape[0], ))
                 n_total = np.zeros((points.shape[0], ))
-                v_point = np.zeros((points.shape[0], nvelbins))
                 for index in range(points.shape[0]):
                     included = X0.loc[ind[index], 'included']
-                    weight_ = X0.loc[ind[index], 'frac']
-                    n_included[index] = np.sum(included*weight_)/np.sum(weight_)
-                    n_total[index] = weight_.sum()
-                    
-                    # No weighting because assumption is all the atoms are ejected
-                    # from the same point (points[index, :])
-                    # n_included[index] = np.sum(included)
-                    # n_total[index] = len(included)
-                    vpoint_ = mathMB.Histogram(X0.loc[ind[index], 'speed'], bins=nvelbins,
-                                               range=[0, vmax])
-                    v_point[index,:] += vpoint_.histogram
+                    n_included[index] = np.sum(included*weight)/np.sum(weight)
+                    n_total[index] = np.sum(weight)
                 
-                distribution['abundance_uncor'] += abundance.histogram / u.s
-                distribution['longitude'] = abundance.x * u.rad
-                distribution['latitude'] = abundance.y * u.rad
-                distribution['speed_dist_map'] += v_point.reshape(
-                    gridlongitude.shape + (nvelbins, )) * u.s/u.km
-                distribution['n_included'] += n_included.reshape(gridlongitude.shape)
-                distribution['n_total'] += n_total.reshape(gridlongitude.shape)
+                if 'abundance' in distribution:
+                    distribution['abundance'] += abundance.histogram / u.s
+                    distribution['n_included'] += n_included.reshape(
+                        gridlongitude.shape)
+                    distribution['n_total'] += n_total.reshape(
+                        gridlongitude.shape)
+                else:
+                    distribution['abundance'] = abundance.histogram / u.s
+                    distribution['longitude'] = abundance.x * u.rad
+                    distribution['latitude'] = abundance.y * u.rad
+                    distribution['n_included'] = n_included.reshape(
+                        gridlongitude.shape)
+                    distribution['n_total'] = n_total.reshape(
+                        gridlongitude.shape)
 
-                # Speed distribution
                 velocity = mathMB.Histogram(X0_subset.speed, bins=nvelbins,
-                                            range=[0, vmax], weights=weight_subset)
-                distribution['speed_dist'] += velocity.histogram * u.s/u.km
-                distribution['speed'] = velocity.x * u.km/u.s
+                                            range=[0, X0_subset.speed.max()],
+                                            weights=weight_subset)
+                if 'speed' in distribution:
+                    distribution['speed_dist'] += velocity.histogram * u.s/u.km
+                else:
+                    distribution['speed'] = velocity.x * u.km/u.s
+                    distribution['speed_dist'] = velocity.histogram * u.s/u.km
 
-                # Altitude distribution
                 altitude = mathMB.Histogram(X0_subset.altitude, bins=naltbins,
-                                            range=[0, np.pi / 2], weights=weight_subset)
-                distribution['altitude_dist'] += altitude.histogram / u.rad
-                distribution['altitude'] = altitude.x * u.rad
-            
-                # Azimuth distribution
+                                            range=[0, np.pi / 2],
+                                            weights=weight_subset)
+                if 'altitude' in distribution:
+                    distribution['altitude_dist'] += altitude.histogram / u.rad
+                else:
+                    distribution['altitude'] = altitude.x * u.rad
+                    distribution['altitude_dist'] = altitude.histogram / u.rad
+                
                 azimuth = mathMB.Histogram(X0_subset.azimuth, bins=nazbins,
-                                           range=[0, 2 * np.pi], weights=weight_subset)
-                distribution['azimuth_dist'] += azimuth.histogram / u.rad
-                distribution['azimuth'] = azimuth.x * u.rad
+                                           range=[0, 2 * np.pi],
+                                           weights=weight_subset)
+                if 'azimuth' in distribution:
+                    distribution['azimuth_dist'] += azimuth.histogram / u.rad
+                else:
+                    distribution['azimuth'] = azimuth.x * u.rad
+                    distribution['azimuth_dist'] = azimuth.histogram / u.rad
                 del X0, X0_subset
 
             distribution['fraction_observed'] = (distribution['n_included']/
                                                  distribution['n_total'])
             q = np.isnan(distribution['fraction_observed'])
             distribution['fraction_observed'][q] = 1
-            distribution['abundance'] = (distribution['abundance_uncor']/
-                                         distribution['fraction_observed'])
+            distribution['abundance'] /= distribution['fraction_observed']
             distribution['fraction_observed'][q] = 0
             q = np.isnan(distribution['abundance'])
             distribution['abundance'][q] = 0
             
             ## normalization
             if normalize:
-                # Convert histogram to flux
-                # (a) divide by area of a grid cell
-                #   Surface area of a grid cell =
-                #       R**2 (lambda_2 - lambda_1) (sin(phi2)-sin(phi1))
-                #   https://onlinelibrary.wiley.com/doi/epdf/10.1111/tgis.12636, eqn 1
-                # (b) Multiply by source rate
-                dx = distribution['longitude'][1] - distribution['longitude'][0]
-                dy = distribution['latitude'][1] - distribution['latitude'][0]
-                _, gridlatitude = np.meshgrid(distribution['longitude'],
-                                              distribution['latitude'])
-                area = (self.inputs.geometry.planet.radius**2 * dx.value *
-                        (np.sin(gridlatitude + dy / 2) -
-                         np.sin(gridlatitude - dy / 2)))
-
-                distribution['abundance'] = (distribution['abundance'] /
-                                             distribution['abundance'].sum() /
-                                             area.T.to(u.cm**2) *
-                                             self.sourcerate.to(1 / u.s))
-                distribution['abundance_uncor'] = (distribution['abundance_uncor'] /
-                                             distribution['abundance_uncor'].sum() /
-                                             area.T.to(u.cm**2) *
-                                             self.sourcerate.to(1 / u.s))
+                if 'abundance' in distribution:
+                    # Convert histogram to flux
+                    # (a) divide by area of a grid cell
+                    #   Surface area of a grid cell =
+                    #       R**2 (lambda_2 - lambda_1) (sin(phi2)-sin(phi1))
+                    #   https://onlinelibrary.wiley.com/doi/epdf/10.1111/tgis.12636, eqn 1
+                    # (b) Multiply by source rate
+                    dx = distribution['longitude'][1] - distribution['longitude'][0]
+                    dy = distribution['latitude'][1] - distribution['latitude'][0]
+                    _, gridlatitude = np.meshgrid(distribution['longitude'],
+                                                  distribution['latitude'])
+                    area = (self.inputs.geometry.planet.radius**2 * dx.value *
+                            (np.sin(gridlatitude + dy / 2) -
+                             np.sin(gridlatitude - dy / 2)))
+        
+                    distribution['abundance'] = (distribution['abundance'] /
+                                                 distribution['abundance'].sum() /
+                                                 area.T.to(u.cm**2) *
+                                                 self.sourcerate.to(1 / u.s))
+                else:
+                    pass
                 
-                # Normalize speed distribution
-                dv = distribution['speed'][1] - distribution['speed'][0]
-                distribution['speed_dist'] = (self.sourcerate *
-                                              distribution['speed_dist'] /
-                                              distribution['speed_dist'].sum() / dv)
-                distribution['speed_dist'] = distribution['speed_dist'] * (
-                    self.sourcerate.unit * u.def_unit('(km/s)^-1', u.s/u.km))
-                distribution['speed_dist_map'] = distribution['speed_dist_map'] * (
-                    self.sourcerate.unit * u.def_unit('(km/s)^-1', u.s/u.km))
+                if 'speed' in distribution:
+                    dv = distribution['speed'][1] - distribution['speed'][0]
+                    distribution['speed_dist'] = (self.sourcerate *
+                                                  distribution['speed_dist'] /
+                                                  distribution['speed_dist'].sum() / dv)
+                    distribution['speed_dist'] = distribution['speed_dist'] * (
+                        self.sourcerate.unit * u.def_unit('(km/s)^-1', u.s/u.km))
+                else:
+                    pass
                 
-                # Normalize altitude distribution
-                dalt = distribution['altitude'][1] - distribution['altitude'][0]
-                distribution['altitude'] = (self.sourcerate * distribution['altitude'] /
-                                            distribution['altitude'].sum() / dalt)
+                if 'altitude' in distribution:
+                    dalt = distribution['altitude'][1] - distribution['altitude'][0]
+                    distribution['altitude'] = (self.sourcerate * distribution['altitude'] /
+                                                distribution['altitude'].sum() / dalt)
+                else:
+                    pass
 
-                # Normalize azimuth distribution
-                daz = distribution['azimuth'][1] - distribution['azimuth'][0]
-                distribution['azimuth'] = (self.sourcerate * distribution['azimuth'] /
-                                            distribution['azimuth'].sum() / daz)
+                if 'azimuth' in distribution:
+                    daz = distribution['azimuth'][1] - distribution['azimuth'][0]
+                    distribution['azimuth'] = (self.sourcerate * distribution['azimuth'] /
+                                                distribution['azimuth'].sum() / daz)
+                else:
+                    pass
             else:
                 pass
                 
             if which == 0:
                 source = SourceMap(distribution)
                 if (nlonbins > 0) and (nlatbins > 0):
-                    source.abundance_uncor = distribution['abundance_uncor']
-                    source.n_included = distribution['n_included']
-                    source.n_total = distribution['n_total']
-                    source.speed_dist_map = distribution['speed_dist_map']
+                    source.n_included = n_included
+                    source.n_total = n_total
                 else:
                     pass
             else:
                 available = SourceMap(distribution)
                 if (nlonbins > 0) and (nlatbins > 0):
-                    available.abundance_uncor = distribution['abundance_uncor']
-                    available.n_included = distribution['n_included']
-                    available.n_total = distribution['n_total']
-                    available.speed_dist_map = distribution['speed_dist_map']
+                    available.n_included = n_included
+                    available.n_total = n_total
                 else:
                     pass
 
