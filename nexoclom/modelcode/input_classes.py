@@ -204,8 +204,8 @@ class Geometry:
                                 table.columns.taa).where(
                 table.columns.planet == self.planet.object,
                 table.columns.startpoint == self.startpoint,
-                table.columns.objects  ==  objects,
-                table.columns.starttime  ==  self.time)
+                table.columns.objects == objects,
+                table.columns.starttime == self.time)
         elif self.type == 'geometry without starttime':
             if self.phi is None:
                 phi = None
