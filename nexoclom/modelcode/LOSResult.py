@@ -139,14 +139,14 @@ fitted = {self.fitted}'''
         table = sqla.Table("uvvsmodels", metadata_obj, autoload_with=engine)
         
         insert_stmt = pg.insert(table).values(
-            out_idnum = iteration_result.out_idnum,
-            unfit_idnum = ufit_id,
-            quantity = self.quantity,
-            query = self.query,
-            dphi = self.dphi,
-            mechanism = self.mechanism,
-            wavelength = [w.value for w in self.wavelength],
-            fitted = self.fitted)
+            out_idnum=iteration_result.out_idnum,
+            unfit_idnum=ufit_id,
+            quantity=self.quantity,
+            query=self.query,
+            dphi=self.dphi,
+            mechanism=self.mechanism,
+            wavelength=[w.value for w in self.wavelength],
+            fitted=self.fitted)
         
         with engine.connect() as con:
             result = con.execute(insert_stmt)
