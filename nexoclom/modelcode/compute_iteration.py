@@ -36,7 +36,6 @@ def compute_iteration(self, outputfile, scdata):
     # Note: A packet is in shadow if the line-of-sight it is on is
     #       in shadow. This is because the cone used is larger than
     #       the slit.
-    self.packet_weighting(packets, output.aplanet)
 
     # This sets limits on regions where packets might be
     tree = KDTree(packets[xcols].values)
@@ -86,7 +85,8 @@ def compute_iteration(self, outputfile, scdata):
             subset = subset.loc[inview]
             subset_dist_sc = subset_dist_sc[inview]
             losrad = losrad[inview]
-        
+
+            self.packet_weighting(subset, output.aplanet)
             Apix = np.pi * (subset_dist_sc * np.sin(self.dphi))**2 * (
                 self.unit.to(u.cm))**2
             wtemp = subset['weight'] / Apix

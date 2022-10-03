@@ -272,21 +272,6 @@ fitted = {self.fitted}'''
         data = scdata.data
         search_results = self.search()
         
-        # distance of s/c from planet
-        # This is used to determine if the line of sight needs to be cut
-        # short because it intersects the planet.
-        dist_from_plan = np.sqrt(data.x**2 + data.y**2 + data.z**2)
-    
-        # Angle between look direction and planet.
-        ang = np.arccos((-data.x * data.xbore - data.y * data.ybore -
-                         data.z * data.zbore) / dist_from_plan)
-    
-        # Check to see if look direction intersects the planet anywhere
-        asize_plan = np.arcsin(1. / dist_from_plan)
-    
-        # Don't worry about lines of sight that don't hit the planet
-        dist_from_plan.loc[ang > asize_plan] = 1e30
-
         jobs, datafiles, ct = [], [], 0
         while None in search_results.values():
             # Will retry if something fails due to memory error

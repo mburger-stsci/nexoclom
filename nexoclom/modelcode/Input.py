@@ -246,6 +246,9 @@ class Input:
             if (packs_per_it is None) and (self.options.step_size == 0):
                 packs_per_it = 1000000
             elif packs_per_it is None:
+                arrsize = (640 * npackets * 640 * self.options.endtime.value /
+                           self.options.step_size)
+                
                 packs_per_it = (1e8 * self.options.step_size /
                                 self.options.endtime.value)
             else:
