@@ -246,11 +246,12 @@ class Input:
             if (packs_per_it is None) and (self.options.step_size == 0):
                 packs_per_it = 1000000
             elif packs_per_it is None:
-                arrsize = (640 * npackets * 640 * self.options.endtime.value /
-                           self.options.step_size)
-                
-                packs_per_it = (1e8 * self.options.step_size /
-                                self.options.endtime.value)
+                # Limit array size to 1 GB
+                nsteps = int(np.ceil(self.options.endtime.value /
+                                     self.options.step_size) + 1)
+                packs_per_it = np.ceil(1024**3 / nsteps / 8)
+                # packs_per_it = (1e8 * self.options.step_size /
+                #                 self.options.endtime.value)
             else:
                 pass
             packs_per_it = int(np.min([ntodo, packs_per_it]))

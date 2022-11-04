@@ -373,6 +373,7 @@ class Output:
         curtime = self.inputs.options.endtime.value
         ct = 1
         moretogo = results[:,7,0] > 0
+        
         while (curtime > 0) and (moretogo.any()):
             Xtodo = results[moretogo,:,ct-1]
             step = step_size[moretogo]

@@ -29,9 +29,11 @@ def compute_iteration(self, outputfile, scdata):
     # simulate the data
     output = Output.restore(outputfile)
 
-    packets = output.X.copy()
+    packets = output.X
     packets['radvel_sun'] = (packets['vy'] +
                              output.vrplanet.to(self.unit / u.s).value)
+    aplanet = output.aplanet
+    del output
 
     # Note: A packet is in shadow if the line-of-sight it is on is
     #       in shadow. This is because the cone used is larger than
@@ -86,7 +88,7 @@ def compute_iteration(self, outputfile, scdata):
             subset_dist_sc = subset_dist_sc[inview]
             losrad = losrad[inview]
 
-            self.packet_weighting(subset, output.aplanet)
+            self.packet_weighting(subset, aplanet)
             Apix = np.pi * (subset_dist_sc * np.sin(self.dphi))**2 * (
                 self.unit.to(u.cm))**2
             wtemp = subset['weight'] / Apix
@@ -128,5 +130,5 @@ def compute_iteration(self, outputfile, scdata):
     modelfile = self.save(iteration_result)
     iteration_result.modelfile = modelfile
 
-    del output, packets
+    del packets
     return iteration_result
