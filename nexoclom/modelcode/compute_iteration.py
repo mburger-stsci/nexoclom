@@ -2,12 +2,21 @@ import numpy as np
 import pandas as pd
 import astropy.units as u
 from sklearn.neighbors import KDTree
+import time
+from datetime import datetime
 from nexoclom.modelcode.Output import Output
 from nexoclom.modelcode.ModelResult import IterationResult
 
 
-def compute_iteration(self, outputfile, scdata):
-    xcols = ['x', 'y', 'z']
+def compute_iteration(self, outputfile, scdata, delay=False):
+    t0 = datetime.today()
+    
+    if delay:
+        time.sleep(np.random.random()*10)
+    else:
+        pass
+    
+    xcols= ['x', 'y', 'z']
     borecols = ['xbore', 'ybore', 'zbore']
     
     # distance of s/c from planet
@@ -131,6 +140,9 @@ def compute_iteration(self, outputfile, scdata):
     iteration_result = IterationResult(iteration_)
     modelfile = self.save(iteration_result)
     iteration_result.modelfile = modelfile
+    
+    t1 = datetime.today()
+    print(f'Iteration time: {(t1-t0).seconds/60} minutes')
 
     del packets
     return iteration_result

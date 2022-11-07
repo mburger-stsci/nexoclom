@@ -4,29 +4,30 @@ channels:
   - http://ssb.stsci.edu/astroconda
   - defaults
 dependencies:
+  - python=3.10
   - anaconda::astropy
-  - conda-forge::firefox
   - postgresql
   - sqlalchemy
   - pandas
   - plotly
   - dash
+  - dash-core-components
   - numpy
   - ipython
   - matplotlib
   - pip
   - bokeh
+  - firefox
+  - geckodriver
+  - selenium
   - scipy
   - pytest
   - scikit-learn
-  - selenium
-  - python=3.8
-  - conda-forge::geckodriver
   - psycopg2
   - git
-  - dash-core-components
   - pylint
   - astroquery
+  - dask
   - pip:
     - periodictable
     - spiceypy
@@ -35,9 +36,8 @@ dependencies:
     - statsmodels
     - nexoclom
     - MESSENGERuvvs
-  
+
 prefix: /Users/mburger/anaconda/envs/nexoclom
 variables:
   PGDATA: /Users/mburger/.postgres/main
   NEXOCLOMCONFIG : /Users/mburger/.nexoclom
-

@@ -61,8 +61,7 @@ class LOSResultFitted(LOSResult):
         else:
             assert False, 'Error'
 
-    def determine_source_from_data(self, scdata, overwrite=False,
-                                   use_condor=False):
+    def determine_source_from_data(self, scdata, overwrite=False):
         """Determine the source using a previous LOSResult
         scdata = spacecraft data with at least one model result saved
         """

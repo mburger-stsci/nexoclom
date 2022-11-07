@@ -1,19 +1,15 @@
 import os
-import sys
 import numpy as np
 import pandas as pd
 from sklearn.neighbors import BallTree
-import time
 import pickle
 import astropy.units as u
 from astropy.modeling import models, fitting
 from astropy.visualization import PercentileInterval
 import sqlalchemy as sqla
 import sqlalchemy.dialects.postgresql as pg
-try:
-    import condorMB
-except:
-    pass
+import dask
+
 import nexoclom.math as mathMB
 from nexoclom import engine
 from nexoclom.modelcode.Output import Output
@@ -245,7 +241,7 @@ fitted = {self.fitted}'''
         
         return mask, sigmalimit
 
-    def simulate_data_from_inputs(self, scdata, use_condor=False):
+    def simulate_data_from_inputs(self, scdata, distribute=True):
         """Given a set of inputs, determine what the spacecraft should see.
         Models should have already been run.
         
@@ -269,54 +265,25 @@ fitted = {self.fitted}'''
         data = scdata.data
         search_results = self.search()
         
-        jobs, datafiles, ct = [], [], 0
         while None in search_results.values():
             # Will retry if something fails due to memory error
             print(f'LOSResult: {list(search_results.values()).count(None)} '
                   'to compute')
+            iterations = []
             for outputfile, search_result in search_results.items():
                 if search_result is None:
-                    if use_condor:
-                        python = sys.executable
-                        pyfile = os.path.join(os.path.dirname(basefile),
-                                              'modelcode', 'LOS_wrapper.py')
-
-                        tempdir = os.path.join(self.inputs.config.savepath, 'temp',
-                                               str(np.random.randint(1000000)))
-                        if not os.path.exists(tempdir):
-                            os.makedirs(tempdir)
-                            
-                        datafile = os.path.join(tempdir, f'inputs_{ct}.pkl')
-                        with open(datafile, 'wb') as file:
-                            pickle.dump((self, outputfile, scdata), file)
-                        datafiles.append(datafile)
-                        print(datafile)
-
-                        # submit to condor
-                        logfile = os.path.join(tempdir, f'{ct}.log')
-                        outfile = os.path.join(tempdir, f'{ct}.out')
-                        errfile = os.path.join(tempdir, f'{ct}.err')
-
-                        job = condorMB.submit_to_condor(
-                            python,
-                            delay=10,
-                            arguments=f'{pyfile} {datafile}',
-                            logfile=logfile,
-                            outlogfile=outfile,
-                            errlogfile=errfile)
-                        jobs.append(job)
-                        ct += 1
+                    print(f'LOSResult: {os.path.basename(outputfile)}')
+                    if distribute:
+                        iterations.append(dask.delayed(compute_iteration)(
+                            self, outputfile, scdata, True))
                     else:
-                        print(f'LOSResult: {os.path.basename(outputfile)}')
                         compute_iteration(self, outputfile, scdata)
-                else:
-                    pass
-                
-            if use_condor:
-                while condorMB.n_to_go(jobs):
-                    print(f'{condorMB.n_to_go(jobs)} to go.')
-                    time.sleep(10)
 
+            if distribute:
+                dask.compute(*iterations)
+            else:
+                pass
+                
             search_results = self.search()
             
         iteration_results = []

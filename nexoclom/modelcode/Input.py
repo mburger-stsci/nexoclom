@@ -30,8 +30,7 @@ import pandas as pd
 from astropy.time import Time
 import sqlalchemy as sqla
 import dask
-import dask.array as da
-
+import time
 
 from nexoclom.modelcode.Output import Output
 from nexoclom import config, engine
@@ -43,6 +42,7 @@ from nexoclom.modelcode.ModelImage import ModelImage
 
 @dask.delayed
 def output_wrapper(inputs, npackets, compress):
+    time.sleep(np.random.random()*10)
     Output(inputs, npackets, compress=compress)
     return 0
  
@@ -196,7 +196,8 @@ class Input:
                 return [], [], 0, 0
 
 
-    def run(self, npackets, packs_per_it=None, overwrite=False, compress=True):
+    def run(self, npackets, packs_per_it=None, overwrite=False, compress=True,
+            distribute=False):
         """Run the nexoclom model with the current inputs.
         
         **Parameters**
@@ -255,25 +256,18 @@ class Input:
             print('Running Model')
             print(f'Will complete {nits} iterations of {packs_per_it} packets.')
 
-            # for _ in range(nits):
-            #     tit0_ = Time.now()
-            #     print(f'Starting iteration #{_+1} of {nits}')
-            #     Output(self, packs_per_it, compress=compress)
-            #     tit1_ = Time.now()
-            #     print(f'Completed iteration #{_+1} in '
-            #           f'{(tit1_ - tit0_).sec} seconds.')
-            
-            # Create an output object
-            outputs = [output_wrapper(self, packs_per_it, compress=compress)
-                       for _ in range(nits)]
-            dask.compute(*outputs)
-            
-            from inspect import currentframe, getframeinfo
-            frameinfo = getframeinfo(currentframe())
-            print(frameinfo.filename, frameinfo.lineno)
-            from IPython import embed; embed()
-            import sys; sys.exit()
-
+            if distribute:
+                outputs = [output_wrapper(self, packs_per_it, compress=compress)
+                           for _ in range(nits)]
+                dask.compute(*outputs)
+            else:
+                for _ in range(nits):
+                    tit0_ = Time.now()
+                    print(f'Starting iteration #{_+1} of {nits}')
+                    Output(self, packs_per_it, compress=compress)
+                    tit1_ = Time.now()
+                    print(f'Completed iteration #{_+1} in '
+                          f'{(tit1_ - tit0_).sec} seconds.')
             
             # Check that all packets were completed
             _, outputfiles, totalpackets, _ = self.search()
