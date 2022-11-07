@@ -22,9 +22,6 @@ from nexoclom.modelcode.ModelResult import ModelResult
 from nexoclom.modelcode.compute_iteration import compute_iteration
 from nexoclom import __file__ as basefile
 
-xcols = ['x', 'y', 'z']
-borecols = ['xbore', 'ybore', 'zbore']
-
 
 class LOSResult(ModelResult):
     """Class to contain the LOS result from multiple outputfiles.

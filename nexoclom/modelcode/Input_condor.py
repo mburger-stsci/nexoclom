@@ -25,12 +25,18 @@ Options
     Configure other model parameters
 """
 import os
+import shutil
+import sys
+import time
+import pickle
 import numpy as np
 import pandas as pd
 from astropy.time import Time
 import sqlalchemy as sqla
-import dask
-import dask.array as da
+try:
+    import condorMB
+except:
+    pass
 
 
 from nexoclom.modelcode.Output import Output
@@ -39,13 +45,15 @@ from nexoclom.modelcode.input_classes import (Geometry, SurfaceInteraction,
                                              Forces, SpatialDist, SpeedDist,
                                              AngularDist, Options)
 from nexoclom.modelcode.ModelImage import ModelImage
+from nexoclom import __file__ as basefile
 
 
-@dask.delayed
-def output_wrapper(inputs, npackets, compress):
-    Output(inputs, npackets, compress=compress)
-    return 0
- 
+def get_machine(machines):
+    i = 0
+    while i < len(machines):
+        yield machines[i]
+        i = (i + 1) % len(machines)
+
 
 class Input:
     def __init__(self, infile):
@@ -196,7 +204,8 @@ class Input:
                 return [], [], 0, 0
 
 
-    def run(self, npackets, packs_per_it=None, overwrite=False, compress=True):
+    def run(self, npackets, packs_per_it=None, overwrite=False, compress=True,
+            use_condor=False):
         """Run the nexoclom model with the current inputs.
         
         **Parameters**
@@ -255,25 +264,55 @@ class Input:
             print('Running Model')
             print(f'Will complete {nits} iterations of {packs_per_it} packets.')
 
-            # for _ in range(nits):
-            #     tit0_ = Time.now()
-            #     print(f'Starting iteration #{_+1} of {nits}')
-            #     Output(self, packs_per_it, compress=compress)
-            #     tit1_ = Time.now()
-            #     print(f'Completed iteration #{_+1} in '
-            #           f'{(tit1_ - tit0_).sec} seconds.')
-            
-            # Create an output object
-            outputs = [output_wrapper(self, packs_per_it, compress=compress)
-                       for _ in range(nits)]
-            dask.compute(*outputs)
-            
-            from inspect import currentframe, getframeinfo
-            frameinfo = getframeinfo(currentframe())
-            print(frameinfo.filename, frameinfo.lineno)
-            from IPython import embed; embed()
-            import sys; sys.exit()
+            if use_condor:
+                njobs, machines = condorMB.nCPUs()
+                machine_gen = get_machine(machines)
+                python = sys.executable
+                pyfile = os.path.join(os.path.dirname(basefile), 'modelcode',
+                                      'Output_wrapper.py')
 
+                tempdir = os.path.join(self.config.savepath, 'temp',
+                                       str(np.random.randint(1000000)))
+                if not os.path.exists(tempdir):
+                    os.makedirs(tempdir)
+                
+                jobs, datafiles = [], []
+                for ct in range(nits):
+                    datafile = os.path.join(tempdir, f'inputs_{ct}.pkl')
+                    with open(datafile, 'wb') as file:
+                        pickle.dump(self, file)
+                    datafiles.append(datafile)
+                    print(datafile)
+                    
+                    # submit to condor
+                    logfile = os.path.join(tempdir, f'{ct}.log')
+                    outfile = os.path.join(tempdir, f'{ct}.out')
+                    errfile = os.path.join(tempdir, f'{ct}.err')
+
+                    job = condorMB.submit_to_condor(python,
+                        delay=10,
+                        arguments=f'{pyfile} {datafile} {packs_per_it}',
+                        logfile=logfile,
+                        outlogfile=outfile,
+                        errlogfile=errfile,
+                        machine=next(machine_gen))
+                    jobs.append(job)
+                    
+                while condorMB.n_to_go(jobs):
+                    print(f'{condorMB.n_to_go(jobs)} to go.')
+                    time.sleep(10)
+                    
+                shutil.rmtree(tempdir)
+            else:
+                for _ in range(nits):
+                    tit0_ = Time.now()
+                    print(f'Starting iteration #{_+1} of {nits}')
+
+                    # Create an output object
+                    Output(self, packs_per_it, compress=compress)
+                    tit1_ = Time.now()
+                    print(f'Completed iteration #{_+1} in '
+                          f'{(tit1_ - tit0_).sec} seconds.')
             
             # Check that all packets were completed
             _, outputfiles, totalpackets, _ = self.search()

@@ -33,6 +33,8 @@ def compute_iteration(self, outputfile, scdata):
     packets['radvel_sun'] = (packets['vy'] +
                              output.vrplanet.to(self.unit / u.s).value)
     aplanet = output.aplanet
+    totalsource = output.totalsource
+    idnum = output.idnum
     del output
 
     # Note: A packet is in shadow if the line-of-sight it is on is
@@ -120,9 +122,9 @@ def compute_iteration(self, outputfile, scdata):
 
     iteration_ = {'radiance': rad,
                   'npackets': npack,
-                  'totalsource': output.totalsource,
+                  'totalsource': totalsource,
                   'outputfile': outputfile,
-                  'out_idnum': output.idnum,
+                  'out_idnum': idnum,
                   'query': scdata.query,
                   'used': used,
                   'used0': used0}

@@ -3,6 +3,7 @@ import os.path
 import sys
 import pandas as pd
 import numpy as np
+import xarray as xr
 import pickle
 import astropy.units as u
 import sqlalchemy as sqla
@@ -23,7 +24,7 @@ from nexoclom.modelcode.SurfaceInteraction import SurfaceInteraction
 
 
 class Output:
-    def __init__(self, inputs, npackets, compress=False):
+    def __init__(self, inputs, npackets, compress=True):
         """Determine and store packet trajectories.
         
         **Parameters**
@@ -139,7 +140,7 @@ class Output:
             time = np.ones(npackets) * inputs.options.endtime
         else:
             time = self.randgen.random(npackets) * inputs.options.endtime
-
+        
         self.X0 = pd.DataFrame()
         self.X0['time'] = time.value
 

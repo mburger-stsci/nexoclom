@@ -97,8 +97,13 @@ class LOSResultFitted(LOSResult):
                 unfit_modelfile = unfit_model_result.modelfiles[ufit_outfile]
                 with open(unfit_modelfile, 'rb') as file:
                     iteration_unfit = pickle.load(file)
-                # assert output.compress is False, ('nexoclom.LOSResult: '
-                #     'Fitted results must start from uncompressed outputs')
+                    
+                # Remove packets that don't intersect the line of sight
+                used = set()
+                for row in iteration_unfit.used_packets:
+                    used = used.union(row)
+                output.X.frac *= output.X.index.isin(used)
+                output.X = output.X[output.X.frac > 0]
                 
                 packets = output.X.copy()
                 packets0 = output.X0.copy()
@@ -150,8 +155,8 @@ class LOSResultFitted(LOSResult):
                         pass
 
                 # Save the fitted output
-                output.inputs = self.inputs
-                output.save()
+                # output.inputs = self.inputs
+                # output.save()
                 
                 iteration = {'radiance': radiance.values,
                              'npackets': output.X0.frac.sum(),
