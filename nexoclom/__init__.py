@@ -12,5 +12,5 @@ from nexoclom.solarsystem import SSObject
 __name__ = 'nexoclom'
 __author__ = 'Matthew Burger'
 __email__ = 'mburger@stsci.edu'
-__version__ = '3.4.13'
-__date__ = '2022-11-07'
+__version__ = '3.4.14'
+__date__ = '2022-11-10'
