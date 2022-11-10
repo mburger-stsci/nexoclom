@@ -256,10 +256,12 @@ class Input:
             print('Running Model')
             print(f'Will complete {nits} iterations of {packs_per_it} packets.')
 
-            if distribute:
+            if distribute == 'delay':
                 outputs = [output_wrapper(self, packs_per_it, compress=compress)
                            for _ in range(nits)]
                 dask.compute(*outputs)
+            elif distribute == 'dask_array':
+                OutputDA(self, npackets, packs_per_it, compress=compress)
             else:
                 for _ in range(nits):
                     tit0_ = Time.now()
