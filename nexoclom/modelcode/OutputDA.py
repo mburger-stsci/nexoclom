@@ -1,6 +1,3 @@
-import os
-import os.path
-import sys
 import pandas as pd
 import numpy as np
 import pickle
@@ -11,17 +8,9 @@ import dask.array as da
 
 from nexoclom import engine
 import nexoclom.math as mathMB
-from nexoclom.solarsystem import planet_dist
-from nexoclom.atomicdata import RadPresConst
 from nexoclom.modelcode.Output import Output
-from nexoclom.modelcode.satellite_initial_positions import satellite_initial_positions
-from nexoclom.modelcode.LossInfo import LossInfo
 from nexoclom.modelcode.rk5 import rk5
 from nexoclom.modelcode.bouncepackets import bouncepackets
-from nexoclom.modelcode.source_distribution import (surface_distribution,
-                                                    speed_distribution,
-                                                    angular_distribution)
-from nexoclom.modelcode.SurfaceInteraction import SurfaceInteraction
 
 
 class OutputDA(Output):
@@ -89,7 +78,7 @@ class OutputDA(Output):
         #     pass
         # self.logger = logger
         
-        super().__init__(self, npackets, compress)
+        super().__init__(inputs, npackets, compress)
         self.chunks = chuncks
 
         # Integrate the packets forward
@@ -258,19 +247,31 @@ class OutputDA(Output):
         #  step size and counters
         step_size = np.zeros(self.npackets) + self.inputs.options.step_size
         
-        self.nsteps = int(np.ceil(self.inputs.options.endtime.value/step_size[0]
-                             + 1))
-        results = da.zeros((self.npackets,8,self.nsteps),
-                           chunks=(self.chunks, 8, self.nsteps))
-        results[:,:,0] = self.X0[cols]
-        lossfrac = np.ndarray((self.npackets,self.nsteps))
+        self.nsteps = int(np.ceil(self.inputs.options.endtime.value/step_size[0]+ 1))
+        this_step = self.X0[cols]
+        this_step['lossfrac'] = np.zeros(self.npackets)
+        this_step['Index'] = np.arange(self.npackets, dtype=int)
+        
+        # start the outputfile
+        self.make_filename(format='nc')
+        self.create_outputfile()
+        
+        # Save initial values
+        self.append_step(this_step)
 
         curtime = self.inputs.options.endtime.value
         ct = 1
-        moretogo = results[:,7,0] > 0
+        moretogo = this_step.frac > 0
+
+        
+        from inspect import currentframe, getframeinfo
+        frameinfo = getframeinfo(currentframe())
+        print(frameinfo.filename, frameinfo.lineno)
+        from IPython import embed; embed()
+        import sys; sys.exit()
         
         while (curtime > 0) and (moretogo.any()):
-            Xtodo = results[moretogo,:,ct-1]
+            next_step = this_step[moretogo]
             step = step_size[moretogo]
 
             assert np.all(Xtodo[:,7] > 0)
@@ -338,100 +339,3 @@ class OutputDA(Output):
         self.vrplanet *= self.unit/u.s
         self.vrplanet = self.vrplanet.to(u.km/u.s)
         self.GM *= self.unit**3/u.s**2
-
-    def save(self):
-        """Add output to database and save as a pickle."""
-        geo_id = self.inputs.geometry.insert()
-        sint_id = self.inputs.surfaceinteraction.insert()
-        for_id = self.inputs.forces.insert()
-        spat_id = self.inputs.spatialdist.insert()
-        spd_id = self.inputs.speeddist.insert()
-        ang_id = self.inputs.angulardist.insert()
-        opt_id = self.inputs.options.insert()
-        
-        metadata_obj = sqla.MetaData()
-        table = sqla.Table("outputfile", metadata_obj, autoload_with=engine)
-        
-        insert_stmt = pg.insert(table).values(
-            filename = None,
-            npackets = self.npackets,
-            totalsource = self.totalsource,
-            geo_type = self.inputs.geometry.type,
-            geo_id = geo_id[0],
-            sint_type = self.inputs.surfaceinteraction.sticktype,
-            sint_id = sint_id[0],
-            force_id = for_id[0],
-            spatdist_type = self.inputs.spatialdist.type,
-            spatdist_id = spat_id[0],
-            spddist_type = self.inputs.speeddist.type,
-            spddist_id = spd_id[0],
-            angdist_type = self.inputs.angulardist.type,
-            angdist_id = ang_id[0],
-            opt_id = opt_id[0])
-        
-        with engine.connect() as con:
-            result = con.execute(insert_stmt)
-            con.commit()
-            
-        self.idnum = result.inserted_primary_key[0]
-        self.make_filename()
-        update = sqla.update(table).where(table.columns.idnum == self.idnum).values(
-            filename=self.filename)
-        with engine.connect() as con:
-            con.execute(update)
-            con.commit()
-            
-        # Remove frac = 0
-        if self.compress:
-            self.X = self.X[self.X.frac > 0]
-        else:
-            pass
-        
-        # Convert to 32 bit
-        for column in self.X0:
-            if self.X0[column].dtype == np.int64:
-                self.X0[column] = self.X0[column].astype(np.int32)
-            elif self.X0[column].dtype == np.float64:
-                self.X0[column] = self.X0[column].astype(np.float32)
-            else:
-                pass
-
-        for column in self.X:
-            if self.X[column].dtype == np.int64:
-                self.X[column] = self.X[column].astype(np.int32)
-            elif self.X[column].dtype == np.float64:
-                self.X[column] = self.X[column].astype(np.float32)
-            else:
-                pass
-
-        # Save output as a pickle
-        print(f'Saving file {self.filename}')
-        if self.inputs.surfaceinteraction.sticktype == 'temperature dependent':
-            self.surfaceint.stickcoef = 'FUNCTION'
-            
-        with open(self.filename, 'wb') as file:
-            pickle.dump(self, file, protocol=pickle.HIGHEST_PROTOCOL)
-
-    @classmethod
-    def restore(cls, filename):
-        with open(filename, 'rb') as file:
-            output = pickle.load(file)
-            
-        # Convert to 64 bit
-        for column in output.X0:
-            if output.X0[column].dtype == np.int32:
-                output.X0[column] = output.X0[column].astype(np.int64)
-            elif output.X0[column].dtype == np.float32:
-                output.X0[column] = output.X0[column].astype(np.float64)
-            else:
-                pass
-
-        for column in output.X:
-            if output.X[column].dtype == np.int32:
-                output.X[column] = output.X[column].astype(np.int64)
-            elif output.X[column].dtype == np.float32:
-                output.X[column] = output.X[column].astype(np.float64)
-            else:
-                pass
-
-        return output

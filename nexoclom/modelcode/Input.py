@@ -197,7 +197,7 @@ class Input:
 
 
     def run(self, npackets, packs_per_it=None, overwrite=False, compress=True,
-            distribute=False):
+            distribute=None):
         """Run the nexoclom model with the current inputs.
         
         **Parameters**
@@ -260,8 +260,6 @@ class Input:
                 outputs = [output_wrapper(self, packs_per_it, compress=compress)
                            for _ in range(nits)]
                 dask.compute(*outputs)
-            elif distribute == 'dask_array':
-                OutputDA(self, npackets, packs_per_it, compress=compress)
             else:
                 for _ in range(nits):
                     tit0_ = Time.now()

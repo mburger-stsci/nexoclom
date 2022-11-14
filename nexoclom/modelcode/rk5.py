@@ -1,4 +1,6 @@
 import numpy as np
+import pandas as pd
+
 from nexoclom.modelcode.state import state
 
 # RK coefficients
@@ -20,22 +22,23 @@ a[6,:] = b
 
 def rk5(output, X0, h):
     """Perform a single rk5 step."""
-    x = np.zeros((X0.shape[0], X0.shape[1], 7))
-    x[:,:,0] = X0
+    x = np.zeros((X0.shape[0], X0.shape[1]-2, 7))
+    x[:,:,0] = X0.values[:,:-2]
     x[:,7,0] = np.log(x[:,7,0])
     accel = np.zeros((X0.shape[0], 3, 7))
     ioniz = np.zeros((X0.shape[0], 7))
     
-    for n in range(6):
-        accel[:,:,n], ioniz[:,n] = state(x[:,:,n], output)
-        x[:,0,n+1] = -h*c[n+1]
-        for i in np.arange(n+1):
-            x[:,1:4,n+1] += h[:,np.newaxis]*a[n+1,i]*x[:,4:7,i]
-            x[:,4:7,n+1] += h[:,np.newaxis]*a[n+1,i]*accel[:,:,i]
-            x[:,7,n+1] -= h*a[n+1,i]*ioniz[:,i]
-        x[:,:,n+1] += x[:,:,0]
-
     if output.inputs.options.step_size == 0:
+        # if variable step size, h is an array
+        for n in range(6):
+            accel[:,:,n], ioniz[:,n] = state(x[:,:,n], output)
+            x[:,0,n+1] = -h*c[n+1]
+            for i in np.arange(n+1):
+                x[:,1:4,n+1] += h[:,np.newaxis]*a[n+1,i]*x[:,4:7,i]
+                x[:,4:7,n+1] += h[:,np.newaxis]*a[n+1,i]*accel[:,:,i]
+                x[:,7,n+1] -= h*a[n+1,i]*ioniz[:,i]
+            x[:,:,n+1] += x[:,:,0]
+
         delta = np.zeros_like(X0)
         for i in range(6):
             delta[:,1:4] += bd[i]*x[:,4:7,i]
@@ -43,12 +46,34 @@ def rk5(output, X0, h):
             delta[:,7] += bd[i]*ioniz[:,i]
         delta = np.abs(h[:,np.newaxis]*delta)
     else:
+        # If constant step size, h is a float
+        for n in range(6):
+            accel[:,:,n], ioniz[:,n] = state(x[:,:,n], output)
+            x[:,0,n+1] = -h*c[n+1]
+            for i in range(n+1):
+                x[:,1:4,n+1] += h*a[n+1,i]*x[:,4:7,i]
+                x[:,4:7,n+1] += h*a[n+1,i]*accel[:,:,i]
+                x[:,7,n+1] -= h*a[n+1,i]*ioniz[:,i]
+            x[:,:,n+1] += x[:,:,0]
         delta = None
 
     # Put frac back the way it should be
     result = x[:,:,6]
     result[:,7] = np.exp(result[:,7])
-    
+
+    assert np.all(np.isfinite(result))
     assert np.all(np.isclose(result[:,0], x[:,0,0] - h))
+    
+    result = pd.DataFrame({'time': result[:,0],
+                           'x': result[:,1],
+                           'y': result[:,2],
+                           'z': result[:,3],
+                           'vx': result[:,4],
+                           'vy': result[:,5],
+                           'vz': result[:,6],
+                           'frac': result[:,7],
+                           'lossfrac': X0.lossfrac.values + (
+                               X0.frac.values - result[:,7]),
+                           'Index': X0.Index})
     
     return result, delta

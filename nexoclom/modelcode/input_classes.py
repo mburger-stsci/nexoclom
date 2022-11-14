@@ -1,7 +1,6 @@
 """Classes used by the Inputs class"""
 import os
 import numpy as np
-import pickle
 import pandas as pd
 from astropy.time import Time
 import astropy.units as u
@@ -128,7 +127,7 @@ class Geometry:
         for key,value in self.__dict__.items():
             result += f'geometry.{key} = {value}\n'
         return result.strip()
-    
+        
     def insert(self):
         # check to see if it is already there
         ids = self.search()
