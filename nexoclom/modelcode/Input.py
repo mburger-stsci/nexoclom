@@ -256,7 +256,7 @@ class Input:
             print('Running Model')
             print(f'Will complete {nits} iterations of {packs_per_it} packets.')
 
-            if distribute == 'delay':
+            if distribute in ('delay', 'delayed'):
                 outputs = [output_wrapper(self, packs_per_it, compress=compress)
                            for _ in range(nits)]
                 dask.compute(*outputs)
@@ -287,9 +287,9 @@ class Input:
             dt_ = f'{dt_/3600} hr'
         print(f'Model run completed in {dt_} at {t2_}.')
 
-    def produce_image(self, format_, filenames=None, overwrite=False):
-        return ModelImage(self, format_, filenames=filenames,
-                          overwrite=overwrite)
+    def produce_image(self, format_, overwrite=False, distribute=None):
+        return ModelImage(self, format_, overwrite=overwrite,
+                          distribute=distribute)
     
     def delete_files(self):
         """Delete output files and remove them from the database.

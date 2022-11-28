@@ -5,6 +5,8 @@ import astropy.units as u
 import json
 import sqlalchemy as sqla
 import sqlalchemy.dialects.postgresql as pg
+import dask
+import time
 
 from nexoclom import engine
 from nexoclom.math import rotation_matrix, Histogram2d
@@ -20,8 +22,24 @@ from bokeh.io import curdoc, export_png
 from bokeh.themes import Theme
 
 
+def image_step(self, fname, overwrite, delay=False):
+    # Search to see if its already been done
+    if delay:
+        time.sleep(np.random.random()*5)
+    print(f'Output filename: {fname}')
+    image, packets = self.restore(fname, overwrite=overwrite)
+    output = Output.restore(fname)
+    
+    if image is None:
+        image, packets, = self.create_image(fname)
+    else:
+        print('previously completed.')
+        
+    return image, packets, output.totalsource
+
+
 class ModelImage(ModelResult):
-    def __init__(self, inputs, params, filenames=None, overwrite=False):
+    def __init__(self, inputs, params, overwrite=False, distribute=None):
         """ Create Images from model results.
         This Assumes the model has already been run.
         
@@ -78,32 +96,32 @@ class ModelImage(ModelResult):
         self.zaxis = None
 
         self.outid, self.outputfiles, _, _ = self.inputs.search()
-        
-        for i, fname in enumerate(self.outputfiles):
-            # Search to see if its already been done
-            print(f'Output filename: {fname}')
-            image_, packets_ = self.restore(fname, overwrite=overwrite)
-            output = Output.restore(fname)
 
-            if image_ is None:
-                image_, packets_, = self.create_image(output)
-                print(f'Completed image {i+1} of {len(self.outputfiles)}')
-            else:
-                print(f'Image {i+1} of {len(self.outputfiles)} '
-                       'previously completed.')
-
-            self.image += image_.histogram
-            self.packet_image += packets_.histogram
-            self.totalsource += output.totalsource
-            self.xaxis = image_.x * self.unit
-            self.zaxis = image_.y * self.unit
-            del output
+        if distribute in ('delay', 'delayed'):
+            results = [dask.delayed(image_step)(self, fname, overwrite, True)
+                       for fname in self.outputfiles]
+            results = dask.compute(*results)
+            
+            for image_, packets_, totalsource_ in results:
+                self.image += image_.histogram
+                self.packet_image += packets_.histogram
+                self.totalsource += totalsource_
+                self.xaxis = image_.x * self.unit
+                self.zaxis = image_.y * self.unit
+        else:
+            for fname in self.outputfiles:
+                image_, packets_, totalsource_ = image_step(self, fname, overwrite)
+                self.image += image_.histogram
+                self.packet_image += packets_.histogram
+                self.totalsource += totalsource_
+                self.xaxis = image_.x * self.unit
+                self.zaxis = image_.y * self.unit
 
         mod_rate = self.totalsource / self.inputs.options.endtime.value
         self.atoms_per_packet = 1e23 / mod_rate
         self.sourcerate = 1e23 / u.s
         self.image *= self.atoms_per_packet
-
+        
     def save(self, fname, image, packets):
         # Determine the id of the outputfile
         metadata_obj = sqla.MetaData()
@@ -176,8 +194,8 @@ class ModelImage(ModelResult):
         if (result.rowcount == 1) and overwrite:
             result_ = result.fetchone()
             sqla.delete(images).where(images.columns.filename == result_.filename)
-            if os.path.exists(result.filename):
-                os.remove(result.filename)
+            if os.path.exists(result_.filename):
+                os.remove(result_.filename)
             image, packets = None, None
         elif result.rowcount == 1:
             result_ = result.fetchone()
@@ -190,9 +208,13 @@ class ModelImage(ModelResult):
 
         return image, packets
 
-    def create_image(self, output):
+    def create_image(self, fname):
         # Determine the proper frame rotation
         M = self.image_rotation()
+        
+        # assert fname.endswith('nc')
+        # output = xr.open_dataset(fname)
+        output = Output.restore(fname)
 
         # Load data in solar reference frame
         packets = output.X

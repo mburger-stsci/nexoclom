@@ -1,12 +1,13 @@
 import os
 import os.path
-import sys
 import pandas as pd
 import numpy as np
 import pickle
 import astropy.units as u
 import sqlalchemy as sqla
 import sqlalchemy.dialects.postgresql as pg
+from netCDF4 import Dataset
+import dask
 
 from nexoclom import engine
 import nexoclom.math as mathMB
@@ -102,14 +103,14 @@ class Output:
 
         # Determine spatial unit
         self.unit = u.def_unit('R_' + self.planet.object, self.planet.radius)
-
-        # Change unit for GM
-        self.GM = self.planet.GM.to(self.unit**3/u.s**2).value
-
+        
         # Determine distance and radial velocity of planet relative to the Sun
-        r, v_r = planet_dist(self.planet, self.inputs.geometry.taa)
-        self.aplanet = r.value
-        self.vrplanet = v_r.to(self.unit/u.s).value
+        self.aplanet, self.vrplanet = planet_dist(self.planet, self.inputs.geometry.taa)
+        self.aplanet = self.aplanet.value
+        self.vrplanet = self.vrplanet.to(self.unit/u.s).value
+        
+        self.GM = self.planet.GM
+        self.GM = self.GM.to(self.unit**3/u.s**2).value
 
         # Find the default reactions and datasets
         if inputs.options.lifetime.value <= 0:
@@ -190,9 +191,10 @@ class Output:
         else:
             print('Running constant step size integrator.')
             self.constant_step_size_driver()
+            # result = dask.delayed(self.constant_step_size_driver)()
+            # result.visualize()
+            # result.compute()
             
-        self.save()
-
     def __str__(self):
         print('Contents of output:')
         print('\tPlanet = {}'.format(self.planet.object))
@@ -362,96 +364,82 @@ class Output:
         cols = ['time', 'x', 'y', 'z', 'vx', 'vy', 'vz', 'frac']
 
         #  step size and counters
-        step_size = np.zeros(self.npackets) + self.inputs.options.step_size
+        step_size = self.inputs.options.step_size
+        self.nsteps = int(np.ceil(self.inputs.options.endtime.value / step_size + 1))
+        self.totalsource *= self.nsteps
         
-        self.nsteps = int(np.ceil(self.inputs.options.endtime.value/step_size[0]
-                             + 1))
-        results = np.zeros((self.npackets,8,self.nsteps))
-        results[:,:,0] = self.X0[cols]
-        lossfrac = np.ndarray((self.npackets,self.nsteps))
+        this_step = self.X0[cols].copy()
+        this_step['lossfrac'] = np.zeros(self.npackets)
+        this_step['Index'] = np.arange(self.npackets, dtype=int)
+
+        # Save X0
+        self.create_outputfile()
+
+        # Save initial values
+        self.append_step(this_step)
 
         curtime = self.inputs.options.endtime.value
         ct = 1
-        moretogo = results[:,7,0] > 0
         
-        while (curtime > 0) and (moretogo.any()):
-            Xtodo = results[moretogo,:,ct-1]
-            step = step_size[moretogo]
-
-            assert np.all(Xtodo[:,7] > 0)
-            assert np.all(np.isfinite(Xtodo))
+        while (curtime > 0) and (len(this_step) > 0):
+            assert np.all(this_step.frac > 0)
+            assert not np.any(this_step.isnull())
 
             # Run the rk5 step
-            Xnext, _ = rk5(self, Xtodo, step)
+            next_step, _ = rk5(self, this_step, step_size)
 
             # Check for surface impacts
-            tempR = np.linalg.norm(Xnext[:,1:4], axis=1)
-            hitplanet = (tempR - 1.) < 0
+            tempR = np.linalg.norm(next_step[['x', 'y', 'z']], axis=1)
+            hitplanet = tempR < (1 - 1e-6)
 
             if np.any(hitplanet):
                 if ((self.inputs.surfaceinteraction.sticktype == 'constant')
                     and (self.inputs.surfaceinteraction.stickcoef == 1.)):
-                        Xnext[hitplanet,7] = 0.
+                        next_step.loc[hitplanet, 'frac'] = 0.
                 else:
-                    bouncepackets(self, Xnext, tempR, hitplanet)
+                    assert False, 'fix this'
+                    bouncepackets(self, next_step, tempR, hitplanet)
             else:
                 pass
 
             # Check for escape
-            Xnext[tempR > self.inputs.options.outeredge,7] = 0
+            next_step.loc[tempR > self.inputs.options.outeredge, 'frac'] = 0
             
             # Check for vanishing
-            Xnext[Xnext[:, 7] < 1e-10, 7] = 0.
+            next_step.loc[next_step.frac < 1e-10, 'frac'] = 0.
+            next_step.loc[next_step.frac < 1e-10, 'frac'] = 0.
 
             # set remaining time = 0 for packets that are done
-            Xnext[Xnext[:, 7] == 0, 0] = 0.
-
-            # Put new values back into the original array
-            results[moretogo,:,ct] = Xnext
-            lossfrac[moretogo,ct] = (lossfrac[moretogo,ct-1] +
-                results[moretogo,7,ct-1] - results[moretogo,7,ct])
+            next_step.loc[next_step.frac == 0, 'time'] = 0.
+            next_step.loc[next_step.frac == 0, 'lossfrac'] = 1
             
-            # Check to see what still needs to be done
-            moretogo = results[:,7,ct] > 0
-
+            # Save current results
+            self.append_step(this_step)
+            
+            # Remove lost packets
+            this_step = next_step[next_step.frac > 0].copy()
+            
             if (ct % 100) == 0:
-                print(ct, curtime, int(np.sum(moretogo)))
+                print(ct, curtime, len(next_step))
+            else:
+                pass
 
             # Update the times
             ct += 1
-            curtime -= step_size[0]
-
-        # Put everything back into output
-        self.totalsource *= self.nsteps
-        X = pd.DataFrame()
-        index = np.mgrid[:self.npackets, :self.nsteps]
-        npackets = self.npackets * self.nsteps
-        X['Index'] = index[0,:,:].reshape(npackets)
-        X['time'] = results[:,0,:].reshape(npackets)
-        X['x'] = results[:,1,:].reshape(npackets)
-        X['y'] = results[:,2,:].reshape(npackets)
-        X['z'] = results[:,3,:].reshape(npackets)
-        X['vx'] = results[:,4,:].reshape(npackets)
-        X['vy'] = results[:,5,:].reshape(npackets)
-        X['vz'] = results[:,6,:].reshape(npackets)
-        X['frac'] = results[:,7,:].reshape(npackets)
-        X['lossfrac'] = lossfrac.reshape(npackets)
-        self.X = X
+            curtime -= step_size
 
         # Add units back in
         self.aplanet *= u.au
         self.vrplanet *= self.unit/u.s
         self.vrplanet = self.vrplanet.to(u.km/u.s)
         self.GM *= self.unit**3/u.s**2
-
+        
+        self.finish_outputfile()
+        
     def make_filename(self):
         """Determine filename for output."""
         # TAA for observation
-        if self.planet.object == 'Mercury':
-            taastr = '{:03.0f}'.format(
-                      np.round(self.inputs.geometry.taa.to(u.deg).value))
-        else:
-            assert 0, 'Filename not set up for anything but Mercury'
+        assert self.planet.object == 'Mercury', 'Filename not set up'
 
         # Come up with a path name
         pathname = os.path.join(self.inputs.config.savepath,
@@ -459,15 +447,14 @@ class Output:
                                 self.inputs.options.species,
                                 self.inputs.spatialdist.type,
                                 self.inputs.speeddist.type,
-                                taastr)
+                f'{int(np.round(self.inputs.geometry.taa.to(u.deg).value)):03d}')
 
         # Make the path if necessary
         if os.path.exists(pathname) is False:
             os.makedirs(pathname)
-        numstr = '{:010d}'.format(self.idnum)
-        self.filename = os.path.join(pathname, f'{numstr}.pkl')
+        self.filename = os.path.join(pathname, f'{self.idnum:010d}.nc')
 
-    def save(self):
+    def insert(self):
         """Add output to database and save as a pickle."""
         geo_id = self.inputs.geometry.insert()
         sint_id = self.inputs.surfaceinteraction.insert()
@@ -508,43 +495,92 @@ class Output:
         with engine.connect() as con:
             con.execute(update)
             con.commit()
-            
-        # Remove frac = 0
-        if self.compress:
-            self.X = self.X[self.X.frac > 0]
-        else:
-            pass
+
+    def create_outputfile(self):
+        self.insert()
         
-        # Convert to 32 bit
-        for column in self.X0:
-            if self.X0[column].dtype == np.int64:
-                self.X0[column] = self.X0[column].astype(np.int32)
-            elif self.X0[column].dtype == np.float64:
-                self.X0[column] = self.X0[column].astype(np.float32)
-            else:
-                pass
+        with Dataset(self.filename, 'w', format='NETCDF4') as rootgrp:
+            rootgrp.createGroup('X0')
+            for column in self.X0:
+                rootgrp['X0'].createDimension(column, None)
+                rootgrp['X0'].createVariable(column, self.X0[column].dtype,
+                                             (column,), compression='zlib')
+                rootgrp['X0'][column][:] = self.X0[column].values
 
-        for column in self.X:
-            if self.X[column].dtype == np.int64:
-                self.X[column] = self.X[column].astype(np.int32)
-            elif self.X[column].dtype == np.float64:
-                self.X[column] = self.X[column].astype(np.float32)
-            else:
-                pass
+            X_columns = [('time', float), ('x', float), ('y', float), ('z', float),
+                         ('vx', float), ('vy', float), ('vz', float),
+                         ('frac', float), ('lossfrac', float), ('Index', int)]
+            rootgrp.createGroup('X')
+            for column in X_columns:
+                rootgrp['X'].createDimension(column[0], None)
+                rootgrp['X'].createVariable(column[0], column[1],
+                                         (column[0],), compression='zlib')
+        
 
-        # Save output as a pickle
-        print(f'Saving file {self.filename}')
-        if self.inputs.surfaceinteraction.sticktype == 'temperature dependent':
-            self.surfaceint.stickcoef = 'FUNCTION'
-            
-        with open(self.filename, 'wb') as file:
-            pickle.dump(self, file, protocol=pickle.HIGHEST_PROTOCOL)
+    def append_step(self, X):
+        with Dataset(self.filename, 'a', format='NETCDF4') as rootgrp:
+            for column in X:
+                rng = (rootgrp['X'][column].shape[0], len(X))
+                rootgrp['X'][column][rng[0]:rng[0]+rng[1]] = X[column].values
+
+    def finish_outputfile(self):
+        with Dataset(self.filename, 'w', format='NETCDF4') as rootgrp:
+            # Set up attributes
+            rootgrp.planet = self.planet.object
+            rootgrp.unit = self.unit.name
+            rootgrp.GM = self.GM.value
+            rootgrp.GM_unit = self.GM.unit.to_string()
+            rootgrp.aplanet = self.aplanet.value
+            rootgrp.aplanet_unit = self.aplanet.unit.name
+            rootgrp.vrplanet = self.vrplanet.value
+            rootgrp.vrplanet_unit = self.vrplanet.unit.to_string()
+            rootgrp.npackets = self.npackets
+            rootgrp.totalsource = self.totalsource
+            rootgrp.nsteps = self.nsteps
+            rootgrp.idnum = self.idnum
+            rootgrp.filename = self.filename
+            rootgrp.inputsfile = self.filename.replace('.nc', '.pkl')
+        
+            with open(rootgrp.inputsfile, 'wb') as file:
+                pickle.dump(self.inputs, file)
+
+    # def save(self):
+    #     # Remove frac = 0
+    #     if self.compress:
+    #         self.X = self.X[self.X.frac > 0]
+    #     else:
+    #         pass
+    #
+    #     # Convert to 32 bit
+    #     for column in self.X0:
+    #         if self.X0[column].dtype == np.int64:
+    #             self.X0[column] = self.X0[column].astype(np.int32)
+    #         elif self.X0[column].dtype == np.float64:
+    #             self.X0[column] = self.X0[column].astype(np.float32)
+    #         else:
+    #             pass
+    #
+    #     for column in self.X:
+    #         if self.X[column].dtype == np.int64:
+    #             self.X[column] = self.X[column].astype(np.int32)
+    #         elif self.X[column].dtype == np.float64:
+    #             self.X[column] = self.X[column].astype(np.float32)
+    #         else:
+    #             pass
+    #
+    #     # Save output as a pickle
+    #     print(f'Saving file {self.filename}')
+    #     if self.inputs.surfaceinteraction.sticktype == 'temperature dependent':
+    #         self.surfaceint.stickcoef = 'FUNCTION'
+    #
+    #     with open(self.filename, 'wb') as file:
+    #         pickle.dump(self, file, protocol=pickle.HIGHEST_PROTOCOL)
 
     @classmethod
     def restore(cls, filename):
         with open(filename, 'rb') as file:
             output = pickle.load(file)
-            
+    
         # Convert to 64 bit
         for column in output.X0:
             if output.X0[column].dtype == np.int32:
@@ -553,13 +589,14 @@ class Output:
                 output.X0[column] = output.X0[column].astype(np.float64)
             else:
                 pass
-
+    
         for column in output.X:
-            if output.X[column].dtype == np.int32:
-                output.X[column] = output.X[column].astype(np.int64)
-            elif output.X[column].dtype == np.float32:
-                output.X[column] = output.X[column].astype(np.float64)
-            else:
-                pass
-
+            pass
+        if output.X[column].dtype == np.int32:
+            output.X[column] = output.X[column].astype(np.int64)
+        elif output.X[column].dtype == np.float32:
+            output.X[column] = output.X[column].astype(np.float64)
+        else:
+            pass
+    
         return output

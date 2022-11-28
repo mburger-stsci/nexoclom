@@ -241,7 +241,7 @@ fitted = {self.fitted}'''
         
         return mask, sigmalimit
 
-    def simulate_data_from_inputs(self, scdata, distribute=True):
+    def simulate_data_from_inputs(self, scdata, distribute=None):
         """Given a set of inputs, determine what the spacecraft should see.
         Models should have already been run.
         
@@ -269,21 +269,19 @@ fitted = {self.fitted}'''
             # Will retry if something fails due to memory error
             print(f'LOSResult: {list(search_results.values()).count(None)} '
                   'to compute')
-            iterations = []
-            for outputfile, search_result in search_results.items():
-                if search_result is None:
-                    print(f'LOSResult: {os.path.basename(outputfile)}')
-                    if distribute:
-                        iterations.append(dask.delayed(compute_iteration)(
-                            self, outputfile, scdata, True))
-                    else:
-                        compute_iteration(self, outputfile, scdata)
-
-            if distribute:
+            if distribute in ('delay', 'delayed'):
+                iterations = [dask.delayed(compute_iteration)(self, outputfile,
+                                                              scdata, True)
+                              for outputfile, search_result in search_results.items()
+                              if search_result is None]
                 dask.compute(*iterations)
             else:
-                pass
-                
+                for outputfile, search_result in search_results.items():
+                    if search_result is None:
+                        compute_iteration(self, outputfile, scdata)
+                    else:
+                        pass
+                    
             search_results = self.search()
             
         iteration_results = []
@@ -308,7 +306,7 @@ fitted = {self.fitted}'''
         self.atoms_per_packet = 1e23 / model_rate
         self.radiance *= self.atoms_per_packet/1e3  # kR
         self.determine_source_rate(scdata)
-        self.atoms_per_packet *= self.sourcerate.unit
+        self.atoms_per_packet *= self.sourcerate.unit * u.s
         self.outputfiles = list(self.modelfiles.keys())
     
         print(self.totalsource, self.atoms_per_packet)
