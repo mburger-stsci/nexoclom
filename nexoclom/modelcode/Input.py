@@ -328,13 +328,13 @@ class Input:
             # Delete any uvvs models that depend on this output
             uvvs_select = sqla.select(uvvsmodels).where(
                 uvvsmodels.columns.out_idnum == outid)
-            uvvs_del = sqla.delete(modelimages).where(
+            uvvs_del = sqla.delete(uvvsmodels).where(
                 uvvsmodels.columns.out_idnum == outid)
             
             # Delete any fitted uvvs models that depend on this output
             uvvsfit_select = sqla.select(uvvsmodels).where(
                 uvvsmodels.columns.unfit_idnum == outid)
-            uvvsfit_del = sqla.delete(modelimages).where(
+            uvvsfit_del = sqla.delete(uvvsmodels).where(
                 uvvsmodels.columns.unfit_idnum == outid)
 
             # Delete any fitted outputs that depend on this output
@@ -354,7 +354,7 @@ class Input:
             fitted_out_spat_select_ = sqla.select(outputfile.columns.idnum).where(
                 outputfile.columns.spatdist_id.in_(fitted_spat_select),
                 outputfile.columns.spatdist_type == 'fitted output')
-            fitted_out_spat_delete = sqla.select(outputfile).where(
+            fitted_out_spat_delete = sqla.delete(outputfile).where(
                 outputfile.columns.spatdist_id.in_(fitted_spat_select),
                 outputfile.columns.spatdist_type == 'fitted output')
             
@@ -364,7 +364,7 @@ class Input:
             fitted_out_speed_select_ = sqla.select(outputfile.columns.idnum).where(
                 outputfile.columns.spddist_id.in_(fitted_speed_select),
                 outputfile.columns.spddist_type == 'fitted output')
-            fitted_out_speed_delete = sqla.select(outputfile).where(
+            fitted_out_speed_delete = sqla.delete(outputfile).where(
                 outputfile.columns.spddist_id.in_(fitted_speed_select),
                 outputfile.columns.spddist_type == 'fitted output')
             
