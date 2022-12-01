@@ -1,4 +1,3 @@
-import os
 import numpy as np
 import pandas as pd
 from sklearn.neighbors import BallTree
@@ -7,7 +6,6 @@ import astropy.units as u
 from astropy.modeling import models, fitting
 from astropy.visualization import PercentileInterval
 import sqlalchemy as sqla
-import sqlalchemy.dialects.postgresql as pg
 import dask
 
 import nexoclom.math as mathMB
@@ -399,9 +397,11 @@ fitted = {self.fitted}'''
                 v_rad_over_speed[v_rad_over_speed > 1] = 1
                 v_rad_over_speed[v_rad_over_speed < -1] = -1
 
-                assert np.all(np.isclose(v_rad**2 + v_east**2 + v_north**2, speed**2))
+                assert np.all(np.isclose(v_rad**2 + v_east**2 + v_north**2, 
+                                         speed**2))
                 X0.loc[:, 'altitude'] = np.arcsin(v_rad_over_speed)
-                X0.loc[:, 'azimuth'] = (np.arctan2(v_north, v_east) + 2*np.pi) % (2*np.pi)
+                X0.loc[:, 'azimuth'] = (np.arctan2(v_north, v_east) + 
+                                        2*np.pi) % (2*np.pi)
                 X0.loc[:, 'v_rad'] = v_rad
                 X0.loc[:, 'v_east'] = v_east
                 X0.loc[:, 'v_north'] = v_north
