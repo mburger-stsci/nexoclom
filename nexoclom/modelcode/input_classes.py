@@ -903,7 +903,7 @@ class AngularDist:
         See :doc:`inputfiles#AngularDist` for more information.
         """
         if 'type' in aparam:
-            self.type = aparam['type']
+            self.type = aparam['type'].lower()
             if self.type == 'radial':
                 pass
             elif self.type == 'isotropic':
@@ -914,10 +914,24 @@ class AngularDist:
                     az0 = min(az0, 2*np.pi)
                     az1 = max(az1, 0.)
                     az1 = min(az1, 2*np.pi)
-                    self.aziumth = (az0*u.rad, az1*u.rad)
+                    self.azimuth = (az0*u.rad, az1*u.rad)
                 else:
                     self.azimuth = (0*u.rad, 2*np.pi*u.rad)
 
+                if 'altitude' in aparam:
+                    alt0, alt1 = (float(l.strip())*u.rad
+                                  for l in aparam['altitude'].split(','))
+                    alt0 = max(alt0, 0)
+                    alt0 = min(alt0, np.pi/2)
+                    alt1 = max(alt1, 0)
+                    alt1 = min(alt1, np.pi/2)
+                    if alt0 > alt1:
+                        raise InputError('AngularDist.__init__',
+                         'AngularDist.altitude[0] > AngularDist.altitude[1]')
+                    self.altitude = (alt0*u.rad, alt1*u.rad)
+                else:
+                    self.altitude = (0*u.rad, np.pi/2*u.rad)
+            elif self.type == '2d':
                 if 'altitude' in aparam:
                     alt0, alt1 = (float(l.strip())*u.rad
                                   for l in aparam['altitude'].split(','))
@@ -974,6 +988,14 @@ class AngularDist:
                 insert_stmt = pg.insert(table).values(
                     altitude=alt,
                     azimuth=az)
+            elif self.type == '2d':
+                alt = [a.value for a in self.altitude]
+                table = sqla.Table('angdist_2d',
+                                   metadata_obj,
+                                   autoload_with=engine)
+
+                insert_stmt = pg.insert(table).values(
+                    altitude=alt)
             else:
                 raise InputError('AngularDist.search()',
                                  f'angulardist.type = {self.type} not allowed.')
@@ -1003,6 +1025,13 @@ class AngularDist:
             query = sqla.select(table.columns.idnum).where(
                 table.columns.altitude == alt,
                 table.columns.azimuth == az)
+        elif self.type == '2d':
+            alt = [a.value for a in self.altitude]
+            table = sqla.Table('angdist_2d',
+                               metadata_obj,
+                               autoload_with=engine)
+            query = sqla.select(table.columns.idnum).where(
+                table.columns.altitude == alt)
         else:
             raise InputError('AngularDist.__init__',
                              f'AngularDist.type = {self.type} not defined.')
