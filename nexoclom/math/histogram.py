@@ -1,14 +1,14 @@
+"""Wrapper classes for numpy.histogram and numpy.histogram2d"""
 import numpy as np
-from sklearn.neighbors import KDTree, BallTree
 
 
 class Histogram:
     """ Wrapper for np.histogram that makes the x-axis the center of each bin.
     Returns a class with everything self-contained.
     """
-    def __init__(self, a, bins=10, range=None, normed=None, weights=None,
-                 density=None):
-        hist, x = np.histogram(a, bins, range, normed, weights, density)
+    def __init__(self, a, bins=10, range=None, weights=None, density=None):
+        hist, x = np.histogram(a, bins=bins, range=range, weights=weights, 
+                               density=density)
         self.histogram = hist.astype(np.float)
         self.dx = x[1]-x[0]  # width of the bin
         self.x = x[:-1] + self.dx/2
@@ -29,9 +29,10 @@ class Histogram2d:
     """ Wrapper for np.histogram2d that makes the x,y axes the centers of each bin.
     Returns a class with everything self-contained.
     """
-    def __init__(self, ptsx, ptsy, bins=10, range=None, normed=None, weights=None,
+    def __init__(self, ptsx, ptsy, bins=10, range=None, weights=None,
                  density=None):
-        hist, x, y = np.histogram2d(ptsx, ptsy, bins, range, normed, weights, density)
+        hist, x, y = np.histogram2d(ptsx, ptsy, bins=bins, range=range, 
+                                    weights=weights, density=density)
         self.histogram = hist
         self.dx, self.dy = x[1]-x[0], y[1]-y[0]
         self.x = x[:-1] + self.dx/2

@@ -200,35 +200,58 @@ def angular_distribution(outputs):
 
         # Choose the azimuth -- f(az) = 1/(azmax-azmin)
         az0, az1 = angulardist.azimuth
-        m = (az0, az1) if az0 < az1 else (az1, az0+2*np.pi)
+        m = (az0, az1) if az0 <= az1 else (az1, az0+2*np.pi*u.rad)
         az = m[0] + (m[1]-m[0])*outputs.randgen.random(npackets)
+    elif angulardist.type == '2d':
+        # Choose the altitude -- f(alt) = cos(alt)
+        alt0 = angulardist.altitude
+        aa = (np.sin(alt0[0]), np.sin(alt0[1]))
+        sinalt = outputs.randgen.random(npackets) * (aa[1] - aa[0]) + aa[0]
+        alt = np.arcsin(sinalt)
     else:
         assert 0, 'Angular Distribution not defined.'
 
-    # Find the velocity components in coordinate system centered on packet
-    v_rad = np.sin(alt.value)                 # Radial component of velocity
-    v_tan0 = np.cos(alt.value) * np.cos(az.value)   # Component along latitude (points E)
-    v_tan1 = np.cos(alt.value) * np.sin(az.value)   # Component along longitude (points N)
-
-    # Now rotate to proper surface point
-    # v_ren = M # v_xyz => v_xyz = invert(M) # v_ren
     X0 = outputs.X0.values
-    x0, y0, z0 = X0[:,2], X0[:,3], X0[:,4]
+    x0, y0, z0 = X0[:, 2], X0[:, 3], X0[:, 4]
+    if angulardist.type != '2d':
+        # Find the velocity components in coordinate system centered on packet
+        v_rad = np.sin(alt.value)                 # Radial component of velocity
+        v_tan0 = np.cos(alt.value) * np.cos(az.value)   # Component along latitude (points E)
+        v_tan1 = np.cos(alt.value) * np.sin(az.value)   # Component along longitude (points N)
 
-    rad = np.array([x0, y0, z0]).transpose()
-    east = np.array([y0, -x0, np.zeros_like(z0)]).transpose()
-    north = np.array([-z0*x0, -z0*y0, x0**2+y0**2]).transpose()
+        # Now rotate to proper surface point
+        # v_ren = M # v_xyz => v_xyz = invert(M) # v_ren
+        rad = np.array([x0, y0, z0]).transpose()
+        east = np.array([y0, -x0, np.zeros_like(z0)]).transpose()
+        north = np.array([-z0*x0, -z0*y0, x0**2+y0**2]).transpose()
 
-    rad_ = np.linalg.norm(rad, axis=1)
-    rad = rad/rad_[:,np.newaxis]
-    east_ = np.linalg.norm(east, axis=1)
-    east = east/east_[:,np.newaxis]
-    north_ = np.linalg.norm(north, axis=1)
-    north = north/north_[:,np.newaxis]
+        rad_ = np.linalg.norm(rad, axis=1)
+        rad = rad/rad_[:,np.newaxis]
+        east_ = np.linalg.norm(east, axis=1)
+        east = east/east_[:,np.newaxis]
+        north_ = np.linalg.norm(north, axis=1)
+        north = north/north_[:,np.newaxis]
 
-    v0 = (v_tan0[:,np.newaxis]*north + v_tan1[:,np.newaxis]*east +
-          v_rad[:,np.newaxis]*rad)
-    
-    outputs.X0['vx'] = v0[:,0] * outputs.X0.v.values
-    outputs.X0['vy'] = v0[:,1] * outputs.X0.v.values
-    outputs.X0['vz'] = v0[:,2] * outputs.X0.v.values
+        v0 = (v_tan0[:,np.newaxis]*north + v_tan1[:,np.newaxis]*east +
+              v_rad[:,np.newaxis]*rad)
+        outputs.X0['vx'] = v0[:, 0] * outputs.X0.v.values
+        outputs.X0['vy'] = v0[:, 1] * outputs.X0.v.values
+        outputs.X0['vz'] = v0[:, 2] * outputs.X0.v.values
+    else:
+        v_rad = np.sin(alt.value)     # Radial component of velocity
+        v_tan = np.cos(alt.value)     # Component along equator
+        
+        rad = np.array([x0, y0]).transpose()
+        tan = np.array([y0, -x0]).transpose()
+        
+        rad_ = np.linalg.norm(rad, axis=1)
+        rad = rad/rad_[:,np.newaxis]
+        tan_ = np.linalg.norm(tan, axis=1)
+        tan = tan/tan_[:,np.newaxis]
+
+        v0 = (v_tan[:,np.newaxis]*tan + v_rad[:,np.newaxis]*rad)
+        assert np.all(np.isclose(np.sum(v0**2, axis=1), 1))
+        
+        outputs.X0['vx'] = v0[:, 0] * outputs.X0.v.values
+        outputs.X0['vy'] = v0[:, 1] * outputs.X0.v.values
+        outputs.X0['vz'] =  np.zeros((npackets, ))

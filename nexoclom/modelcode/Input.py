@@ -197,7 +197,7 @@ class Input:
 
 
     def run(self, npackets, packs_per_it=None, overwrite=False, compress=True,
-            distribute=False):
+            distribute=None):
         """Run the nexoclom model with the current inputs.
         
         **Parameters**
@@ -256,7 +256,7 @@ class Input:
             print('Running Model')
             print(f'Will complete {nits} iterations of {packs_per_it} packets.')
 
-            if distribute:
+            if distribute in ('delay', 'delayed'):
                 outputs = [output_wrapper(self, packs_per_it, compress=compress)
                            for _ in range(nits)]
                 dask.compute(*outputs)
@@ -287,9 +287,9 @@ class Input:
             dt_ = f'{dt_/3600} hr'
         print(f'Model run completed in {dt_} at {t2_}.')
 
-    def produce_image(self, format_, filenames=None, overwrite=False):
-        return ModelImage(self, format_, filenames=filenames,
-                          overwrite=overwrite)
+    def produce_image(self, format_, overwrite=False, distribute=None):
+        return ModelImage(self, format_, overwrite=overwrite,
+                          distribute=distribute)
     
     def delete_files(self):
         """Delete output files and remove them from the database.
@@ -328,13 +328,13 @@ class Input:
             # Delete any uvvs models that depend on this output
             uvvs_select = sqla.select(uvvsmodels).where(
                 uvvsmodels.columns.out_idnum == outid)
-            uvvs_del = sqla.delete(modelimages).where(
+            uvvs_del = sqla.delete(uvvsmodels).where(
                 uvvsmodels.columns.out_idnum == outid)
             
             # Delete any fitted uvvs models that depend on this output
             uvvsfit_select = sqla.select(uvvsmodels).where(
                 uvvsmodels.columns.unfit_idnum == outid)
-            uvvsfit_del = sqla.delete(modelimages).where(
+            uvvsfit_del = sqla.delete(uvvsmodels).where(
                 uvvsmodels.columns.unfit_idnum == outid)
 
             # Delete any fitted outputs that depend on this output
@@ -354,7 +354,7 @@ class Input:
             fitted_out_spat_select_ = sqla.select(outputfile.columns.idnum).where(
                 outputfile.columns.spatdist_id.in_(fitted_spat_select),
                 outputfile.columns.spatdist_type == 'fitted output')
-            fitted_out_spat_delete = sqla.select(outputfile).where(
+            fitted_out_spat_delete = sqla.delete(outputfile).where(
                 outputfile.columns.spatdist_id.in_(fitted_spat_select),
                 outputfile.columns.spatdist_type == 'fitted output')
             
@@ -364,7 +364,7 @@ class Input:
             fitted_out_speed_select_ = sqla.select(outputfile.columns.idnum).where(
                 outputfile.columns.spddist_id.in_(fitted_speed_select),
                 outputfile.columns.spddist_type == 'fitted output')
-            fitted_out_speed_delete = sqla.select(outputfile).where(
+            fitted_out_speed_delete = sqla.delete(outputfile).where(
                 outputfile.columns.spddist_id.in_(fitted_speed_select),
                 outputfile.columns.spddist_type == 'fitted output')
             

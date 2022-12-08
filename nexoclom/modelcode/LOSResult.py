@@ -1,4 +1,3 @@
-import os
 import numpy as np
 import pandas as pd
 from sklearn.neighbors import BallTree
@@ -7,7 +6,6 @@ import astropy.units as u
 from astropy.modeling import models, fitting
 from astropy.visualization import PercentileInterval
 import sqlalchemy as sqla
-import sqlalchemy.dialects.postgresql as pg
 import dask
 
 import nexoclom.math as mathMB
@@ -15,7 +13,9 @@ from nexoclom import engine
 from nexoclom.modelcode.Output import Output
 from nexoclom.modelcode.SourceMap import SourceMap
 from nexoclom.modelcode.ModelResult import ModelResult
-from nexoclom.modelcode.compute_iteration import compute_iteration
+from nexoclom.modelcode.compute_iteration import (compute_iteration, 
+                                                  IterationResult,
+                                                  IterationResultFitted)
 from nexoclom import __file__ as basefile
 
 
@@ -120,47 +120,7 @@ dphi = {self.dphi}
 fit_method = {self.fit_method}
 fitted = {self.fitted}'''
     
-    def save(self, iteration_result, ufit_id=None):
-        '''
-        Insert the result of a LOS iteration into the database
-        :param iteration_result: LOS result from a single outputfile
-        :return: name of saved file
-        '''
-
-        # Insert the result into the database
-        metadata_obj = sqla.MetaData()
-        table = sqla.Table("uvvsmodels", metadata_obj, autoload_with=engine)
-        
-        insert_stmt = pg.insert(table).values(
-            out_idnum=iteration_result.out_idnum,
-            unfit_idnum=ufit_id,
-            quantity=self.quantity,
-            query=self.query,
-            dphi=self.dphi,
-            mechanism=self.mechanism,
-            wavelength=[w.value for w in self.wavelength],
-            fitted=self.fitted)
-        
-        with engine.connect() as con:
-            result = con.execute(insert_stmt)
-            con.commit()
-            
-        self.idnum = result.inserted_primary_key[0]
-        savefile = os.path.join(os.path.dirname(iteration_result.outputfile),
-                                f'model.{self.idnum}.pkl')
-        print(f'Saving model result {savefile}')
-        update = sqla.update(table).where(table.columns.idnum == self.idnum).values(
-            filename=savefile)
-        with engine.connect() as con:
-            con.execute(update)
-            con.commit()
-
-        with open(savefile, 'wb') as f:
-            pickle.dump(iteration_result, f)
-        
-        return savefile
-    
-    def search(self):
+    def search_iterations(self, fitted=False):
         """
         :return: dictionary containing search results:
                  {outputfilename: (modelfile_id, modelfile_name)}
@@ -169,15 +129,17 @@ fitted = {self.fitted}'''
         for oid, outputfile in zip(self.outid, self.outputfiles):
             metadata_obj = sqla.MetaData()
             table = sqla.Table("uvvsmodels", metadata_obj, autoload_with=engine)
-            
+
+            ufit_id = (self.unfit_outid if fitted else None)
             query = sqla.select(table).where(
                 table.columns.out_idnum == oid,
+                table.columns.unfit_idnum == ufit_id, 
                 table.columns.quantity == self.quantity,
                 table.columns.query == self.query,
                 table.columns.dphi == self.dphi,
                 table.columns.mechanism == self.mechanism,
                 table.columns.wavelength == [w.value for w in self.wavelength],
-                table.columns.fitted == self.fitted)
+                table.columns.fitted == fitted)
                 
             with engine.connect() as con:
                 result = pd.DataFrame(con.execute(query))
@@ -194,7 +156,7 @@ fitted = {self.fitted}'''
         
         return search_results
     
-    def restore(self, search_result, save_ufit_id=False):
+    def restore_iteration(self, search_result, save_ufit_id=False):
         # Restore is on an outputfile basis
         idnum, ufit_idnum, modelfile = search_result
         print(f'Restoring modelfile {modelfile}.')
@@ -241,7 +203,7 @@ fitted = {self.fitted}'''
         
         return mask, sigmalimit
 
-    def simulate_data_from_inputs(self, scdata, distribute=True):
+    def simulate_data_from_inputs(self, scdata, distribute=None):
         """Given a set of inputs, determine what the spacecraft should see.
         Models should have already been run.
         
@@ -263,33 +225,31 @@ fitted = {self.fitted}'''
     
         # Find any model results that have been run for these inputs
         data = scdata.data
-        search_results = self.search()
+        search_results = self.search_iterations()
         
         while None in search_results.values():
             # Will retry if something fails due to memory error
             print(f'LOSResult: {list(search_results.values()).count(None)} '
                   'to compute')
-            iterations = []
-            for outputfile, search_result in search_results.items():
-                if search_result is None:
-                    print(f'LOSResult: {os.path.basename(outputfile)}')
-                    if distribute:
-                        iterations.append(dask.delayed(compute_iteration)(
-                            self, outputfile, scdata, True))
-                    else:
-                        compute_iteration(self, outputfile, scdata)
-
-            if distribute:
+            if distribute in ('delay', 'delayed'):
+                iterations = [dask.delayed(compute_iteration)(self, outputfile,
+                                                              scdata, True)
+                              for outputfile, search_result in search_results.items()
+                              if search_result is None]
                 dask.compute(*iterations)
             else:
-                pass
-                
-            search_results = self.search()
+                for outputfile, search_result in search_results.items():
+                    if search_result is None:
+                        compute_iteration(self, outputfile, scdata)
+                    else:
+                        pass
+                    
+            search_results = self.search_iterations()
             
         iteration_results = []
         for outputfile, search_result in search_results.items():
             assert search_result is not None
-            iteration_result = self.restore(search_result)
+            iteration_result = self.restore_iteration(search_result)
             iteration_result.model_idnum = search_result[0]
             iteration_result.modelfile = search_result[2]
             assert len(iteration_result.radiance) == len(data)
@@ -308,7 +268,7 @@ fitted = {self.fitted}'''
         self.atoms_per_packet = 1e23 / model_rate
         self.radiance *= self.atoms_per_packet/1e3  # kR
         self.determine_source_rate(scdata)
-        self.atoms_per_packet *= self.sourcerate.unit
+        self.atoms_per_packet *= self.sourcerate.unit * u.s
         self.outputfiles = list(self.modelfiles.keys())
     
         print(self.totalsource, self.atoms_per_packet)
@@ -335,6 +295,7 @@ fitted = {self.fitted}'''
         self.radiance *= best_fit.factor.value
         self.sourcerate = best_fit.factor.value * u.def_unit('10**23 atoms/s', 1e23 / u.s)
         self.goodness_of_fit = None
+
         self.mask = mask
 
     def make_source_map(self, smear_radius=np.radians(10), nlonbins=180,
@@ -436,9 +397,11 @@ fitted = {self.fitted}'''
                 v_rad_over_speed[v_rad_over_speed > 1] = 1
                 v_rad_over_speed[v_rad_over_speed < -1] = -1
 
-                assert np.all(np.isclose(v_rad**2 + v_east**2 + v_north**2, speed**2))
+                assert np.all(np.isclose(v_rad**2 + v_east**2 + v_north**2, 
+                                         speed**2))
                 X0.loc[:, 'altitude'] = np.arcsin(v_rad_over_speed)
-                X0.loc[:, 'azimuth'] = (np.arctan2(v_north, v_east) + 2*np.pi) % (2*np.pi)
+                X0.loc[:, 'azimuth'] = (np.arctan2(v_north, v_east) + 
+                                        2*np.pi) % (2*np.pi)
                 X0.loc[:, 'v_rad'] = v_rad
                 X0.loc[:, 'v_east'] = v_east
                 X0.loc[:, 'v_north'] = v_north
@@ -482,8 +445,8 @@ fitted = {self.fitted}'''
                     # from the same point (points[index, :])
                     # n_included[index] = np.sum(included)
                     # n_total[index] = len(included)
-                    vpoint_ = mathMB.Histogram(X0.loc[ind[index], 'speed'], bins=nvelbins,
-                                               range=[0, vmax])
+                    vpoint_ = mathMB.Histogram(X0.loc[ind[index], 'speed'], 
+                                               bins=nvelbins, range=[0, vmax])
                     v_point[index,:] += vpoint_.histogram
                 
                 distribution['abundance_uncor'] += abundance.histogram / u.s

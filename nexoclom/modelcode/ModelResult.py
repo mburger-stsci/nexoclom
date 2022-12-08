@@ -7,30 +7,6 @@ from nexoclom.atomicdata import gValue
 from nexoclom.modelcode.input_classes import InputError
 
 
-class IterationResult:
-    def __init__(self, iteration):
-        self.radiance = iteration['radiance']
-        self.npackets = iteration['npackets']
-        self.totalsource = iteration['totalsource']
-        self.outputfile = iteration['outputfile']
-        self.out_idnum = iteration['out_idnum']
-        self.modelfile = None
-        self.model_idnum = None
-        self.fitted = False
-        self.used_packets = iteration.get('used', None)
-        self.used_packets0 = iteration.get('used0', None)
-
-
-class IterationResultFitted(IterationResult):
-    def __init__(self, iteration):
-        super().__init__(iteration)
-        
-        self.unfit_outputfile = iteration['unfit_outputfile']
-        self.unfit_outid = iteration['unfit_outid']
-        self.unfit_modelfile = iteration['unfit_modelfile']
-        self.fitted = True
-
-
 class ModelResult:
     """Base class for nexoclom model comparisons with data.
 

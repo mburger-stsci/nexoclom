@@ -1,28 +1,20 @@
-import os
-import os.path
 import pandas as pd
 import numpy as np
 import pickle
 import astropy.units as u
 import sqlalchemy as sqla
 import sqlalchemy.dialects.postgresql as pg
+import dask.array as da
 
 from nexoclom import engine
 import nexoclom.math as mathMB
-from nexoclom.solarsystem import planet_dist
-from nexoclom.atomicdata import RadPresConst
-from nexoclom.modelcode.satellite_initial_positions import satellite_initial_positions
-from nexoclom.modelcode.LossInfo import LossInfo
+from nexoclom.modelcode.Output import Output
 from nexoclom.modelcode.rk5 import rk5
 from nexoclom.modelcode.bouncepackets import bouncepackets
-from nexoclom.modelcode.source_distribution import (surface_distribution,
-                                                    speed_distribution,
-                                                    angular_distribution)
-from nexoclom.modelcode.SurfaceInteraction import SurfaceInteraction
 
 
-class Output:
-    def __init__(self, inputs, npackets, compress=True):
+class OutputDA(Output):
+    def __init__(self, inputs, npackets, chuncks, compress=True):
         """Determine and store packet trajectories.
         
         **Parameters**
@@ -85,101 +77,10 @@ class Output:
         # else:
         #     pass
         # self.logger = logger
-
-        self.inputs = inputs
-        self.planet = inputs.geometry.planet
         
-        # initialize the random generator
-        self.randgen = np.random.default_rng()
-        
-        # Not implemented yet.
-        assert self.inputs.geometry.type != 'geometry with time', (
-            'Initialization with time stamp not implemented yet.')
+        super().__init__(inputs, npackets, compress)
+        self.chunks = chuncks
 
-        # Keep track of whether output is compressed
-        self.compress = compress
-
-        # Determine spatial unit
-        self.unit = u.def_unit('R_' + self.planet.object, self.planet.radius)
-
-        # Change unit for GM
-        self.GM = self.planet.GM.to(self.unit**3/u.s**2).value
-
-        # Determine distance and radial velocity of planet relative to the Sun
-        r, v_r = planet_dist(self.planet, self.inputs.geometry.taa)
-        self.aplanet = r.value
-        self.vrplanet = v_r.to(self.unit/u.s).value
-
-        # Find the default reactions and datasets
-        if inputs.options.lifetime.value <= 0:
-            self.loss_info = LossInfo(inputs.options.species,
-                                      inputs.options.lifetime,
-                                      self.aplanet)
-        else:
-            self.loss_info = None
-
-        # Set up the radiation pressure
-        if inputs.forces.radpres:
-            radpres = RadPresConst(inputs.options.species,
-                                   self.aplanet)
-            radpres.velocity = radpres.velocity.to(self.unit/u.s).value
-            radpres.accel = radpres.accel.to(self.unit/u.s**2).value
-            self.radpres = radpres
-        else:
-            self.radpres = None
-
-        # set up surface accommodation + maybe other things if needed
-        if (('stickcoef' not in inputs.surfaceinteraction.__dict__) or
-            (inputs.surfaceinteraction.stickcoef != 1)):
-            self.surfaceint = SurfaceInteraction(inputs, nt=201, nv=101, nprob=101)
-
-        # Define the time that packets will run
-        if inputs.options.step_size > 0:
-            time = np.ones(npackets) * inputs.options.endtime
-        else:
-            time = self.randgen.random(npackets) * inputs.options.endtime
-        
-        self.X0 = pd.DataFrame()
-        self.X0['time'] = time.value
-
-        # Define the fractional content
-        self.X0['frac'] = np.ones(npackets)
-
-        self.npackets = npackets
-        self.totalsource = self.X0['frac'].sum()
-
-        # Determine initial satellite positions if necessary
-        if self.planet.moons is not None:
-            assert False, 'Not set up'
-            sat_init_pos = satellite_initial_positions(inputs)
-        else:
-            pass
-
-        # Determine starting location for each packet
-        if self.inputs.spatialdist.type in ('uniform', 'surface map',
-                                            'surface spot'):
-            surface_distribution(self)
-        else:
-            assert 0, 'Not a valid spatial distribution type'
-        
-        # Determine inital speed for each packet
-        speed_distribution(self)
-        
-        # Choose direction for each packet
-        angular_distribution(self)
-
-        # Rotate everything to proper position for running the model
-        if (self.inputs.geometry.planet.object !=
-            self.inputs.geometry.startpoint):
-            assert 0, 'Not set up yet'
-        else:
-            pass
-        
-        # Reorder the dataframe columns
-        cols = ['time', 'x', 'y', 'z', 'vx', 'vy', 'vz', 'frac', 'v',
-                'longitude', 'latitude', 'local_time']
-        self.X0 = self.X0[cols]
-        
         # Integrate the packets forward
         if self.inputs.options.step_size == 0:
             print('Running variable step size integrator.')
@@ -191,23 +92,6 @@ class Output:
             self.constant_step_size_driver()
             
         self.save()
-
-    def __str__(self):
-        print('Contents of output:')
-        print('\tPlanet = {}'.format(self.planet.object))
-        print('\ta_planet = {}'.format(self.aplanet))
-        print('\tvr_planet = {}'.format(self.vrplanet))
-        print('\tNumber of Packets: {}'.format(self.npackets))
-#        print('\tUnits of time: {}'.format(self.time.unit))
-#        print('\tUnits of distance: {}'.format(self.X0.unit))
-#        print('\tUnits of velocity: {}'.format(self.V0.unit))
-        return ''
-
-    def __len__(self):
-        return self.npackets
-
-    def __getitem__(self, keys):
-        self.X = self.X.iloc[keys]
 
     def variable_step_size_driver(self):
         # Set up the step sizes
@@ -363,18 +247,31 @@ class Output:
         #  step size and counters
         step_size = np.zeros(self.npackets) + self.inputs.options.step_size
         
-        self.nsteps = int(np.ceil(self.inputs.options.endtime.value/step_size[0]
-                             + 1))
-        results = np.zeros((self.npackets,8,self.nsteps))
-        results[:,:,0] = self.X0[cols]
-        lossfrac = np.ndarray((self.npackets,self.nsteps))
+        self.nsteps = int(np.ceil(self.inputs.options.endtime.value/step_size[0]+ 1))
+        this_step = self.X0[cols]
+        this_step['lossfrac'] = np.zeros(self.npackets)
+        this_step['Index'] = np.arange(self.npackets, dtype=int)
+        
+        # start the outputfile
+        self.make_filename(format='nc')
+        self.create_outputfile()
+        
+        # Save initial values
+        self.append_step(this_step)
 
         curtime = self.inputs.options.endtime.value
         ct = 1
-        moretogo = results[:,7,0] > 0
+        moretogo = this_step.frac > 0
+
+        
+        from inspect import currentframe, getframeinfo
+        frameinfo = getframeinfo(currentframe())
+        print(frameinfo.filename, frameinfo.lineno)
+        from IPython import embed; embed()
+        import sys; sys.exit()
         
         while (curtime > 0) and (moretogo.any()):
-            Xtodo = results[moretogo,:,ct-1]
+            next_step = this_step[moretogo]
             step = step_size[moretogo]
 
             assert np.all(Xtodo[:,7] > 0)
@@ -442,123 +339,3 @@ class Output:
         self.vrplanet *= self.unit/u.s
         self.vrplanet = self.vrplanet.to(u.km/u.s)
         self.GM *= self.unit**3/u.s**2
-
-    def make_filename(self):
-        """Determine filename for output."""
-        # TAA for observation
-        if self.planet.object == 'Mercury':
-            taastr = '{:03.0f}'.format(
-                      np.round(self.inputs.geometry.taa.to(u.deg).value))
-        else:
-            assert 0, 'Filename not set up for anything but Mercury'
-
-        # Come up with a path name
-        pathname = os.path.join(self.inputs.config.savepath,
-                                self.planet.object,
-                                self.inputs.options.species,
-                                self.inputs.spatialdist.type,
-                                self.inputs.speeddist.type,
-                                taastr)
-
-        # Make the path if necessary
-        if os.path.exists(pathname) is False:
-            os.makedirs(pathname)
-        numstr = '{:010d}'.format(self.idnum)
-        self.filename = os.path.join(pathname, f'{numstr}.pkl')
-
-    def save(self):
-        """Add output to database and save as a pickle."""
-        geo_id = self.inputs.geometry.insert()
-        sint_id = self.inputs.surfaceinteraction.insert()
-        for_id = self.inputs.forces.insert()
-        spat_id = self.inputs.spatialdist.insert()
-        spd_id = self.inputs.speeddist.insert()
-        ang_id = self.inputs.angulardist.insert()
-        opt_id = self.inputs.options.insert()
-        
-        metadata_obj = sqla.MetaData()
-        table = sqla.Table("outputfile", metadata_obj, autoload_with=engine)
-        
-        insert_stmt = pg.insert(table).values(
-            filename = None,
-            npackets = self.npackets,
-            totalsource = self.totalsource,
-            geo_type = self.inputs.geometry.type,
-            geo_id = geo_id[0],
-            sint_type = self.inputs.surfaceinteraction.sticktype,
-            sint_id = sint_id[0],
-            force_id = for_id[0],
-            spatdist_type = self.inputs.spatialdist.type,
-            spatdist_id = spat_id[0],
-            spddist_type = self.inputs.speeddist.type,
-            spddist_id = spd_id[0],
-            angdist_type = self.inputs.angulardist.type,
-            angdist_id = ang_id[0],
-            opt_id = opt_id[0])
-        
-        with engine.connect() as con:
-            result = con.execute(insert_stmt)
-            con.commit()
-            
-        self.idnum = result.inserted_primary_key[0]
-        self.make_filename()
-        update = sqla.update(table).where(table.columns.idnum == self.idnum).values(
-            filename=self.filename)
-        with engine.connect() as con:
-            con.execute(update)
-            con.commit()
-            
-        # Remove frac = 0
-        if self.compress:
-            self.X = self.X[self.X.frac > 0]
-        else:
-            pass
-        
-        # Convert to 32 bit
-        for column in self.X0:
-            if self.X0[column].dtype == np.int64:
-                self.X0[column] = self.X0[column].astype(np.int32)
-            elif self.X0[column].dtype == np.float64:
-                self.X0[column] = self.X0[column].astype(np.float32)
-            else:
-                pass
-
-        for column in self.X:
-            if self.X[column].dtype == np.int64:
-                self.X[column] = self.X[column].astype(np.int32)
-            elif self.X[column].dtype == np.float64:
-                self.X[column] = self.X[column].astype(np.float32)
-            else:
-                pass
-
-        # Save output as a pickle
-        print(f'Saving file {self.filename}')
-        if self.inputs.surfaceinteraction.sticktype == 'temperature dependent':
-            self.surfaceint.stickcoef = 'FUNCTION'
-            
-        with open(self.filename, 'wb') as file:
-            pickle.dump(self, file, protocol=pickle.HIGHEST_PROTOCOL)
-
-    @classmethod
-    def restore(cls, filename):
-        with open(filename, 'rb') as file:
-            output = pickle.load(file)
-            
-        # Convert to 64 bit
-        for column in output.X0:
-            if output.X0[column].dtype == np.int32:
-                output.X0[column] = output.X0[column].astype(np.int64)
-            elif output.X0[column].dtype == np.float32:
-                output.X0[column] = output.X0[column].astype(np.float64)
-            else:
-                pass
-
-        for column in output.X:
-            if output.X[column].dtype == np.int32:
-                output.X[column] = output.X[column].astype(np.int64)
-            elif output.X[column].dtype == np.float32:
-                output.X[column] = output.X[column].astype(np.float64)
-            else:
-                pass
-
-        return output

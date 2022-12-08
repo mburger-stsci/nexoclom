@@ -130,6 +130,11 @@ CREATE TABLE if not exists angdist_isotropic (
     azimuth DOUBLE PRECISION[2] NOT NULL
 );
 
+CREATE TABLE if not exists angdist_2d (
+    idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    altitude DOUBLE PRECISION[2] NOT NULL
+);
+
 CREATE TABLE if not exists options (
     idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     endtime DOUBLE PRECISION NOT NULL,

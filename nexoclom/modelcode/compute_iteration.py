@@ -1,11 +1,88 @@
+import os
 import numpy as np
 import pandas as pd
+import pickle
 import astropy.units as u
 from sklearn.neighbors import KDTree
-import time
+import sqlalchemy as sqla
+import sqlalchemy.dialects.postgresql as pg
 from datetime import datetime
+import time
 from nexoclom.modelcode.Output import Output
-from nexoclom.modelcode.ModelResult import IterationResult
+from nexoclom import engine
+
+
+class IterationResult:
+    def __init__(self, iteration, losresult):
+        self.radiance = iteration['radiance']
+        self.npackets = iteration['npackets']
+        self.totalsource = iteration['totalsource']
+        self.outputfile = iteration['outputfile']
+        self.out_idnum = iteration['out_idnum']
+        self.modelfile = None
+        self.model_idnum = None
+        self.fitted = False
+        self.used_packets = iteration.get('used', None)
+        self.used_packets0 = iteration.get('used0', None)
+
+        self.quantity = losresult.quantity
+        self.query = losresult.query
+        self.dphi = losresult.dphi
+        self.mechanism = losresult.mechanism
+        self.wavelength = losresult.wavelength
+        self.fitted = losresult.fitted
+
+    def save_iteration(self):
+        '''
+        Insert the result of a LOS iteration into the database
+        :param iteration_result: LOS result from a single outputfile
+        :return: name of saved file
+        '''
+        # Insert the result into the database
+        metadata_obj = sqla.MetaData()
+        table = sqla.Table("uvvsmodels", metadata_obj, autoload_with=engine)
+        
+        ufit_id = (self.unfit_outid 
+                   if isinstance(self, IterationResultFitted) 
+                   else None)
+        
+        insert_stmt = pg.insert(table).values(
+            out_idnum=self.out_idnum,
+            unfit_idnum=ufit_id,
+            quantity=self.quantity,
+            query=self.query,
+            dphi=self.dphi,
+            mechanism=self.mechanism,
+            wavelength=[w.value for w in self.wavelength],
+            fitted=self.fitted)
+        
+        with engine.connect() as con:
+            result = con.execute(insert_stmt)
+            con.commit()
+            
+        self.idnum = result.inserted_primary_key[0]
+        savefile = os.path.join(os.path.dirname(self.outputfile),
+                                f'model.{self.idnum}.pkl')
+        self.modelfile = savefile
+        print(f'Saving modelfile: {self.modelfile}')
+        update = sqla.update(table).where(table.columns.idnum == self.idnum).values(
+            filename=savefile)
+        with engine.connect() as con:
+            con.execute(update)
+            con.commit()
+
+        with open(savefile, 'wb') as f:
+            pickle.dump(self, f)
+
+
+class IterationResultFitted(IterationResult):
+    def __init__(self, iteration, losresult):
+        super().__init__(iteration, losresult)
+        
+        self.unfit_outputfile = iteration['unfit_outputfile']
+        self.unfit_outid = iteration['unfit_outid']
+        self.unfit_modelfile = iteration['unfit_modelfile']
+        self.fitted = True
 
 
 def compute_iteration(self, outputfile, scdata, delay=False):
@@ -137,9 +214,8 @@ def compute_iteration(self, outputfile, scdata, delay=False):
                   'query': scdata.query,
                   'used': used,
                   'used0': used0}
-    iteration_result = IterationResult(iteration_)
-    modelfile = self.save(iteration_result)
-    iteration_result.modelfile = modelfile
+    iteration_result = IterationResult(iteration_, self)
+    iteration_result.save_iteration()
     
     t1 = datetime.today()
     print(f'Iteration time: {(t1-t0).seconds/60} minutes')
