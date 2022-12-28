@@ -54,12 +54,6 @@ class LOSResultFitted(LOSResult):
             result = pd.DataFrame(con.execute(query))
 
         # Should only have one match per outputfile
-        # if len(result) != 1:
-        #     from inspect import currentframe, getframeinfo
-        #     frameinfo = getframeinfo(currentframe())
-        #     print(frameinfo.filename, frameinfo.lineno)
-        #     from IPython import embed; embed()
-        #     import sys; sys.exit()
         if len(result) == 1:
             return result.loc[0, 'idnum'], ufit_id, result.loc[0, 'filename']
         elif len(result) == 0:
@@ -125,6 +119,12 @@ class LOSResultFitted(LOSResult):
                 # weight = packets0_used_by_spectrum.apply(lambda x:ratio[x].values)
                 # weighting_ = weight.apply(lambda x: np.mean(x) if len(x) > 0 else 0)
 
+                # from inspect import currentframe, getframeinfo
+                # frameinfo = getframeinfo(currentframe())
+                # print(frameinfo.filename, frameinfo.lineno)
+                # from IPython import embed; embed()
+                # import sys; sys.exit()
+                
                 for spnum, spectrum in data.iterrows():
                     used = list(iteration_unfit.used_packets.loc[spnum])
                     cts = packets.loc[used, 'Index'].value_counts()

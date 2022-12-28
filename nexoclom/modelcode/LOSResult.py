@@ -13,7 +13,7 @@ from nexoclom import engine
 from nexoclom.modelcode.Output import Output
 from nexoclom.modelcode.SourceMap import SourceMap
 from nexoclom.modelcode.ModelResult import ModelResult
-from nexoclom.modelcode.compute_iteration import (compute_iteration, 
+from nexoclom.modelcode.compute_iteration import (compute_iteration,
                                                   IterationResult,
                                                   IterationResultFitted)
 from nexoclom import __file__ as basefile
@@ -133,7 +133,7 @@ fitted = {self.fitted}'''
             ufit_id = (self.unfit_outid if fitted else None)
             query = sqla.select(table).where(
                 table.columns.out_idnum == oid,
-                table.columns.unfit_idnum == ufit_id, 
+                table.columns.unfit_idnum == ufit_id,
                 table.columns.quantity == self.quantity,
                 table.columns.query == self.query,
                 table.columns.dphi == self.dphi,
@@ -397,10 +397,10 @@ fitted = {self.fitted}'''
                 v_rad_over_speed[v_rad_over_speed > 1] = 1
                 v_rad_over_speed[v_rad_over_speed < -1] = -1
 
-                assert np.all(np.isclose(v_rad**2 + v_east**2 + v_north**2, 
+                assert np.all(np.isclose(v_rad**2 + v_east**2 + v_north**2,
                                          speed**2))
                 X0.loc[:, 'altitude'] = np.arcsin(v_rad_over_speed)
-                X0.loc[:, 'azimuth'] = (np.arctan2(v_north, v_east) + 
+                X0.loc[:, 'azimuth'] = (np.arctan2(v_north, v_east) +
                                         2*np.pi) % (2*np.pi)
                 X0.loc[:, 'v_rad'] = v_rad
                 X0.loc[:, 'v_east'] = v_east
@@ -435,19 +435,26 @@ fitted = {self.fitted}'''
                 n_included = np.zeros((points.shape[0], ))
                 n_total = np.zeros((points.shape[0], ))
                 v_point = np.zeros((points.shape[0], nvelbins))
+                import warnings
+                warnings.filterwarnings("error")
                 for index in range(points.shape[0]):
-                    included = X0.loc[ind[index], 'included']
-                    weight_ = X0.loc[ind[index], 'frac']
-                    n_included[index] = np.sum(included*weight_)/np.sum(weight_)
-                    n_total[index] = weight_.sum()
-                    
-                    # No weighting because assumption is all the atoms are ejected
-                    # from the same point (points[index, :])
-                    # n_included[index] = np.sum(included)
-                    # n_total[index] = len(included)
-                    vpoint_ = mathMB.Histogram(X0.loc[ind[index], 'speed'], 
-                                               bins=nvelbins, range=[0, vmax])
-                    v_point[index,:] += vpoint_.histogram
+                    if len(ind[index]) > 0:
+                        included = X0.loc[ind[index], 'included']
+                        weight_ = X0.loc[ind[index], 'frac']
+                        n_included[index] = np.sum(included*weight_)/np.sum(weight_)
+                        n_total[index] = weight_.sum()
+                        
+                        # No weighting because assumption is all the atoms are ejected
+                        # from the same point (points[index, :])
+                        # n_included[index] = np.sum(included)
+                        # n_total[index] = len(included)
+                        vpoint_ = mathMB.Histogram(X0.loc[ind[index], 'speed'],
+                                                   bins=nvelbins, range=[0, vmax])
+                        v_point[index,:] += vpoint_.histogram
+                    else:
+                        pass
+
+                warnings.resetwarnings()
                 
                 distribution['abundance_uncor'] += abundance.histogram / u.s
                 distribution['longitude'] = abundance.x * u.rad
