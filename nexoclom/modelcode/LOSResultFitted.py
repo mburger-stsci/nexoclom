@@ -102,10 +102,14 @@ class LOSResultFitted(LOSResult):
                 # weighting = weighting factor for each X0
                 # included = number of times trajectory included in lines of sight
                 radiance = pd.Series(np.zeros(data.shape[0]), index=data.index)
-                weighting = pd.Series(np.zeros(packets0.shape[0]),
-                                      index=packets0.index)
-                included = pd.Series(np.zeros(packets0.shape[0]),
-                                     index=packets0.index)
+                # weighting = pd.Series(np.zeros(packets0.shape[0]),
+                #                       index=packets0.index)
+                # included = pd.Series(np.zeros(packets0.shape[0]),
+                #                      index=packets0.index)
+                ratio_x_sigma = pd.Series(np.zeros(packets0.shape[0]),
+                                          index=packets0.index)
+                sigma = pd.Series(np.zeros(packets0.shape[0]),
+                                  index=packets0.index)
                 
                 ratio = data.radiance / unfit_model_result.radiance
                 ratio.fillna(0, inplace=True)
@@ -119,23 +123,27 @@ class LOSResultFitted(LOSResult):
                 # weight = packets0_used_by_spectrum.apply(lambda x:ratio[x].values)
                 # weighting_ = weight.apply(lambda x: np.mean(x) if len(x) > 0 else 0)
 
-                # from inspect import currentframe, getframeinfo
-                # frameinfo = getframeinfo(currentframe())
-                # print(frameinfo.filename, frameinfo.lineno)
-                # from IPython import embed; embed()
-                # import sys; sys.exit()
-                
+                # Add something to keep track of uncertainty in spectrum for
+                # weighted mean
                 for spnum, spectrum in data.iterrows():
                     used = list(iteration_unfit.used_packets.loc[spnum])
                     cts = packets.loc[used, 'Index'].value_counts()
-                    weighting.loc[cts.index] += cts.values * ratio[spnum]
-                    included.loc[cts.index] += cts.values
+                    # weighting.loc[cts.index] += cts.values * ratio[spnum]
+                    # included.loc[cts.index] += cts.values
+                    
+                    ratio_x_sigma.loc[cts.index] += (cts.values * ratio[spnum] /
+                                                     spectrum.sigma**2)
+                    sigma.loc[cts.index] += cts.values / spectrum.sigma**2
 
-                used = included > 0
-                weighting[used] = weighting[used] / included[used]
-                weighting /= weighting[used].mean()
+                # used = included > 0
+                # weighting[used] = weighting[used] / included[used]
+                # weighting /= weighting[used].mean()
+
+                used = sigma > 0
+                ratio_x_sigma[used] = ratio_x_sigma[used] / sigma[used]
+                weighting = ratio_x_sigma / ratio_x_sigma[used].mean()
                 assert np.all(np.isfinite(weighting))
-
+                
                 multiplier = weighting.loc[output.X['Index']].values
                 output.X.loc[:, 'frac'] = output.X.loc[:, 'frac'] * multiplier
                 output.X0.loc[:, 'frac'] = output.X0.loc[:, 'frac'] * weighting
