@@ -65,7 +65,7 @@ class SourceMap:
             if self.altitude_dist is not None:
                 self.altitude_dist *= u.rad
                 
-            self.fraction_observed= sourcemap_.get('fraction_observed', None)
+            self.fraction_observed = sourcemap_.get('fraction_observed', None)
             self.coordinate_system = str(sourcemap_.get('coordinate_system',
                                                         'solar-fixed'))
         else:

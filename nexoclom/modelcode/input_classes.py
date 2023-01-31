@@ -534,6 +534,7 @@ class SpatialDist:
                 self.subsolarlon *= u.rad
             else:
                 pass
+            self.coordinate_system = None
         elif self.type == 'surface spot':
             self.exobase = (float(sparam['exobase'])
                             if 'exobase' in sparam
@@ -606,8 +607,7 @@ class SpatialDist:
                 insert_stmt = pg.insert(table).values(
                     exobase=self.exobase,
                     mapfile=self.mapfile,
-                    subsolarlon=sslon,
-                    coordinate_system=self.coordinate_system)
+                    subsolarlon=sslon)
             elif self.type == 'surface spot':
                 table = sqla.Table("spatdist_spot",
                                    metadata_obj,
@@ -661,8 +661,7 @@ class SpatialDist:
             query = sqla.select(table.columns.idnum).where(
                 table.columns.exobase == self.exobase,
                 table.columns.mapfile == self.mapfile,
-                table.columns.subsolarlon == sslon,
-                table.columns.coordinate_system == self.coordinate_system)
+                table.columns.subsolarlon == sslon)
         elif self.type == 'surface spot':
             table = sqla.Table('spatdist_spot',
                                metadata_obj,
@@ -936,15 +935,15 @@ class AngularDist:
                     alt0, alt1 = (float(l.strip())*u.rad
                                   for l in aparam['altitude'].split(','))
                     alt0 = max(alt0, 0)
-                    alt0 = min(alt0, np.pi/2)
+                    alt0 = min(alt0, np.pi)
                     alt1 = max(alt1, 0)
-                    alt1 = min(alt1, np.pi/2)
+                    alt1 = min(alt1, np.pi)
                     if alt0 > alt1:
                         raise InputError('AngularDist.__init__',
                          'AngularDist.altitude[0] > AngularDist.altitude[1]')
                     self.altitude = (alt0*u.rad, alt1*u.rad)
                 else:
-                    self.altitude = (0*u.rad, np.pi/2*u.rad)
+                    self.altitude = (0*u.rad, np.pi*u.rad)
             else:
                 raise InputError('AngularDist.__init__',
                              f'AngularDist.type = {self.type} not defined.')

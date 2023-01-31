@@ -435,8 +435,6 @@ fitted = {self.fitted}'''
                 n_included = np.zeros((points.shape[0], ))
                 n_total = np.zeros((points.shape[0], ))
                 v_point = np.zeros((points.shape[0], nvelbins))
-                import warnings
-                warnings.filterwarnings("error")
                 for index in range(points.shape[0]):
                     if len(ind[index]) > 0:
                         included = X0.loc[ind[index], 'included']
@@ -454,8 +452,6 @@ fitted = {self.fitted}'''
                     else:
                         pass
 
-                warnings.resetwarnings()
-                
                 distribution['abundance_uncor'] += abundance.histogram / u.s
                 distribution['longitude'] = abundance.x * u.rad
                 distribution['latitude'] = abundance.y * u.rad

@@ -68,12 +68,19 @@ def surface_distribution(outputs):
             sourcemap = SourceMap(mapfile)
         else:
             sourcemap = SourceMap(spatialdist.mapfile)
+        outputs.inputs.spatialdist.coordinate_system = sourcemap.coordinate_system
 
-        lon, lat = mathMB.random_deviates_2d(sourcemap.abundance.value,
-                                             sourcemap.longitude.value,
-                                             np.sin(sourcemap.latitude.value),
-                                             npack)
-        lat = np.arcsin(lat)
+        if sourcemap.latitude is None:
+            lat = np.zeros(npack)
+            lon = mathMB.random_deviates_1d(sourcemap.longitude.value,
+                                            sourcemap.abundance.value,
+                                            npack)
+        else:
+            lon, lat = mathMB.random_deviates_2d(sourcemap.abundance.value,
+                                                 sourcemap.longitude.value,
+                                                 np.sin(sourcemap.latitude.value),
+                                                 npack)
+            lat = np.arcsin(lat)
         
         if (('planet' in sourcemap.coordinate_system) and
             (outputs.inputs.spatialdist.subsolarlon is not None)):
@@ -205,9 +212,13 @@ def angular_distribution(outputs):
     elif angulardist.type == '2d':
         # Choose the altitude -- f(alt) = cos(alt)
         alt0 = angulardist.altitude
-        aa = (np.sin(alt0[0]), np.sin(alt0[1]))
-        sinalt = outputs.randgen.random(npackets) * (aa[1] - aa[0]) + aa[0]
-        alt = np.arcsin(sinalt)
+        # aa = (np.sin(alt0[0]), np.sin(alt0[1]))
+        # sinalt = outputs.randgen.random(npackets) * (aa[1] - aa[0]) + aa[0]
+        # alt = np.arcsin(sinalt)
+        
+        aa = (np.cos(alt0[0]), np.cos(alt0[1]))
+        cosalt = outputs.randgen.random(npackets) * (aa[1] - aa[0]) + aa[0]
+        alt = np.arccos(cosalt)*u.rad
     else:
         assert 0, 'Angular Distribution not defined.'
 

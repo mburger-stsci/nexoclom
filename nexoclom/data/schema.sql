@@ -68,7 +68,6 @@ CREATE TABLE if not exists spatdist_surfmap (
     exobase DOUBLE PRECISION NOT NULL,
     mapfile TEXT NOT NULL,
     subsolarlon DOUBLE PRECISION,
-    coordinate_system TEXT NOT NULL,
     check(exobase >= 1)
 );
 

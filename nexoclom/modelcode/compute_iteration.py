@@ -42,8 +42,8 @@ class IterationResult:
         metadata_obj = sqla.MetaData()
         table = sqla.Table("uvvsmodels", metadata_obj, autoload_with=engine)
         
-        ufit_id = (self.unfit_outid 
-                   if isinstance(self, IterationResultFitted) 
+        ufit_id = (self.unfit_outid
+                   if isinstance(self, IterationResultFitted)
                    else None)
         
         insert_stmt = pg.insert(table).values(

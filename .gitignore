@@ -5,6 +5,7 @@
 *.so
 ._*
 *.sav
+*.pub
 __pycache__
 */.___pycache__
 
