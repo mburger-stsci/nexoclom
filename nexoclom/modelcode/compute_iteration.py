@@ -197,6 +197,7 @@ def compute_iteration(self, outputfile, scdata, delay=False):
                 used0.loc[i] = set(subset.loc[wtemp > 0, 'Index'])
             else:
                 assert False, 'Other quantities not set up.'
+            assert np.isfinite(rad_)
         
             rad.loc[i] = rad_
             npack.loc[i] = npack_

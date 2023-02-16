@@ -437,10 +437,13 @@ fitted = {self.fitted}'''
                 v_point = np.zeros((points.shape[0], nvelbins))
                 for index in range(points.shape[0]):
                     if len(ind[index]) > 0:
-                        included = X0.loc[ind[index], 'included']
+                        # included = X0.loc[ind[index], 'included']
                         weight_ = X0.loc[ind[index], 'frac']
-                        n_included[index] = np.sum(included*weight_)/np.sum(weight_)
-                        n_total[index] = weight_.sum()
+                        
+                        n_included[index] = np.sum(weight_ > 0)
+                        n_total[index] = len(weight_)
+                        # n_included[index] = np.sum(included*weight_)/np.sum(weight_)
+                        # n_total[index] = weight_.sum()
                         
                         # No weighting because assumption is all the atoms are ejected
                         # from the same point (points[index, :])
