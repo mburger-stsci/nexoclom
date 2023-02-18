@@ -7,6 +7,9 @@ from nexoclom.solarsystem.SSObject import SSObject
 
 
 def planet_dist(planet_, taa=None, time=None):
+    """ Given a planet and either a TAA or a time, return distance from and
+    radial velocity relative to the Sun.
+    """
     if isinstance(planet_, str):
         planet = SSObject(planet_)
         
