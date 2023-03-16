@@ -53,23 +53,6 @@ def configure_nexoclom(verbose=False):
                 done = ('DONE' in nextline) or ('DONE' in line)
     return config, engine
 
-def configure_solarsystem():
-    # Make a pickle file with the planetary constants
-    pklfile = os.path.join(basepath, 'data', 'PlanetaryConstants.pkl')
-    if not os.path.exists(pklfile):
-        constfile = os.path.join(basepath, 'data', 'PlanetaryConstants.dat')
-        constants = pd.read_csv(constfile, sep=':', comment='#')
-        constants.columns = [col.strip() for col in constants.columns]
-        constants['Object'] = constants['Object'].apply(lambda x: x.strip())
-        constants['orbits'] = constants['orbits'].apply(lambda x: x.strip())
-        constants.to_pickle(pklfile)
-    else:
-        pass
-
-    # Do something with the naif_ids.
-    # pklfile = os.path.join(basepath, 'data', 'naif_ids.pkl')
-    # if not os.path.exists(pklfile):
-        # naiffile = os.path.join(basepath, 'naif_ids.dat')
 
 def configure_atomicdata():
     # Make gvalue table
@@ -88,7 +71,6 @@ def configure_atomicdata():
         
 def configure(verbose=False):
     config, engine = configure_nexoclom(verbose=verbose)
-    configure_solarsystem()
     configure_atomicdata()
     
     return config, engine

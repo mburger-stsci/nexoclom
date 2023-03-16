@@ -17,7 +17,7 @@ import numpy as np
 import spiceypy as spice
 from astropy.time import Time
 import astropy.units as u
-from nexoclom.solarsystem.load_kernels import load_kernels
+from nexoclom.solarsystem.spice_routines import load_kernels
 
 
 def relative_position(obj, reference, ettemp, frame='J2000'):
