@@ -1,4 +1,3 @@
-assert False, "Don't use this"
 """This loads the generic solar system kernels
 
 Kernels to load:
