@@ -297,7 +297,7 @@ class ModelImage(ModelResult):
         dw = np.max(self.xaxis.value) - np.min(self.xaxis.value)
         dh = np.max(self.zaxis.value) - np.min(self.zaxis.value)
 
-        fig = bkp.figure(plot_width=1000, plot_height=1000,
+        fig = bkp.figure(width=1000, height=1000,
                          title=f'{self.inputs.options.species} {rname}',
                          x_axis_label=f'Distance ({ustr})',
                          y_axis_label=f'Distance ({ustr})',
@@ -314,7 +314,7 @@ class ModelImage(ModelResult):
         fig.patch(xc, yc, fill_color='yellow')
         
         bkp.output_file(savefile)
-        export_png(fig, filename=savefile.replace('.html', '.png'))
+        # export_png(fig, filename=savefile.replace('.html', '.png'))
         if show:
             bkp.show(fig)
         else:

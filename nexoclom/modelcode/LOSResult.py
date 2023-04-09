@@ -18,10 +18,8 @@ from nexoclom.modelcode.compute_iteration import (compute_iteration,
                                                   IterationResultFitted)
 from nexoclom import __file__ as basefile
 
-
 class LOSResult(ModelResult):
     """Class to contain the LOS result from multiple outputfiles.
-    
     Determine column or emission along lines of sight.
     This assumes the model has already been run.
 
@@ -413,10 +411,8 @@ fitted = {self.fitted}'''
                 
                 X0_subset = X0[X0.included]
                 if which == 0:
-                    weight = X0.frac
                     weight_subset = X0_subset.frac
                 else:
-                    weight = np.ones_like(X0.frac.values)
                     weight_subset = np.ones_like(X0_subset.frac.values)
                 
                 # Calculate the histograms and available fraction

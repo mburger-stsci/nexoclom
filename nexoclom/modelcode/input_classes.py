@@ -607,7 +607,8 @@ class SpatialDist:
                 insert_stmt = pg.insert(table).values(
                     exobase=self.exobase,
                     mapfile=self.mapfile,
-                    subsolarlon=sslon)
+                    subsolarlon=sslon,
+                    coordinate_system=self.coordinate_system)
             elif self.type == 'surface spot':
                 table = sqla.Table("spatdist_spot",
                                    metadata_obj,
@@ -661,7 +662,8 @@ class SpatialDist:
             query = sqla.select(table.columns.idnum).where(
                 table.columns.exobase == self.exobase,
                 table.columns.mapfile == self.mapfile,
-                table.columns.subsolarlon == sslon)
+                table.columns.subsolarlon == sslon,
+                table.columns.coordinate_system == self.coordinate_system)
         elif self.type == 'surface spot':
             table = sqla.Table('spatdist_spot',
                                metadata_obj,

@@ -7,9 +7,9 @@ class Histogram:
     Returns a class with everything self-contained.
     """
     def __init__(self, a, bins=10, range=None, weights=None, density=None):
-        hist, x = np.histogram(a, bins=bins, range=range, weights=weights, 
+        hist, x = np.histogram(a, bins=bins, range=range, weights=weights,
                                density=density)
-        self.histogram = hist.astype(np.float)
+        self.histogram = hist.astype(float)
         self.dx = x[1]-x[0]  # width of the bin
         self.x = x[:-1] + self.dx/2
         
@@ -31,7 +31,7 @@ class Histogram2d:
     """
     def __init__(self, ptsx, ptsy, bins=10, range=None, weights=None,
                  density=None):
-        hist, x, y = np.histogram2d(ptsx, ptsy, bins=bins, range=range, 
+        hist, x, y = np.histogram2d(ptsx, ptsy, bins=bins, range=range,
                                     weights=weights, density=density)
         self.histogram = hist
         self.dx, self.dy = x[1]-x[0], y[1]-y[0]
