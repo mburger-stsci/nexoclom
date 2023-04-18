@@ -306,6 +306,17 @@ fitted = {self.fitted}'''
             * Speed distribution (f_v vs v)
             * Azimuthal distribution (f_az vs az) -> measured CCW from north
             * Altitude distribution (f_alt vs alt) -> tangent = 0, normal = 90
+            :param smear_radius:
+            :param nlonbins:
+            :param nlatbins:
+            :param nvelbins:
+            :param nazbins:
+            :param naltbins:
+            :param use_condor:
+            :param normalize:
+            :param do_source:
+            :param do_available:
+            :return:
         """
         todo, source, available = [], None, None
         if do_source:

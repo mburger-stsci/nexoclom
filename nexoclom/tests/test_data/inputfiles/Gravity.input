@@ -1,0 +1,19 @@
+# Planet no satellites
+geometry.planet = Mercury
+geometry.taa = 3.14
+
+forces.gravity = True
+forces.radpres = False
+
+SpatialDist.type = uniform
+
+SpeedDist.type = flat
+SpeedDist.vprob = 4.
+SpeedDist.delv = 4.
+
+AngularDist.type = radial
+
+options.endtime = 20000.
+options.step_size = 30
+options.lifetime = 0.
+options.species = Na

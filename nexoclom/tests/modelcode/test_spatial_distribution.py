@@ -21,7 +21,7 @@ basepath = os.path.dirname(basefile)
 if __name__ == '__main__':
     inputpath = os.path.join('test_data', 'inputfiles')
 else:
-    inputpath = os.path.join(basepath, 'modelcode', 'tests', 'test_data', 'inputfiles')
+    inputpath = os.path.join(basepath, 'tests', 'test_data', 'inputfiles')
 
 
 NPACKETS = 100000
@@ -139,10 +139,6 @@ def test_surface_distribution(sparams):
     else:
         assert False
         
-    from IPython import embed; embed()
-    import sys; sys.exit()
-    
-
     _, p_lon = ks_test(longitude, expect_lon)
     assert p_lon == pytest.approx(1)
 

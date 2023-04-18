@@ -13,7 +13,7 @@ basepath = os.path.dirname(basefile)
 if __name__ == '__main__':
     inputpath = os.path.join('test_data', 'inputfiles')
 else:
-    inputpath = os.path.join(basepath, 'modelcode', 'tests', 'test_data', 'inputfiles')
+    inputpath = os.path.join(basepath, 'tests', 'test_data', 'inputfiles')
 
 
 @pytest.mark.modelcode

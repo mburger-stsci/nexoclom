@@ -15,8 +15,8 @@ for inputfile in inputfiles:
     if ((input_.surfaceinteraction.sticktype == 'surface map') and
         (input_.surfaceinteraction.mapfile != 'default')):
         # put correct surfaceinteraction.mapfile path
-        input_.surfaceinteraction.mapfile = os.path.join(basepath, 'modelcode',
-            'tests', 'test_data', 'sticking_maps',
+        input_.surfaceinteraction.mapfile = os.path.join(basepath, 'tests',
+            'test_data', 'sticking_maps',
             os.path.basename(input_.surfaceinteraction.mapfile))
     else:
         pass
@@ -25,9 +25,8 @@ for inputfile in inputfiles:
     if ((input_.spatialdist.type == 'surface map') and
         (input_.spatialdist.mapfile != 'default')):
         # put correct spatialdist.mapfile path
-        input_.spatialdist.mapfile = os.path.join(basepath, 'modelcode', 'tests',
-                                                  'test_data', 'surface_maps',
-                                                  os.path.basename(input_.spatialdist.mapfile))
+        input_.spatialdist.mapfile = os.path.join(basepath, 'tests', 'test_data',
+            'surface_maps', os.path.basename(input_.spatialdist.mapfile))
     else:
         pass
     

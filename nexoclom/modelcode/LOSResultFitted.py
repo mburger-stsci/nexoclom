@@ -133,7 +133,8 @@ class LOSResultFitted(LOSResult):
                 # output2.totalsource = output2.X0['frac'].sum() * output2.nsteps
 
                 # Using weighted mean to determine adjustment
-                for spnum, spectrum in data.iterrows():
+                mask = data[f'mask_{self.unfitted_label}']
+                for spnum, spectrum in data[mask].iterrows():
                     used = list(iteration_unfit.used_packets.loc[spnum])
                     cts = packets.loc[used, 'Index'].value_counts()
 
