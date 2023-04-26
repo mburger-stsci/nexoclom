@@ -19,6 +19,8 @@ class IterationResult:
         self.totalsource = iteration['totalsource']
         self.outputfile = iteration['outputfile']
         self.out_idnum = iteration['out_idnum']
+        self.included = iteration['included']
+        
         self.modelfile = None
         self.model_idnum = None
         self.fitted = False
@@ -115,6 +117,7 @@ def compute_iteration(self, outputfile, scdata, delay=False):
     # simulate the data
     output = Output.restore(outputfile)
 
+    X0_index = output.X0.index
     packets = output.X
     packets['radvel_sun'] = (packets['vy'] +
                              output.vrplanet.to(self.unit / u.s).value)
@@ -135,6 +138,8 @@ def compute_iteration(self, outputfile, scdata, delay=False):
                       dtype=int)
     used = pd.Series([set() for _ in range(data.shape[0])], index=data.index)
     used0 = pd.Series([set() for _ in range(data.shape[0])], index=data.index)
+    included = pd.Series(index=X0_index, dtype=bool)
+    included[:] = False
 
     print(f'{data.shape[0]} spectra taken.')
     for i, spectrum in data.iterrows():
@@ -175,6 +180,7 @@ def compute_iteration(self, outputfile, scdata, delay=False):
             subset = subset.loc[inview]
             subset_dist_sc = subset_dist_sc[inview]
             losrad = losrad[inview]
+            included[subset.Index] = True
 
             self.packet_weighting(subset, aplanet)
             Apix = np.pi * (subset_dist_sc * np.sin(self.dphi))**2 * (
@@ -214,7 +220,8 @@ def compute_iteration(self, outputfile, scdata, delay=False):
                   'out_idnum': idnum,
                   'query': scdata.query,
                   'used': used,
-                  'used0': used0}
+                  'used0': used0,
+                  'included': included}
     iteration_result = IterationResult(iteration_, self)
     iteration_result.save_iteration()
     

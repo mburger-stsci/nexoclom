@@ -177,7 +177,7 @@ class Output:
         
         # Reorder the dataframe columns
         cols = ['time', 'x', 'y', 'z', 'vx', 'vy', 'vz', 'frac', 'v',
-                'longitude', 'latitude', 'local_time']
+                'longitude', 'latitude', 'local_time', 'altitude', 'azimuth']
         self.X0 = self.X0[cols]
         
         # Integrate the packets forward

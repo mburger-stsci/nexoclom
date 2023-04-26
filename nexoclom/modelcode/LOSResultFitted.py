@@ -145,7 +145,7 @@ class LOSResultFitted(LOSResult):
                     else:
                         weighting.loc[cts.index] += cts.values * ratio[spnum]
                         included.loc[cts.index] += cts.values
-
+                        
                 if use_weight:
                     used = sigma > 0
                     ratio_x_sigma[used] = ratio_x_sigma[used] / sigma[used]
@@ -192,7 +192,8 @@ class LOSResultFitted(LOSResult):
                              'out_idnum': output.idnum,
                              'unfit_outputfile': ufit_outfile,
                              'unfit_outid': ufit_id,
-                             'unfit_modelfile': unfit_modelfile}
+                             'unfit_modelfile': unfit_modelfile,
+                             'included': included > 0}
                 iteration_result = IterationResultFitted(iteration, self)
                 iteration_result.save_iteration()
                 fitted_iteration_results.append(iteration_result)

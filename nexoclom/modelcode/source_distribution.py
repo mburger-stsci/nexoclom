@@ -237,7 +237,7 @@ def angular_distribution(outputs):
         north = np.array([-z0*x0, -z0*y0, x0**2+y0**2]).transpose()
 
         rad_ = np.linalg.norm(rad, axis=1)
-        rad = rad/rad_[:,np.newaxis]
+        rad = np.array([x0, y0, z0]).transpose()
         east_ = np.linalg.norm(east, axis=1)
         east = east/east_[:,np.newaxis]
         north_ = np.linalg.norm(north, axis=1)
@@ -248,6 +248,12 @@ def angular_distribution(outputs):
         outputs.X0['vx'] = v0[:, 0] * outputs.X0.v.values
         outputs.X0['vy'] = v0[:, 1] * outputs.X0.v.values
         outputs.X0['vz'] = v0[:, 2] * outputs.X0.v.values
+        
+        outputs.X0['altitude'] = alt.value
+        outputs.X0['azimuth'] = az.value
+        # outputs.X0['v_radial'] = v_rad * outputs.X0['v']
+        # outputs.X0['v_east'] = v_tan0 * outputs.X0['v']
+        # outputs.X0['v_north'] = v_tan1 * outputs.X0['v']
     else:
         v_rad = np.sin(alt.value)     # Radial component of velocity
         v_tan = np.cos(alt.value)     # Component along equator
@@ -266,3 +272,10 @@ def angular_distribution(outputs):
         outputs.X0['vx'] = v0[:, 0] * outputs.X0.v.values
         outputs.X0['vy'] = v0[:, 1] * outputs.X0.v.values
         outputs.X0['vz'] =  np.zeros((npackets, ))
+        
+        outputs.X0['altitude'] = alt.value
+        outputs.X0['azimuth'] = 0
+        outputs.X0['v_radial'] = v_rad * outputs.X0['v']
+        outputs.X0['v_east'] = np.sqrt(outputs.X0['v']**2 -
+                                       outputs.X0['v_east']**2)
+        outputs.X0['v_north'] = 0

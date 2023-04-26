@@ -336,158 +336,137 @@ fitted = {self.fitted}'''
                 print('Determining modeled source')
             else:
                 print('Determining available source')
-            distribution = {'abundance_uncor': np.zeros((nlonbins, nlatbins)) / u.s,
-                            'abundance': np.zeros((nlonbins, nlatbins)) / u.s,
+            distribution = {'abundance_uncor': np.zeros((nlonbins, nlatbins)),
+                            'abundance': np.zeros((nlonbins, nlatbins)),
                             'fraction_observed': np.zeros((nlonbins, nlatbins)),
-                            'speed_dist_map': np.zeros((nlonbins, nlatbins,
-                                                        nvelbins)) * u.s/u.km,
                             'n_included': np.zeros((nlonbins, nlatbins)),
                             'n_total': np.zeros((nlonbins, nlatbins)),
-                            'speed_dist': np.zeros(nvelbins) * u.s / u.km,
-                            'altitude_dist': np.zeros(naltbins) / u.rad,
-                            'azimuth_dist': np.zeros(nazbins) / u.rad}
+                            'speed_dist': np.zeros(nvelbins),
+                            'altitude_dist': np.zeros(naltbins),
+                            'azimuth_dist': np.zeros(nazbins),
+                            'speed_dist_map': np.zeros((nlonbins, nlatbins,
+                                                        nvelbins)),
+                            'altitude_dist_map':np.zeros((nlonbins, nlatbins,
+                                                          nvelbins)),
+                            'azimuth_dist_map': np.zeros((nlonbins, nlatbins,
+                                                          nvelbins))}
             vmax = None
+            Rplanet = self.inputs.geometry.planet.radius.value
 
             for outputfile, modelfile in self.modelfiles.items():
                 print(outputfile)
                 output = Output.restore(outputfile)
-                
-                if output.inputs.options.fitted:
-                    with open(modelfile, 'rb') as file:
-                        model = pickle.load(file)
-                    
-                    with open(model.unfit_modelfile, 'rb') as file:
-                        unfit_model = pickle.load(file)
-                    
-                    included = set()
-                    for row in unfit_model.used_packets0:
-                        included = included.union(row)
-                    included = list(included)
-                else:
-                    included = list(output.X0.index)
-                
                 X0 = output.X0
-                X0.loc[included, 'included'] = True
-                X0.included.fillna(False, inplace=True)
                 del output
                 
-                velocity = (X0[['vx', 'vy', 'vz']].values *
-                            self.inputs.geometry.planet.radius.value)
-                speed = np.linalg.norm(velocity, axis=1)
                 if vmax is None:
-                    vmax = np.ceil(speed.max())
+                    vmax = np.ceil(X0['v'].max() * Rplanet)
                 else:
                     pass
 
-                # Convert v_x, v_y, v_z -> v_east, v_north, v_radial vectors
-                # Radial, east, north unit vectors
-                rad = X0[['x', 'y', 'z']].values
-                rad_ = np.linalg.norm(rad, axis=1)
-                rad = rad/rad_[:, np.newaxis]
-
-                east = X0[['y', 'x', 'z']].values
-                east[:,1] = -1*east[:,1]
-                east[:,2] = 0
-                east_ = np.linalg.norm(east, axis=1)
-                east = east/east_[:, np.newaxis]
-
-                # north = np.array([-X0.z.values * X0.x.values,
-                #                   -X0.z.values * X0.y.values,
-                #                   X0.x.values**2 + X0.y.values**2])
-                north = np.cross(rad, east, axis=1)
-                north_ = np.linalg.norm(north, axis=1)
-                north = north/north_[:, np.newaxis]
-
-                v_rad = np.sum(velocity * rad, axis=1)
-                v_east = np.sum(velocity * east, axis=1)
-                v_north = np.sum(velocity * north, axis=1)
-
-                v_rad_over_speed = v_rad/speed
-                v_rad_over_speed[v_rad_over_speed > 1] = 1
-                v_rad_over_speed[v_rad_over_speed < -1] = -1
-
-                assert np.all(np.isclose(v_rad**2 + v_east**2 + v_north**2,
-                                         speed**2))
-                X0.loc[:, 'altitude'] = np.arcsin(v_rad_over_speed)
-                X0.loc[:, 'azimuth'] = (np.arctan2(v_north, v_east) +
-                                        2*np.pi) % (2*np.pi)
-                X0.loc[:, 'v_rad'] = v_rad
-                X0.loc[:, 'v_east'] = v_east
-                X0.loc[:, 'v_north'] = v_north
-                X0.loc[:, 'speed'] = speed
-                # X0.loc[:, 'longitude'] = (np.arctan2(X0.x.values, -X0.y.values) + 2*np.pi) \
-                #                          % (2*np.pi)
-                # X0.loc[:, 'latitude'] = np.arcsin(X0.z.values)
-                tree = BallTree(X0[['latitude', 'longitude']], metric='haversine')
-                
-                X0_subset = X0[X0.included]
+                included = X0.frac > 0
                 if which == 0:
-                    weight_subset = X0_subset.frac
+                    weight = X0.frac
                 else:
-                    weight_subset = np.ones_like(X0_subset.frac.values)
+                    weight = pd.Series(index=X0.index)
+                    weight[:] = 1
                 
                 # Calculate the histograms and available fraction
-                abundance = mathMB.Histogram2d(X0_subset.longitude,
-                                               X0_subset.latitude,
-                                               weights=weight_subset,
+                
+                # Need surface distribution longitude, latitude for BallTree
+                abundance = mathMB.Histogram2d(X0.loc[included, 'longitude'],
+                                               X0.loc[included, 'latitude'],
+                                               weights=weight[included],
                                                range=[[0, 2*np.pi],
                                                       [-np.pi/2, np.pi/2]],
                                                bins=(nlonbins, nlatbins))
                 gridlatitude, gridlongitude = np.meshgrid(abundance.y,
                                                           abundance.x)
-
+                
+                # Lon, lat as list of points
                 points = np.array([gridlatitude.flatten(),
                                    gridlongitude.flatten()]).T
-                ind = tree.query_radius(points, smear_radius)
-                n_included = np.zeros((points.shape[0], ))
-                n_total = np.zeros((points.shape[0], ))
-                v_point = np.zeros((points.shape[0], nvelbins))
-                for index in range(points.shape[0]):
-                    if len(ind[index]) > 0:
-                        # included = X0.loc[ind[index], 'included']
-                        weight_ = X0.loc[ind[index], 'frac']
-                        
-                        n_included[index] = np.sum(weight_ > 0)
-                        n_total[index] = len(weight_)
-                        # n_included[index] = np.sum(included*weight_)/np.sum(weight_)
-                        # n_total[index] = weight_.sum()
-                        
-                        # No weighting because assumption is all the atoms are ejected
-                        # from the same point (points[index, :])
-                        # n_included[index] = np.sum(included)
-                        # n_total[index] = len(included)
-                        vpoint_ = mathMB.Histogram(X0.loc[ind[index], 'speed'],
-                                                   bins=nvelbins, range=[0, vmax])
-                        v_point[index,:] += vpoint_.histogram
-                    else:
-                        pass
-
-                distribution['abundance_uncor'] += abundance.histogram / u.s
+                
+                   
+                # If not normalized, leave unitless. Hard to know what units
+                # should be
+                distribution['abundance_uncor'] += abundance.histogram
                 distribution['longitude'] = abundance.x * u.rad
                 distribution['latitude'] = abundance.y * u.rad
-                distribution['speed_dist_map'] += v_point.reshape(
-                    gridlongitude.shape + (nvelbins, )) * u.s/u.km
-                distribution['n_included'] += n_included.reshape(gridlongitude.shape)
-                distribution['n_total'] += n_total.reshape(gridlongitude.shape)
 
-                # Speed distribution
-                velocity = mathMB.Histogram(X0_subset.speed, bins=nvelbins,
-                                            range=[0, vmax], weights=weight_subset)
-                distribution['speed_dist'] += velocity.histogram * u.s/u.km
+                # Speed distribution - full planet
+                velocity = mathMB.Histogram(X0.loc[included, 'v'] *
+                                            self.inputs.geometry.planet.radius.value,
+                                            bins=nvelbins, range=[0, vmax],
+                                            weights=weight[included])
+                distribution['speed_dist'] += velocity.histogram
                 distribution['speed'] = velocity.x * u.km/u.s
 
                 # Altitude distribution
-                altitude = mathMB.Histogram(X0_subset.altitude, bins=naltbins,
-                                            range=[0, np.pi / 2], weights=weight_subset)
-                distribution['altitude_dist'] += altitude.histogram / u.rad
+                altitude = mathMB.Histogram(X0.loc[included, 'altitude'],
+                                            bins=naltbins,
+                                            range=[0, np.pi / 2],
+                                            weights=weight[included])
+                distribution['altitude_dist'] += altitude.histogram
                 distribution['altitude'] = altitude.x * u.rad
             
                 # Azimuth distribution
-                azimuth = mathMB.Histogram(X0_subset.azimuth, bins=nazbins,
-                                           range=[0, 2 * np.pi], weights=weight_subset)
-                distribution['azimuth_dist'] += azimuth.histogram / u.rad
+                azimuth = mathMB.Histogram(X0.loc[included, 'azimuth'],
+                                           bins=nazbins,
+                                           range=[0, 2 * np.pi],
+                                           weights=weight[included])
+                distribution['azimuth_dist'] += azimuth.histogram
                 distribution['azimuth'] = azimuth.x * u.rad
-                del X0, X0_subset
+                
+                # List of all X0 near the point on the surface
+                tree = BallTree(X0[['latitude', 'longitude']], metric='haversine')
+                ind = tree.query_radius(points, smear_radius)
+
+                # Determine spatial variations over the surface
+                n_included = np.zeros((points.shape[0],))  # X0 seen by UVVS
+                n_total = np.zeros((points.shape[0],))  # all X0
+                v_point = np.zeros((points.shape[0], nvelbins))  # spd dist
+                alt_point = np.zeros((points.shape[0], nvelbins))  # alt dist
+                az_point = np.zeros((points.shape[0], nvelbins))  # az dist
+                for index in range(points.shape[0]):
+                    if len(ind[index]) > 0:
+                        subset = X0.loc[ind[index]]
+                        sub_incl = included[ind[index]]
+                        sub_weight = weight[ind[index]]
+                        
+                        n_included[index] = subset.loc[sub_incl, 'frac'].sum()
+                        n_total[index] = len(subset)
+        
+                        vpoint_ = mathMB.Histogram(subset.loc[sub_incl, 'v'] * Rplanet,
+                                                   bins=nvelbins,
+                                                   range=[0, vmax],
+                                                   weights=sub_weight[sub_incl])
+                        v_point[index, :] += vpoint_.histogram
+
+                        altpoint_ = mathMB.Histogram(subset.loc[sub_incl, 'altitude'],
+                                                     bins=nvelbins,
+                                                     range=[0, np.pi/2],
+                                                     weights=sub_weight[sub_incl])
+                        alt_point[index, :] += altpoint_.histogram
+
+                        azpoint_ = mathMB.Histogram(subset.loc[sub_incl, 'azimuth'],
+                                                     bins=nvelbins,
+                                                     range=[0, 2*np.pi],
+                                                     weights=sub_weight[sub_incl])
+                        az_point[index, :] += azpoint_.histogram
+                    else:
+                        pass
+                    
+                distribution['n_included'] += n_included.reshape(gridlongitude.shape)
+                distribution['n_total'] += n_total.reshape(gridlongitude.shape)
+                distribution['speed_dist_map'] += v_point.reshape(
+                    gridlongitude.shape + (nvelbins, ))
+                distribution['altitude_dist_map'] += alt_point.reshape(
+                    gridlongitude.shape + (nvelbins, ))
+                distribution['azimuth_dist_map'] += az_point.reshape(
+                    gridlongitude.shape + (nvelbins, ))
+
+                del X0
 
             distribution['fraction_observed'] = (distribution['n_included']/
                                                  distribution['n_total'])
@@ -509,40 +488,61 @@ fitted = {self.fitted}'''
                 # (b) Multiply by source rate
                 dx = distribution['longitude'][1] - distribution['longitude'][0]
                 dy = distribution['latitude'][1] - distribution['latitude'][0]
-                _, gridlatitude = np.meshgrid(distribution['longitude'],
-                                              distribution['latitude'])
-                area = (self.inputs.geometry.planet.radius**2 * dx.value *
-                        (np.sin(gridlatitude + dy / 2) -
-                         np.sin(gridlatitude - dy / 2)))
-
+                _, gridlatitude = np.meshgrid(distribution['longitude'].value,
+                                              distribution['latitude'].value)
+                
+                d_area = np.abs((dx.value * (np.sin(gridlatitude + dy.value/2) -
+                                 np.sin(gridlatitude - dy.value/2))))
+                area = self.inputs.geometry.planet.radius.to(u.cm)**2 * d_area
+                
+                # Notes:
+                #   np.sum(d_area) = 4*np.pi
+                #   np.sum(area) == 4*np.pi * Rplanet**2
+                
                 distribution['abundance'] = (distribution['abundance'] /
                                              distribution['abundance'].sum() /
-                                             area.T.to(u.cm**2) *
+                                             area.T *
                                              self.sourcerate.to(1 / u.s))
                 distribution['abundance_uncor'] = (distribution['abundance_uncor'] /
-                                             distribution['abundance_uncor'].sum() /
-                                             area.T.to(u.cm**2) *
-                                             self.sourcerate.to(1 / u.s))
-                
+                                                   distribution['abundance_uncor'].sum() /
+                                                   area.T *
+                                                   self.sourcerate.to(1 / u.s))
+                    
                 # Normalize speed distribution
+                vdist_unit = u.def_unit('(km/s)^-1', u.s/u.km)
                 dv = distribution['speed'][1] - distribution['speed'][0]
                 distribution['speed_dist'] = (self.sourcerate *
                                               distribution['speed_dist'] /
-                                              distribution['speed_dist'].sum() / dv)
-                distribution['speed_dist'] = distribution['speed_dist'] * (
-                    self.sourcerate.unit * u.def_unit('(km/s)^-1', u.s/u.km))
-                distribution['speed_dist_map'] = distribution['speed_dist_map'] * (
-                    self.sourcerate.unit * u.def_unit('(km/s)^-1', u.s/u.km))
+                                              distribution['speed_dist'].sum() /
+                                              dv).to(vdist_unit/u.s)
+                
+                dist_ = (distribution['abundance'][:,:,np.newaxis]  *
+                         distribution['speed_dist_map'] /
+                         distribution['speed_dist_map'].sum(axis=2)[:,:,np.newaxis] /
+                         dv).to(vdist_unit*distribution['abundance'].unit)
+                distribution['speed_dist_map'] = dist_
                 
                 # Normalize altitude distribution
                 dalt = distribution['altitude'][1] - distribution['altitude'][0]
                 distribution['altitude'] = (self.sourcerate * distribution['altitude'] /
-                                            distribution['altitude'].sum() / dalt)
+                                            distribution['altitude'].sum() / dalt).to(
+                                            1./u.s/u.rad)
+                dist_ = (distribution['abundance'][:,:,np.newaxis]  *
+                         distribution['altitude_dist_map'] /
+                         distribution['altitude_dist_map'].sum(axis=2)[:,:,np.newaxis] /
+                         dalt).to(distribution['abundance'].unit/u.rad)
+                distribution['altitude_dist_map'] = dist_
 
                 # Normalize azimuth distribution
                 daz = distribution['azimuth'][1] - distribution['azimuth'][0]
                 distribution['azimuth'] = (self.sourcerate * distribution['azimuth'] /
-                                            distribution['azimuth'].sum() / daz)
+                                           distribution['azimuth'].sum() / daz).to(
+                                           1./u.s/u.rad)
+                dist_ = (distribution['abundance'][:,:,np.newaxis]  *
+                         distribution['azimuth_dist_map'] /
+                         distribution['azimuth_dist_map'].sum(axis=2)[:,:,np.newaxis] /
+                         daz).to(distribution['abundance'].unit/u.rad)
+                distribution['azimuth_dist_map'] = dist_
             else:
                 pass
                 
@@ -553,6 +553,8 @@ fitted = {self.fitted}'''
                     source.n_included = distribution['n_included']
                     source.n_total = distribution['n_total']
                     source.speed_dist_map = distribution['speed_dist_map']
+                    source.altitude_dist_map = distribution['altitude_dist_map']
+                    source.azimuth_dist_map = distribution['azimuth_dist_map']
                 else:
                     pass
             else:
@@ -562,7 +564,10 @@ fitted = {self.fitted}'''
                     available.n_included = distribution['n_included']
                     available.n_total = distribution['n_total']
                     available.speed_dist_map = distribution['speed_dist_map']
+                    available.speed_dist_map = distribution['speed_dist_map']
+                    available.altitude_dist_map = distribution['altitude_dist_map']
+                    available.azimuth_dist_map = distribution['azimuth_dist_map']
                 else:
                     pass
-
+                
         return source, available
