@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-from sklearn.neighbors import BallTree
 import pickle
 import astropy.units as u
 from astropy.modeling import models, fitting
@@ -8,15 +7,12 @@ from astropy.visualization import PercentileInterval
 import sqlalchemy as sqla
 import dask
 
-import nexoclom.math as mathMB
 from nexoclom import engine
-from nexoclom.modelcode.Output import Output
-from nexoclom.modelcode.SourceMap import SourceMap
 from nexoclom.modelcode.ModelResult import ModelResult
-from nexoclom.modelcode.compute_iteration import (compute_iteration,
-                                                  IterationResult,
-                                                  IterationResultFitted)
-from nexoclom import __file__ as basefile
+from nexoclom.modelcode.compute_iteration import compute_iteration
+from nexoclom.modelcode.make_source_map import make_source_map
+from nexoclom.modelcode.SourceMap import SourceMap
+
 
 class LOSResult(ModelResult):
     """Class to contain the LOS result from multiple outputfiles.
@@ -298,186 +294,99 @@ fitted = {self.fitted}'''
 
     def make_source_map(self, smear_radius=np.radians(10), nlonbins=180,
                         nlatbins=90, nvelbins=100, nazbins=90, naltbins=23,
-                        use_condor=False, normalize=True, do_source=True,
-                        do_available=True):
-        """
-        At each point in lon/lat grid want:
-            * Source flux (atoms/cm2/s
-            * Speed distribution (f_v vs v)
-            * Azimuthal distribution (f_az vs az) -> measured CCW from north
-            * Altitude distribution (f_alt vs alt) -> tangent = 0, normal = 90
-            :param smear_radius:
-            :param nlonbins:
-            :param nlatbins:
-            :param nvelbins:
-            :param nazbins:
-            :param naltbins:
-            :param use_condor:
-            :param normalize:
-            :param do_source:
-            :param do_available:
-            :return:
-        """
-        todo, source, available = [], None, None
+                        normalize=True, do_source=True, do_available=True,
+                        distribute=None):
+    
+        sourcemap = None
+        availablemap = None
+        todo = []
         if do_source:
-            todo.append(0)
-            source = {}
+            todo.append('source')
         else:
             pass
-
+    
         if do_available:
-            todo.append(1)
-            available = {}
+            todo.append('available')
         else:
             pass
-        
-        for which in todo:
-            if which == 0:
-                print('Determining modeled source')
-            else:
-                print('Determining available source')
-            distribution = {'abundance_uncor': np.zeros((nlonbins, nlatbins)),
-                            'abundance': np.zeros((nlonbins, nlatbins)),
-                            'fraction_observed': np.zeros((nlonbins, nlatbins)),
-                            'n_included': np.zeros((nlonbins, nlatbins)),
-                            'n_total': np.zeros((nlonbins, nlatbins)),
-                            'speed_dist': np.zeros(nvelbins),
-                            'altitude_dist': np.zeros(naltbins),
-                            'azimuth_dist': np.zeros(nazbins),
-                            'speed_dist_map': np.zeros((nlonbins, nlatbins,
-                                                        nvelbins)),
-                            'altitude_dist_map':np.zeros((nlonbins, nlatbins,
-                                                          nvelbins)),
-                            'azimuth_dist_map': np.zeros((nlonbins, nlatbins,
-                                                          nvelbins))}
-            vmax = None
-            Rplanet = self.inputs.geometry.planet.radius.value
-
-            for outputfile, modelfile in self.modelfiles.items():
-                print(outputfile)
-                output = Output.restore(outputfile)
-                X0 = output.X0
-                del output
-                
-                if vmax is None:
-                    vmax = np.ceil(X0['v'].max() * Rplanet)
-                else:
-                    pass
-
-                included = X0.frac > 0
-                if which == 0:
-                    weight = X0.frac
-                else:
-                    weight = pd.Series(index=X0.index)
-                    weight[:] = 1
-                
-                # Calculate the histograms and available fraction
-                
-                # Need surface distribution longitude, latitude for BallTree
-                abundance = mathMB.Histogram2d(X0.loc[included, 'longitude'],
-                                               X0.loc[included, 'latitude'],
-                                               weights=weight[included],
-                                               range=[[0, 2*np.pi],
-                                                      [-np.pi/2, np.pi/2]],
-                                               bins=(nlonbins, nlatbins))
-                gridlatitude, gridlongitude = np.meshgrid(abundance.y,
-                                                          abundance.x)
-                
-                # Lon, lat as list of points
-                points = np.array([gridlatitude.flatten(),
-                                   gridlongitude.flatten()]).T
-                
-                   
-                # If not normalized, leave unitless. Hard to know what units
-                # should be
-                distribution['abundance_uncor'] += abundance.histogram
-                distribution['longitude'] = abundance.x * u.rad
-                distribution['latitude'] = abundance.y * u.rad
-
-                # Speed distribution - full planet
-                velocity = mathMB.Histogram(X0.loc[included, 'v'] *
-                                            self.inputs.geometry.planet.radius.value,
-                                            bins=nvelbins, range=[0, vmax],
-                                            weights=weight[included])
-                distribution['speed_dist'] += velocity.histogram
-                distribution['speed'] = velocity.x * u.km/u.s
-
-                # Altitude distribution
-                altitude = mathMB.Histogram(X0.loc[included, 'altitude'],
-                                            bins=naltbins,
-                                            range=[0, np.pi / 2],
-                                            weights=weight[included])
-                distribution['altitude_dist'] += altitude.histogram
-                distribution['altitude'] = altitude.x * u.rad
             
-                # Azimuth distribution
-                azimuth = mathMB.Histogram(X0.loc[included, 'azimuth'],
-                                           bins=nazbins,
-                                           range=[0, 2 * np.pi],
-                                           weights=weight[included])
-                distribution['azimuth_dist'] += azimuth.histogram
-                distribution['azimuth'] = azimuth.x * u.rad
-                
-                # List of all X0 near the point on the surface
-                tree = BallTree(X0[['latitude', 'longitude']], metric='haversine')
-                ind = tree.query_radius(points, smear_radius)
+        params = {'smear_radius': smear_radius,
+                  'nlonbins': nlonbins,
+                  'nlatbins': nlatbins,
+                  'nvelbins': nvelbins,
+                  'nazbins': nazbins,
+                  'naltbins': naltbins,
+                  'normalize': normalize,
+                  'planet_radius': self.inputs.geometry.planet.radius,
+                  'sourcerate': self.sourcerate}
+    
+        for todo_ in todo:
+            if distribute in ('delay', 'delayed'):
+                sources_ = [dask.delayed(make_source_map)(outputfile, modelfile,
+                                                          params, todo=todo_)
+                            for outputfile, modelfile in self.modelfiles.items()]
+                sources = dask.compute(sources_)
+                sources = sources[0]
+            else:
+                sources = [make_source_map(outputfile, modelfile, params,
+                                           todo=todo_)
+                           for outputfile, modelfile in self.modelfiles.items()]
 
-                # Determine spatial variations over the surface
-                n_included = np.zeros((points.shape[0],))  # X0 seen by UVVS
-                n_total = np.zeros((points.shape[0],))  # all X0
-                v_point = np.zeros((points.shape[0], nvelbins))  # spd dist
-                alt_point = np.zeros((points.shape[0], nvelbins))  # alt dist
-                az_point = np.zeros((points.shape[0], nvelbins))  # az dist
-                for index in range(points.shape[0]):
-                    if len(ind[index]) > 0:
-                        subset = X0.loc[ind[index]]
-                        sub_incl = included[ind[index]]
-                        sub_weight = weight[ind[index]]
-                        
-                        n_included[index] = subset.loc[sub_incl, 'frac'].sum()
-                        n_total[index] = len(subset)
-        
-                        vpoint_ = mathMB.Histogram(subset.loc[sub_incl, 'v'] * Rplanet,
-                                                   bins=nvelbins,
-                                                   range=[0, vmax],
-                                                   weights=sub_weight[sub_incl])
-                        v_point[index, :] += vpoint_.histogram
+            # Add the iterations
+            distribution = {'abundance_uncor':np.zeros((nlonbins, nlatbins)),
+                            'n_included':np.zeros((nlonbins, nlatbins)),
+                            'n_total':np.zeros((nlonbins, nlatbins)),
+                            'speed_dist':np.zeros(nvelbins),
+                            'altitude_dist':np.zeros(naltbins),
+                            'azimuth_dist':np.zeros(nazbins),
+                            'speed_dist_map':np.zeros((nlonbins, nlatbins,
+                                                       nvelbins)),
+                            'altitude_dist_map':np.zeros((nlonbins, nlatbins,
+                                                          naltbins)),
+                            'azimuth_dist_map':np.zeros((nlonbins, nlatbins,
+                                                         nazbins))}
 
-                        altpoint_ = mathMB.Histogram(subset.loc[sub_incl, 'altitude'],
-                                                     bins=nvelbins,
-                                                     range=[0, np.pi/2],
-                                                     weights=sub_weight[sub_incl])
-                        alt_point[index, :] += altpoint_.histogram
+            vmaxes = [source['speed'].max() for source in sources]
+            vmax = max(vmaxes)
+            q = np.where(vmax == vmaxes)[0][0]
+            distribution['speed'] = sources[q]['speed']
+            for source in sources:
+                distribution['abundance_uncor'] += source['abundance_uncor']
+                distribution['n_included'] += source['n_included']
+                distribution['n_total'] += source['n_total']
+                distribution['altitude_dist'] += source['altitude_dist']
+                distribution['altitude_dist_map'] += source['altitude_dist_map']
+                distribution['azimuth_dist'] += source['azimuth_dist']
+                distribution['azimuth_dist_map'] += source['azimuth_dist_map']
 
-                        azpoint_ = mathMB.Histogram(subset.loc[sub_incl, 'azimuth'],
-                                                     bins=nvelbins,
-                                                     range=[0, 2*np.pi],
-                                                     weights=sub_weight[sub_incl])
-                        az_point[index, :] += azpoint_.histogram
-                    else:
-                        pass
-                    
-                distribution['n_included'] += n_included.reshape(gridlongitude.shape)
-                distribution['n_total'] += n_total.reshape(gridlongitude.shape)
-                distribution['speed_dist_map'] += v_point.reshape(
-                    gridlongitude.shape + (nvelbins, ))
-                distribution['altitude_dist_map'] += alt_point.reshape(
-                    gridlongitude.shape + (nvelbins, ))
-                distribution['azimuth_dist_map'] += az_point.reshape(
-                    gridlongitude.shape + (nvelbins, ))
+                if source['speed'].max() == vmax:
+                    distribution['speed_dist'] += source['speed_dist']
+                    distribution['speed_dist_map'] += source['speed_dist_map']
+                else:
+                    distribution['speed_dist'] += np.interp(distribution['speed'],
+                                                            source['speed'],
+                                                            source['speed_dist'])
+                    for i in range(nlonbins):
+                        for j in range(nlatbins):
+                            distribution['speed_dist_map'] += np.interp(
+                                distribution['speed'], source['speed'],
+                                source['speed_dist_map'][i,j,:])
 
-                del X0
+            distribution['longitude'] = sources[0]['longitude']
+            distribution['latitude'] = sources[0]['latitude']
+            distribution['azimuth'] = sources[0]['azimuth']
+            distribution['altitude'] = sources[0]['altitude']
 
-            distribution['fraction_observed'] = (distribution['n_included']/
+            distribution['fraction_observed'] = (distribution['n_included'] /
                                                  distribution['n_total'])
             q = np.isnan(distribution['fraction_observed'])
             distribution['fraction_observed'][q] = 1
-            distribution['abundance'] = (distribution['abundance_uncor']/
+            distribution['abundance'] = (distribution['abundance_uncor'] /
                                          distribution['fraction_observed'])
             distribution['fraction_observed'][q] = 0
             q = np.isnan(distribution['abundance'])
             distribution['abundance'][q] = 0
-            
+
             ## normalization
             if normalize:
                 # Convert histogram to flux
@@ -490,84 +399,75 @@ fitted = {self.fitted}'''
                 dy = distribution['latitude'][1] - distribution['latitude'][0]
                 _, gridlatitude = np.meshgrid(distribution['longitude'].value,
                                               distribution['latitude'].value)
-                
-                d_area = np.abs((dx.value * (np.sin(gridlatitude + dy.value/2) -
-                                 np.sin(gridlatitude - dy.value/2))))
+            
+                d_area = np.abs((dx.value * (np.sin(gridlatitude + dy.value / 2) -
+                                             np.sin(gridlatitude - dy.value / 2))))
                 area = self.inputs.geometry.planet.radius.to(u.cm)**2 * d_area
-                
+            
                 # Notes:
                 #   np.sum(d_area) = 4*np.pi
                 #   np.sum(area) == 4*np.pi * Rplanet**2
-                
+            
                 distribution['abundance'] = (distribution['abundance'] /
                                              distribution['abundance'].sum() /
                                              area.T *
-                                             self.sourcerate.to(1 / u.s))
+                                             self.sourcerate)
                 distribution['abundance_uncor'] = (distribution['abundance_uncor'] /
                                                    distribution['abundance_uncor'].sum() /
-                                                   area.T *
-                                                   self.sourcerate.to(1 / u.s))
-                    
+                                                   area.T * self.sourcerate)
+            
                 # Normalize speed distribution
-                vdist_unit = u.def_unit('(km/s)^-1', u.s/u.km)
+                vdist_unit = u.def_unit('(km/s)^-1', u.s / u.km)
                 dv = distribution['speed'][1] - distribution['speed'][0]
                 distribution['speed_dist'] = (self.sourcerate *
                                               distribution['speed_dist'] /
                                               distribution['speed_dist'].sum() /
-                                              dv).to(vdist_unit/u.s)
-                
-                dist_ = (distribution['abundance'][:,:,np.newaxis]  *
+                                              dv).to(vdist_unit / u.s)
+            
+                dist_ = (distribution['abundance'][:, :, np.newaxis] *
                          distribution['speed_dist_map'] /
-                         distribution['speed_dist_map'].sum(axis=2)[:,:,np.newaxis] /
-                         dv).to(vdist_unit*distribution['abundance'].unit)
+                         distribution['speed_dist_map'].sum(axis=2)[:, :, np.newaxis] /
+                         dv).to(vdist_unit * distribution['abundance'].unit)
                 distribution['speed_dist_map'] = dist_
-                
+            
                 # Normalize altitude distribution
                 dalt = distribution['altitude'][1] - distribution['altitude'][0]
                 distribution['altitude'] = (self.sourcerate * distribution['altitude'] /
                                             distribution['altitude'].sum() / dalt).to(
-                                            1./u.s/u.rad)
-                dist_ = (distribution['abundance'][:,:,np.newaxis]  *
+                    1. / u.s / u.rad)
+                dist_ = (distribution['abundance'][:, :, np.newaxis] *
                          distribution['altitude_dist_map'] /
-                         distribution['altitude_dist_map'].sum(axis=2)[:,:,np.newaxis] /
-                         dalt).to(distribution['abundance'].unit/u.rad)
+                         distribution['altitude_dist_map'].sum(axis=2)[:, :, np.newaxis] /
+                         dalt).to(distribution['abundance'].unit / u.rad)
                 distribution['altitude_dist_map'] = dist_
-
+            
                 # Normalize azimuth distribution
                 daz = distribution['azimuth'][1] - distribution['azimuth'][0]
                 distribution['azimuth'] = (self.sourcerate * distribution['azimuth'] /
                                            distribution['azimuth'].sum() / daz).to(
-                                           1./u.s/u.rad)
-                dist_ = (distribution['abundance'][:,:,np.newaxis]  *
+                    1. / u.s / u.rad)
+                dist_ = (distribution['abundance'][:, :, np.newaxis] *
                          distribution['azimuth_dist_map'] /
-                         distribution['azimuth_dist_map'].sum(axis=2)[:,:,np.newaxis] /
-                         daz).to(distribution['abundance'].unit/u.rad)
+                         distribution['azimuth_dist_map'].sum(axis=2)[:, :, np.newaxis] /
+                         daz).to(distribution['abundance'].unit / u.rad)
                 distribution['azimuth_dist_map'] = dist_
             else:
                 pass
-                
-            if which == 0:
-                source = SourceMap(distribution)
-                if (nlonbins > 0) and (nlatbins > 0):
-                    source.abundance_uncor = distribution['abundance_uncor']
-                    source.n_included = distribution['n_included']
-                    source.n_total = distribution['n_total']
-                    source.speed_dist_map = distribution['speed_dist_map']
-                    source.altitude_dist_map = distribution['altitude_dist_map']
-                    source.azimuth_dist_map = distribution['azimuth_dist_map']
-                else:
-                    pass
+            
+            source_ = SourceMap(distribution)
+            if (nlonbins > 0) and (nlatbins > 0):
+                source_.abundance_uncor = distribution['abundance_uncor']
+                source_.n_included = distribution['n_included']
+                source_.n_total = distribution['n_total']
+                source_.speed_dist_map = distribution['speed_dist_map']
+                source_.altitude_dist_map = distribution['altitude_dist_map']
+                source_.azimuth_dist_map = distribution['azimuth_dist_map']
             else:
-                available = SourceMap(distribution)
-                if (nlonbins > 0) and (nlatbins > 0):
-                    available.abundance_uncor = distribution['abundance_uncor']
-                    available.n_included = distribution['n_included']
-                    available.n_total = distribution['n_total']
-                    available.speed_dist_map = distribution['speed_dist_map']
-                    available.speed_dist_map = distribution['speed_dist_map']
-                    available.altitude_dist_map = distribution['altitude_dist_map']
-                    available.azimuth_dist_map = distribution['azimuth_dist_map']
-                else:
-                    pass
+                pass
+            
+            if todo_ == 'source':
+                sourcemap = source_
+            else:
+                availablemap = source_
                 
-        return source, available
+        return sourcemap, availablemap
