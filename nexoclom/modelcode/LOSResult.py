@@ -359,6 +359,8 @@ fitted = {self.fitted}'''
                 distribution['azimuth_dist'] += source['azimuth_dist']
                 distribution['azimuth_dist_map'] += source['azimuth_dist_map']
 
+                distribution['speed_dist'] += source['speed_dist']
+                distribution['speed_dist_map'] += source['speed_dist_map']
                 if source['speed'].max() == vmax:
                     distribution['speed_dist'] += source['speed_dist']
                     distribution['speed_dist_map'] += source['speed_dist_map']
@@ -411,10 +413,10 @@ fitted = {self.fitted}'''
                 distribution['abundance'] = (distribution['abundance'] /
                                              distribution['abundance'].sum() /
                                              area.T *
-                                             self.sourcerate)
+                                             self.sourcerate.to(1/u.s))
                 distribution['abundance_uncor'] = (distribution['abundance_uncor'] /
                                                    distribution['abundance_uncor'].sum() /
-                                                   area.T * self.sourcerate)
+                                                   area.T * self.sourcerate.to(1/u.s))
             
                 # Normalize speed distribution
                 vdist_unit = u.def_unit('(km/s)^-1', u.s / u.km)
@@ -434,7 +436,7 @@ fitted = {self.fitted}'''
                 dalt = distribution['altitude'][1] - distribution['altitude'][0]
                 distribution['altitude'] = (self.sourcerate * distribution['altitude'] /
                                             distribution['altitude'].sum() / dalt).to(
-                    1. / u.s / u.rad)
+                                            1. / u.s / u.rad)
                 dist_ = (distribution['abundance'][:, :, np.newaxis] *
                          distribution['altitude_dist_map'] /
                          distribution['altitude_dist_map'].sum(axis=2)[:, :, np.newaxis] /

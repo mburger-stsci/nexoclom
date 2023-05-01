@@ -44,6 +44,8 @@ def make_source_map(outputfile, modelfile, params, todo=None):
         raise ValueError()
     else:
         R_planet = R_planet.to(u.km)
+    
+    smear_abundance = params.get('smear_abundance', False)
     sourcerate = params.get('sourcerate', 1e23/u.s).to(1./u.s)
 
     distribution = {}
@@ -63,7 +65,8 @@ def make_source_map(outputfile, modelfile, params, todo=None):
         weight[:] = 1
     else:
         assert False
-    
+
+    # List of all X0 near the point on the surface
     # Calculate the histograms and available fraction
     
     # Need surface distribution longitude, latitude for BallTree
@@ -75,11 +78,12 @@ def make_source_map(outputfile, modelfile, params, todo=None):
                                    bins=(nlonbins, nlatbins))
     gridlatitude, gridlongitude = np.meshgrid(abundance.y,
                                               abundance.x)
-    
     # Lon, lat as list of points
     points = np.array([gridlatitude.flatten(),
                        gridlongitude.flatten()]).T
-    
+    tree = BallTree(X0[['latitude', 'longitude']], metric='haversine')
+    ind = tree.query_radius(points, smear_radius)
+
     # If not normalized, leave unitless. Hard to know what units
     # should be
     distribution['abundance_uncor'] = abundance.histogram
@@ -109,25 +113,30 @@ def make_source_map(outputfile, modelfile, params, todo=None):
     distribution['azimuth_dist'] = azimuth.histogram
     distribution['azimuth'] = azimuth.x * u.rad
     
-    # List of all X0 near the point on the surface
-    tree = BallTree(X0[['latitude', 'longitude']], metric='haversine')
-    ind = tree.query_radius(points, smear_radius)
-    
     # Determine spatial variations over the surface
     n_included = np.zeros((points.shape[0],))  # X0 seen by UVVS
     n_total = np.zeros((points.shape[0],))  # all X0
     v_point = np.zeros((points.shape[0], nvelbins))  # spd dist
     alt_point = np.zeros((points.shape[0], naltbins))  # alt dist
     az_point = np.zeros((points.shape[0], nazbins))  # az dist
+    if smear_abundance:
+        abundance = np.zeros((points.shape[0], ))
+    else:
+        pass
     for index in range(points.shape[0]):
         if len(ind[index]) > 0:
             subset = X0.loc[ind[index]]
             sub_incl = included[ind[index]]
             sub_weight = weight[ind[index]]
             
-            n_included[index] = subset.loc[sub_incl, 'frac'].sum()
+            n_included[index] = sub_incl.sum()
             n_total[index] = len(subset)
             
+            if smear_abundance:
+                abundance[index] = sub_weight.mean()
+            else:
+                pass
+
             vpoint_ = mathMB.Histogram(subset.loc[sub_incl, 'v'] * R_planet.value,
                                        bins=nvelbins,
                                        range=[0, vmax],

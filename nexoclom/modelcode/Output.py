@@ -364,7 +364,7 @@ class Output:
         step_size = np.zeros(self.npackets) + self.inputs.options.step_size
         
         self.nsteps = int(np.ceil(self.inputs.options.endtime.value/step_size[0]
-                             + 1))
+                                  + 1))
         results = np.zeros((self.npackets,8,self.nsteps))
         results[:,:,0] = self.X0[cols]
         lossfrac = np.ndarray((self.npackets,self.nsteps))
