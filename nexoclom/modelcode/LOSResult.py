@@ -292,8 +292,7 @@ fitted = {self.fitted}'''
 
         self.mask = mask
 
-    def make_source_map(self, smear_radius=np.radians(10), nlonbins=180,
-                        nlatbins=90, nvelbins=100, nazbins=90, naltbins=23,
+    def make_source_map(self, smear_radius=np.radians(10), grid_params=None,
                         normalize=True, do_source=True, do_available=True,
                         distribute=None):
     
@@ -309,42 +308,22 @@ fitted = {self.fitted}'''
             todo.append('available')
         else:
             pass
-            
-        params = {'smear_radius': smear_radius,
-                  'nlonbins': nlonbins,
-                  'nlatbins': nlatbins,
-                  'nvelbins': nvelbins,
-                  'nazbins': nazbins,
-                  'naltbins': naltbins,
-                  'normalize': normalize,
-                  'planet_radius': self.inputs.geometry.planet.radius,
-                  'sourcerate': self.sourcerate}
-    
+        
         for todo_ in todo:
             if distribute in ('delay', 'delayed'):
-                sources_ = [dask.delayed(make_source_map)(outputfile, modelfile,
-                                                          params, todo=todo_)
+                sources_ = [dask.delayed(make_source_map)(outputfile, grid_params,
+                                                          todo=todo_)
                             for outputfile, modelfile in self.modelfiles.items()]
                 sources = dask.compute(sources_)
+                
                 sources = sources[0]
             else:
-                sources = [make_source_map(outputfile, modelfile, params,
-                                           todo=todo_)
+                sources = [make_source_map(outputfile, grid_params, todo=todo_)
                            for outputfile, modelfile in self.modelfiles.items()]
-
+             
             # Add the iterations
-            distribution = {'abundance_uncor':np.zeros((nlonbins, nlatbins)),
-                            'n_included':np.zeros((nlonbins, nlatbins)),
-                            'n_total':np.zeros((nlonbins, nlatbins)),
-                            'speed_dist':np.zeros(nvelbins),
-                            'altitude_dist':np.zeros(naltbins),
-                            'azimuth_dist':np.zeros(nazbins),
-                            'speed_dist_map':np.zeros((nlonbins, nlatbins,
-                                                       nvelbins)),
-                            'altitude_dist_map':np.zeros((nlonbins, nlatbins,
-                                                          naltbins)),
-                            'azimuth_dist_map':np.zeros((nlonbins, nlatbins,
-                                                         nazbins))}
+            distribution = {key: np.zeros_like(value)
+                            for key, value in sources[0].items()}
 
             vmaxes = [source['speed'].max() for source in sources]
             vmax = max(vmaxes)
@@ -368,8 +347,8 @@ fitted = {self.fitted}'''
                     distribution['speed_dist'] += np.interp(distribution['speed'],
                                                             source['speed'],
                                                             source['speed_dist'])
-                    for i in range(nlonbins):
-                        for j in range(nlatbins):
+                    for i in range(len(distribution['longitude'])):
+                        for j in range(len(distribution['latitude'])):
                             distribution['speed_dist_map'] += np.interp(
                                 distribution['speed'], source['speed'],
                                 source['speed_dist_map'][i,j,:])
@@ -457,15 +436,12 @@ fitted = {self.fitted}'''
                 pass
             
             source_ = SourceMap(distribution)
-            if (nlonbins > 0) and (nlatbins > 0):
-                source_.abundance_uncor = distribution['abundance_uncor']
-                source_.n_included = distribution['n_included']
-                source_.n_total = distribution['n_total']
-                source_.speed_dist_map = distribution['speed_dist_map']
-                source_.altitude_dist_map = distribution['altitude_dist_map']
-                source_.azimuth_dist_map = distribution['azimuth_dist_map']
-            else:
-                pass
+            source_.abundance_uncor = distribution['abundance_uncor']
+            source_.n_included = distribution['n_included']
+            source_.n_total = distribution['n_total']
+            source_.speed_dist_map = distribution['speed_dist_map']
+            source_.altitude_dist_map = distribution['altitude_dist_map']
+            source_.azimuth_dist_map = distribution['azimuth_dist_map']
             
             if todo_ == 'source':
                 sourcemap = source_

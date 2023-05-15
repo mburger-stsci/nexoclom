@@ -6,7 +6,7 @@ from nexoclom.modelcode.Output import Output
 import nexoclom.math as mathMB
 
 
-def make_source_map(outputfile, modelfile, params, todo=None):
+def make_source_map(outputfile, params, todo=None):
     """
     At each point in lon/lat grid want:
         * Source flux (atoms/cm2/s
@@ -33,26 +33,23 @@ def make_source_map(outputfile, modelfile, params, todo=None):
     else:
         return None
     
+    if params is None:
+        params = {}
+    else:
+        pass
+    
     smear_radius = params.get('smear_radius', np.radians(10))
     nlonbins = params.get('nlonbins', 180)
     nlatbins = params.get('nlatbins', 90)
     nvelbins = params.get('nvelbins', 100)
-    nazbins = params.get('nazbins', 90)
+    nazbins = params.get('nazbins', 45)
     naltbins = params.get('naltbins', 23)
-    R_planet = params.get('planet_radius', None)
-    if R_planet is None:
-        raise ValueError()
-    else:
-        R_planet = R_planet.to(u.km)
-    
-    smear_abundance = params.get('smear_abundance', False)
-    sourcerate = params.get('sourcerate', 1e23/u.s).to(1./u.s)
-
-    distribution = {}
+    smear_abundance = params.get('smear_abundance', True)
     
     print(outputfile)
     output = Output.restore(outputfile)
     X0 = output.X0
+    R_planet = output.inputs.geometry.planet.radius.to(u.km)
     del output
     
     vmax = np.ceil(X0['v'].max() * R_planet.value)
@@ -78,14 +75,9 @@ def make_source_map(outputfile, modelfile, params, todo=None):
                                    bins=(nlonbins, nlatbins))
     gridlatitude, gridlongitude = np.meshgrid(abundance.y,
                                               abundance.x)
-    # Lon, lat as list of points
-    points = np.array([gridlatitude.flatten(),
-                       gridlongitude.flatten()]).T
-    tree = BallTree(X0[['latitude', 'longitude']], metric='haversine')
-    ind = tree.query_radius(points, smear_radius)
-
     # If not normalized, leave unitless. Hard to know what units
     # should be
+    distribution = {}
     distribution['abundance_uncor'] = abundance.histogram
     distribution['longitude'] = abundance.x * u.rad
     distribution['latitude'] = abundance.y * u.rad
@@ -113,6 +105,12 @@ def make_source_map(outputfile, modelfile, params, todo=None):
     distribution['azimuth_dist'] = azimuth.histogram
     distribution['azimuth'] = azimuth.x * u.rad
     
+    # Lon, lat as list of points
+    points = np.array([gridlatitude.flatten(),
+                       gridlongitude.flatten()]).T
+    tree = BallTree(X0[['latitude', 'longitude']], metric='haversine')
+    ind = tree.query_radius(points, smear_radius*np.cos(points[:,0]))
+
     # Determine spatial variations over the surface
     n_included = np.zeros((points.shape[0],))  # X0 seen by UVVS
     n_total = np.zeros((points.shape[0],))  # all X0
@@ -133,10 +131,10 @@ def make_source_map(outputfile, modelfile, params, todo=None):
             n_total[index] = len(subset)
             
             if smear_abundance:
-                abundance[index] = sub_weight.mean()
+                abundance[index] = sub_weight.sum()
             else:
                 pass
-
+            
             vpoint_ = mathMB.Histogram(subset.loc[sub_incl, 'v'] * R_planet.value,
                                        bins=nvelbins,
                                        range=[0, vmax],
@@ -156,6 +154,11 @@ def make_source_map(outputfile, modelfile, params, todo=None):
             az_point[index, :] = azpoint_.histogram
         else:
             pass
+        
+    if smear_abundance:
+        distribution['abundance_uncor'] = abundance.reshape(gridlongitude.shape)
+    else:
+        pass
     
     distribution['n_included'] = n_included.reshape(gridlongitude.shape)
     distribution['n_total'] = n_total.reshape(gridlongitude.shape)
