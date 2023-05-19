@@ -25,19 +25,12 @@ Options
     Configure other model parameters
 """
 import os
-import shutil
-import sys
-import time
-import pickle
 import numpy as np
 import pandas as pd
 from astropy.time import Time
 import sqlalchemy as sqla
-try:
-    import condorMB
-except:
-    pass
-
+import dask
+import time
 
 from nexoclom.modelcode.Output import Output
 from nexoclom import config, engine
@@ -45,15 +38,14 @@ from nexoclom.modelcode.input_classes import (Geometry, SurfaceInteraction,
                                              Forces, SpatialDist, SpeedDist,
                                              AngularDist, Options)
 from nexoclom.modelcode.ModelImage import ModelImage
-from nexoclom import __file__ as basefile
 
 
-def get_machine(machines):
-    i = 0
-    while i < len(machines):
-        yield machines[i]
-        i = (i + 1) % len(machines)
-
+@dask.delayed
+def output_wrapper(inputs, npackets, compress):
+    time.sleep(np.random.random()*10)
+    Output(inputs, npackets, compress=compress)
+    return 0
+ 
 
 class Input:
     def __init__(self, infile):
@@ -112,8 +104,7 @@ class Input:
         else:
             raise FileNotFoundError(infile)
             
-        def extract_param(tag):
-            return {b: c for (a, b, c) in params if a == tag}
+        extract_param = lambda tag: {b: c for (a, b, c) in params if a == tag}
 
         self.geometry = Geometry(extract_param('geometry'))
         self.surfaceinteraction = SurfaceInteraction(extract_param(
@@ -205,7 +196,7 @@ class Input:
 
 
     def run(self, npackets, packs_per_it=None, overwrite=False, compress=True,
-            use_condor=False):
+            distribute=None):
         """Run the nexoclom model with the current inputs.
         
         **Parameters**
@@ -264,51 +255,14 @@ class Input:
             print('Running Model')
             print(f'Will complete {nits} iterations of {packs_per_it} packets.')
 
-            if use_condor:
-                njobs, machines = condorMB.nCPUs()
-                machine_gen = get_machine(machines)
-                python = sys.executable
-                pyfile = os.path.join(os.path.dirname(basefile), 'modelcode',
-                                      'Output_wrapper.py')
-
-                tempdir = os.path.join(self.config.savepath, 'temp',
-                                       str(np.random.randint(1000000)))
-                if not os.path.exists(tempdir):
-                    os.makedirs(tempdir)
-                
-                jobs, datafiles = [], []
-                for ct in range(nits):
-                    datafile = os.path.join(tempdir, f'inputs_{ct}.pkl')
-                    with open(datafile, 'wb') as file:
-                        pickle.dump(self, file)
-                    datafiles.append(datafile)
-                    print(datafile)
-                    
-                    # submit to condor
-                    logfile = os.path.join(tempdir, f'{ct}.log')
-                    outfile = os.path.join(tempdir, f'{ct}.out')
-                    errfile = os.path.join(tempdir, f'{ct}.err')
-
-                    job = condorMB.submit_to_condor(python,
-                        delay=10,
-                        arguments=f'{pyfile} {datafile} {packs_per_it}',
-                        logfile=logfile,
-                        outlogfile=outfile,
-                        errlogfile=errfile,
-                        machine=next(machine_gen))
-                    jobs.append(job)
-                    
-                while condorMB.n_to_go(jobs):
-                    print(f'{condorMB.n_to_go(jobs)} to go.')
-                    time.sleep(10)
-                    
-                shutil.rmtree(tempdir)
+            if distribute in ('delay', 'delayed'):
+                outputs = [output_wrapper(self, packs_per_it, compress=compress)
+                           for _ in range(nits)]
+                dask.compute(*outputs)
             else:
                 for _ in range(nits):
                     tit0_ = Time.now()
                     print(f'Starting iteration #{_+1} of {nits}')
-
-                    # Create an output object
                     Output(self, packs_per_it, compress=compress)
                     tit1_ = Time.now()
                     print(f'Completed iteration #{_+1} in '
@@ -332,9 +286,9 @@ class Input:
             dt_ = f'{dt_/3600} hr'
         print(f'Model run completed in {dt_} at {t2_}.')
 
-    def produce_image(self, format_, filenames=None, overwrite=False):
-        return ModelImage(self, format_, filenames=filenames,
-                          overwrite=overwrite)
+    def produce_image(self, format_, overwrite=False, distribute=None):
+        return ModelImage(self, format_, overwrite=overwrite,
+                          distribute=distribute)
     
     def delete_files(self):
         """Delete output files and remove them from the database.
@@ -373,13 +327,13 @@ class Input:
             # Delete any uvvs models that depend on this output
             uvvs_select = sqla.select(uvvsmodels).where(
                 uvvsmodels.columns.out_idnum == outid)
-            uvvs_del = sqla.delete(modelimages).where(
+            uvvs_del = sqla.delete(uvvsmodels).where(
                 uvvsmodels.columns.out_idnum == outid)
             
             # Delete any fitted uvvs models that depend on this output
             uvvsfit_select = sqla.select(uvvsmodels).where(
                 uvvsmodels.columns.unfit_idnum == outid)
-            uvvsfit_del = sqla.delete(modelimages).where(
+            uvvsfit_del = sqla.delete(uvvsmodels).where(
                 uvvsmodels.columns.unfit_idnum == outid)
 
             # Delete any fitted outputs that depend on this output
@@ -399,7 +353,7 @@ class Input:
             fitted_out_spat_select_ = sqla.select(outputfile.columns.idnum).where(
                 outputfile.columns.spatdist_id.in_(fitted_spat_select),
                 outputfile.columns.spatdist_type == 'fitted output')
-            fitted_out_spat_delete = sqla.select(outputfile).where(
+            fitted_out_spat_delete = sqla.delete(outputfile).where(
                 outputfile.columns.spatdist_id.in_(fitted_spat_select),
                 outputfile.columns.spatdist_type == 'fitted output')
             
@@ -409,7 +363,7 @@ class Input:
             fitted_out_speed_select_ = sqla.select(outputfile.columns.idnum).where(
                 outputfile.columns.spddist_id.in_(fitted_speed_select),
                 outputfile.columns.spddist_type == 'fitted output')
-            fitted_out_speed_delete = sqla.select(outputfile).where(
+            fitted_out_speed_delete = sqla.delete(outputfile).where(
                 outputfile.columns.spddist_id.in_(fitted_speed_select),
                 outputfile.columns.spddist_type == 'fitted output')
             
