@@ -45,8 +45,6 @@ class NexoclomConfig:
         self.savepath = config.get('savepath', None)
         if self.savepath is None:
             raise ConfigfileError(self.configfile, self.savepath)
-        elif not os.path.exists(self.savepath):
-            os.makedirs(self.savepath)
         else:
             pass
         

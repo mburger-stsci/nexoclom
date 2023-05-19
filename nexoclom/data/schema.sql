@@ -184,7 +184,7 @@ CREATE TABLE if not exists modelimages (
     mechanism TEXT[],
     wavelength TEXT[],
     generation_date TIMESTAMP DEFAULT current_timestamp,
-    filename TEXT UNIQUE)
+    filename TEXT UNIQUE);
 
 CREATE TABLE if not exists uvvsmodels (
     idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
@@ -197,7 +197,7 @@ CREATE TABLE if not exists uvvsmodels (
     wavelength DOUBLE PRECISION[],
     fitted BOOLEAN NOT NULL,
     generation_date TIMESTAMP DEFAULT current_timestamp,
-    filename TEXT UNIQUE)
+    filename TEXT UNIQUE);
 
 CREATE TABLE if not exists savedpackets (
     idnum INT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
@@ -209,6 +209,6 @@ CREATE TABLE if not exists savedpackets (
     frac0 DOUBLE PRECISION NOT NULL,
     index0 INT NOT NULL,
     ratio DOUBLE PRECISION NOT NULL,
-    scale_factor DOUBLE PRECISION)
+    scale_factor DOUBLE PRECISION);
 
 DONE

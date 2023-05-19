@@ -12,6 +12,7 @@ from nexoclom.modelcode.ModelResult import ModelResult
 from nexoclom.modelcode.compute_iteration import compute_iteration
 from nexoclom.modelcode.make_source_map import make_source_map
 from nexoclom.modelcode.SourceMap import SourceMap
+from nexoclom.math import smooth2d
 
 
 class LOSResult(ModelResult):
@@ -443,9 +444,32 @@ fitted = {self.fitted}'''
             source_.altitude_dist_map = distribution['altitude_dist_map']
             source_.azimuth_dist_map = distribution['azimuth_dist_map']
             
-            if todo_ == 'source':
-                sourcemap = source_
+            # Add snome more useful things
+            if normalize:
+                longitude = source_.longitude.value
+                latitude = source_.latitude.value
+                local_time = (longitude * 12 / np.pi) % 24
+                s = np.argsort(local_time)
+                source_.local_time = local_time[s] * u.hr
+                source_.longitude = source_.longitude[s]
+                source_.abundance = source_.abundance[s, :]
+
+                lat = np.where(np.abs(latitude) < np.radians(75))[0]
+                smoothed = smooth2d(source_.abundance.value, 7)
+                x_fit = np.where(smoothed == smoothed[:, lat].max())
+                self.peakabund = (local_time[x_fit[0]].mean()*u.hr,
+                                  latitude[x_fit[1]].mean()*u.rad)
+
+                smoothed = smooth2d(source_.abundance_uncor.value, 7)
+                x_fit = np.where(smoothed == smoothed[:, lat].max())
+                self.peakabund_uncor = (local_time[x_fit[0]].mean()*u.hr,
+                                        latitude[x_fit[1]].mean()*u.rad)
+
+                if todo_ == 'source':
+                    sourcemap = source_
+                else:
+                    availablemap = source_
             else:
-                availablemap = source_
-                
+                pass
+
         return sourcemap, availablemap
