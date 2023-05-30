@@ -6,6 +6,8 @@ import json
 import sqlalchemy as sqla
 import sqlalchemy.dialects.postgresql as pg
 import dask
+dask.config.set(scheduler='processes')
+from dask.distributed import Client
 import time
 
 from nexoclom import engine
@@ -98,10 +100,11 @@ class ModelImage(ModelResult):
         self.outid, self.outputfiles, _, _ = self.inputs.search()
 
         if distribute in ('delay', 'delayed'):
+            client = Client()
             results = [dask.delayed(image_step)(self, fname, overwrite, True)
                        for fname in self.outputfiles]
             results = dask.compute(*results)
-            
+            client.close()
             for image_, packets_, totalsource_ in results:
                 self.image += image_.histogram
                 self.packet_image += packets_.histogram

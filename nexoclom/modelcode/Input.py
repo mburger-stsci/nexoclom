@@ -255,6 +255,7 @@ class Input:
             print('Running Model')
             print(f'Will complete {nits} iterations of {packs_per_it} packets.')
 
+            print(distribute)
             if distribute in ('delay', 'delayed'):
                 outputs = [output_wrapper(self, packs_per_it, compress=compress)
                            for _ in range(nits)]

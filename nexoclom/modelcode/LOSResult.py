@@ -445,31 +445,31 @@ fitted = {self.fitted}'''
             source_.azimuth_dist_map = distribution['azimuth_dist_map']
             
             # Add snome more useful things
-            if normalize:
-                longitude = source_.longitude.value
-                latitude = source_.latitude.value
-                local_time = (longitude * 12 / np.pi) % 24
-                s = np.argsort(local_time)
-                source_.local_time = local_time[s] * u.hr
-                source_.longitude = source_.longitude[s]
-                source_.abundance = source_.abundance[s, :]
+            # if normalize:
+            #     longitude = source_.longitude.value
+            #     latitude = source_.latitude.value
+            #     local_time = (longitude * 12 / np.pi) % 24
+                # s = np.argsort(local_time)
+                # source_.local_time = local_time[s] * u.hr
+                # source_.longitude = source_.longitude[s]
+                # source_.abundance = source_.abundance[s, :]
+                #
+                # lat = np.where(np.abs(latitude) < np.radians(75))[0]
+                # smoothed = smooth2d(source_.abundance.value, 7)
+                # x_fit = np.where(smoothed == smoothed[:, lat].max())
+                # self.peakabund = (local_time[x_fit[0]].mean()*u.hr,
+                #                   latitude[x_fit[1]].mean()*u.rad)
+                #
+                # smoothed = smooth2d(source_.abundance_uncor.value, 7)
+                # x_fit = np.where(smoothed == smoothed[:, lat].max())
+                # self.peakabund_uncor = (local_time[x_fit[0]].mean()*u.hr,
+                #                         latitude[x_fit[1]].mean()*u.rad)
 
-                lat = np.where(np.abs(latitude) < np.radians(75))[0]
-                smoothed = smooth2d(source_.abundance.value, 7)
-                x_fit = np.where(smoothed == smoothed[:, lat].max())
-                self.peakabund = (local_time[x_fit[0]].mean()*u.hr,
-                                  latitude[x_fit[1]].mean()*u.rad)
-
-                smoothed = smooth2d(source_.abundance_uncor.value, 7)
-                x_fit = np.where(smoothed == smoothed[:, lat].max())
-                self.peakabund_uncor = (local_time[x_fit[0]].mean()*u.hr,
-                                        latitude[x_fit[1]].mean()*u.rad)
-
-                if todo_ == 'source':
-                    sourcemap = source_
-                else:
-                    availablemap = source_
+            if todo_ == 'source':
+                sourcemap = source_
             else:
-                pass
+                availablemap = source_
+        else:
+            pass
 
         return sourcemap, availablemap

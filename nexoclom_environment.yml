@@ -8,6 +8,8 @@ dependencies:
   - anaconda::astropy
   - postgresql
   - sqlalchemy
+  - mongodb
+  - pymongo
   - pandas
   - plotly
   - dash
