@@ -1,3 +1,4 @@
+from importlib.metadata import version
 from nexoclom.utilities.configure import configure
 config, engine = configure(verbose=False)
 
@@ -12,5 +13,5 @@ from nexoclom.solarsystem import SSObject
 __name__ = 'nexoclom'
 __author__ = 'Matthew Burger'
 __email__ = 'mburger@stsci.edu'
-__version__ = '3.6.1'
-__date__ = '2023-05-01'
+__version__ = version("nexoclom")
+__date__ = '2023-06-28'

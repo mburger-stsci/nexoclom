@@ -1,0 +1,45 @@
+[tool.poetry]
+name = "nexoclom"
+version = "3.7.0"
+description = "Neutral EXosphere and CLoud Model"
+authors = ["Matthew Burger <mburger@stsci.edu>"]
+license = "BSD 3-Clause"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+scipy-calculator = "^1.0.0"
+numpy = "^1.25.0"
+scipy = "^1.11.0"
+astropy = "^5.3"
+pandas = "^2.0.2"
+SQLAlchemy = "^2.0.17"
+pymongo = "^4.4.0"
+dash = "^2.11.0"
+dask = {extras = ["distributed"], version = "^2023.6.1"}
+ipython = "^8.14.0"
+matplotlib = "^3.7.1"
+bokeh = "^3.2.0"
+selenium-firefox = "^2.0.8"
+pytest = "^7.4.0"
+scikit-learn = "^1.2.2"
+psycopg = "^3.1.9"
+astroquery = "^0.4.6"
+periodictable = "^1.6.1"
+plotly = "^5.15.0"
+spiceypy = "^5.1.2"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.semantic_release]
+version_variable = "pyproject.toml:version" # version location
+branch = "main"                             # branch to make releases of
+changelog_file = "CHANGELOG.md"             # changelog file
+build_command = "poetry build"              # build dists
+dist_path = "dist/"                         # where to put dists
+upload_to_release = true                    # auto-create GitHub release
+upload_to_pypi = false                      # don't auto-upload to PyPI
+remove_dist = false                         # don't remove dists
+patch_without_tag = true                    # patch release by default

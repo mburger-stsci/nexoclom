@@ -1,44 +1,24 @@
-name: nexoclom
+name: nexoclom_dev
 channels:
   - conda-forge
   - http://ssb.stsci.edu/astroconda
   - defaults
 dependencies:
   - python=3.10
-  - anaconda::astropy
+  - poetry
   - postgresql
-  - sqlalchemy
   - mongodb
-  - pymongo
-  - pandas
-  - plotly
-  - dash
-  - dash-core-components
-  - numpy
   - ipython
-  - matplotlib
   - pip
-  - bokeh
-  - firefox
-  - selenium
-  - scipy
   - pytest
-  - scikit-learn
-  - psycopg2
   - git
   - pylint
-  - astroquery
-  - dask
   - pip:
-    - periodictable
-    - spiceypy
     - sphinx
     - stsci_rtd_theme
     - statsmodels
-    - nexoclom
-    - MESSENGERuvvs
 
 prefix: /Users/mburger/anaconda/envs/nexoclom
 variables:
   PGDATA: /Users/mburger/.postgres/main
-  NEXOCLOMCONFIG : /Users/mburger/.nexoclom
+  NEXOCLOMCONFIG : /Users/mburger/.nexoclom_dev

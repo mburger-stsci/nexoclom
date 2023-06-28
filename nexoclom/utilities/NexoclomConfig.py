@@ -1,5 +1,5 @@
 import os
-import psycopg2
+import psycopg
 from sqlalchemy import create_engine
 import subprocess
 from nexoclom.utilities.exceptions import ConfigfileError
@@ -106,10 +106,10 @@ class NexoclomConfig:
             pass
         
         if self.dbhost:
-            url = (f"postgresql+psycopg2://{os.environ['USER']}@{self.dbhost}:"
+            url = (f"postgresql+psycopg://{os.environ['USER']}@{self.dbhost}:"
                    f"{self.port}/{database}")
         else:
-            url = (f"postgresql+psycopg2://{os.environ['USER']}@localhost:"
+            url = (f"postgresql+psycopg://{os.environ['USER']}@localhost:"
                    f"{self.port}/{database}")
         engine = create_engine(url, echo=False, future=True)
 
@@ -123,10 +123,10 @@ class NexoclomConfig:
             pass
         
         if self.dbhost:
-            con = psycopg2.connect(host=self.dbhost, dbname=database,
+            con = psycopg.connect(host=self.dbhost, dbname=database,
                                    port=self.port)
         else:
-            con = psycopg2.connect(dbname=database, port=self.port)
+            con = psycopg.connect(dbname=database, port=self.port)
         con.autocommit = True
 
         return con
