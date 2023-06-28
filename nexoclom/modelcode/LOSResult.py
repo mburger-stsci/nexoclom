@@ -12,7 +12,6 @@ from nexoclom.modelcode.ModelResult import ModelResult
 from nexoclom.modelcode.compute_iteration import compute_iteration
 from nexoclom.modelcode.make_source_map import make_source_map
 from nexoclom.modelcode.SourceMap import SourceMap
-from nexoclom.math import smooth2d
 
 
 class LOSResult(ModelResult):
