@@ -271,11 +271,11 @@ def angular_distribution(outputs):
         
         outputs.X0['vx'] = v0[:, 0] * outputs.X0.v.values
         outputs.X0['vy'] = v0[:, 1] * outputs.X0.v.values
-        outputs.X0['vz'] =  np.zeros((npackets, ))
+        outputs.X0['vz'] = np.zeros((npackets, ))
         
         outputs.X0['altitude'] = alt.value
         outputs.X0['azimuth'] = 0
         outputs.X0['v_radial'] = v_rad * outputs.X0['v']
         outputs.X0['v_east'] = np.sqrt(outputs.X0['v']**2 -
-                                       outputs.X0['v_east']**2)
+                                       outputs.X0['v_radial']**2)
         outputs.X0['v_north'] = 0

@@ -1,11 +1,6 @@
-# NEXOCLOM: Neutral Exosphere and Cloud Model
+# NEXOCLOM: Neutral EXosphere and CLOud Model
 ## Dr. Mathew Burger, Space Telescope Science Institute
 ![STScI](Stsci_logo.png)
-
-### Packages created by Matthew Burger that need to be installed:
-1. nexoclom
-2. MESSENGERuvvs
-
 ------------------
 
 ### Documentation
@@ -13,7 +8,19 @@
 https://nexoclom.readthedocs.io/en/latest/ (Reasonably complete and up to date).
 [This part about writing inputfiles](https://nexoclom.readthedocs.io/en/latest/nexoclom/inputfiles.html) is particularly useful.
 
-### Installation process
+### Installation 
+
+The easiest way to install is to create a fresh venv or conda environment and 
+use:
+```
+pip install nexoclom
+```
+
+There is configuration work that will need to be completed before nexoclom 
+can be used. This process is given in detail below, although it is likely to 
+change soon.
+
+**I am working on a script to clean up the installation process**
 
 1. Install Anaconda Python (version >= 3.8):
    1. Download the installer from:
