@@ -100,7 +100,6 @@ class SSObject:
         return out
     
 def set_up_planetary_constants(pklfile):
-    basepath = os.path.dirname(basefile)
     objfile = os.path.join(basepath, 'data', 'SolarSystemContents.csv')
     objects = pd.read_csv(objfile)
     

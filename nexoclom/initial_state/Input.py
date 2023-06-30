@@ -1,28 +1,4 @@
-"""Read the model inputs from a file and create the Input object.
-
-The Input object is build from smaller objects defining different model
-options.
-
-Geometry
-    Defines the Solar System geometry for the Input.
-
-SurfaceInteraction
-    Defines the surface interactions.
-
-Forces
-    Set which forces act on model particles.
-
-SpatialDist
-    Define the initial spatial distribution of particles.
-
-SpeedDist
-    Define the initial speed distribution of particles.
-
-AngularDist
-    Define the initial angular distribtuion of particles.
-
-Options
-    Configure other model parameters
+""" Class determining the specifics of the model to be run.
 """
 import os
 import numpy as np

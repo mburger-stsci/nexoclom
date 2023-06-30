@@ -292,10 +292,8 @@ fitted = {self.fitted}'''
 
         self.mask = mask
 
-    def make_source_map(self, smear_radius=np.radians(10), grid_params=None,
-                        normalize=True, do_source=True, do_available=True,
-                        distribute=None):
-    
+    def make_source_map(self, grid_params=None, normalize=True, do_source=True,
+                        do_available=True, distribute=None):
         sourcemap = None
         availablemap = None
         todo = []
