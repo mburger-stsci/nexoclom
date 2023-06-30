@@ -1,5 +1,5 @@
 import numpy as np
-from nexoclom.modelcode.surface_temperature import surface_temperature
+from nexoclom.initial_state.surface_temperature import surface_temperature
 
 
 def rebound_direction(outputs, x):

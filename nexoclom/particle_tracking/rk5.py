@@ -1,5 +1,5 @@
 import numpy as np
-from nexoclom.modelcode.state import state
+from nexoclom.particle_tracking.state import state
 
 # RK coefficients
 c = np.array([0, 0.2, 0.3, 0.8, 8./9., 1., 1.])

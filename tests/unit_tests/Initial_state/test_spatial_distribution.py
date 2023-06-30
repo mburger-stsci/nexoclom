@@ -6,9 +6,9 @@ import pytest
 import astropy.units as u
 from astropy.time import Time
 from nexoclom.solarsystem import SSObject
-from nexoclom import Input, __file__ as basefile
-from nexoclom.modelcode.source_distribution import surface_distribution
-from nexoclom.modelcode.input_classes import SpatialDist
+from nexoclom import Input, __path__ as basepath
+from nexoclom.initial_state.source_distribution import surface_distribution
+from nexoclom.initial_state.input_classes import SpatialDist
 import nexoclom.math as mathMB
 
 import matplotlib.pyplot as plt
@@ -17,11 +17,8 @@ import matplotlib.pyplot as plt
 # import warnings
 # warnings.filterwarnings("error")
 
-basepath = os.path.dirname(basefile)
-if __name__ == '__main__':
-    inputpath = os.path.join('test_data', 'inputfiles')
-else:
-    inputpath = os.path.join(basepath, 'tests', 'test_data', 'inputfiles')
+basepath = os.path.dirname(basepath[0])
+inputpath = os.path.join(basepath, 'tests', 'test_data', 'inputfiles')
 
 
 NPACKETS = 100000

@@ -20,13 +20,14 @@ import os
 import pandas as pd
 from astropy import constants as const
 from astropy import units as u
-from nexoclom import __file__ as basefile
+from nexoclom import __path__
 
+
+basepath = __path__[0]
 
 class SSObject:
     """Creates Solar System object."""
     def __init__(self, obj):
-        basepath = os.path.dirname(basefile)
         pklfile = os.path.join(basepath, 'data', 'PlanetaryConstants.pkl')
         if not os.path.exists(pklfile):
             set_up_planetary_constants(pklfile)

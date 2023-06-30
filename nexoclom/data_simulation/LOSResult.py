@@ -8,10 +8,10 @@ import sqlalchemy as sqla
 import dask
 
 from nexoclom import engine
-from nexoclom.modelcode.ModelResult import ModelResult
-from nexoclom.modelcode.compute_iteration import compute_iteration
-from nexoclom.modelcode.make_source_map import make_source_map
-from nexoclom.modelcode.SourceMap import SourceMap
+from nexoclom.data_simulation.ModelResult import ModelResult
+from nexoclom.data_simulation.compute_iteration import compute_iteration
+from nexoclom.data_simulation.make_source_map import make_source_map
+from nexoclom.initial_state.SourceMap import SourceMap
 
 
 class LOSResult(ModelResult):

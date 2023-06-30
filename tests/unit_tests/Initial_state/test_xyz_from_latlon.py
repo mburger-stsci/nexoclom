@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 import astropy.units as u
-from nexoclom.modelcode.source_distribution import xyz_from_lonlat
+from nexoclom.initial_state.source_distribution import xyz_from_lonlat
 
 
 @pytest.mark.modelcode

@@ -11,14 +11,14 @@ from nexoclom import engine
 import nexoclom.math as mathMB
 from nexoclom.solarsystem import planet_dist
 from nexoclom.atomicdata import RadPresConst
-from nexoclom.modelcode.satellite_initial_positions import satellite_initial_positions
-from nexoclom.modelcode.LossInfo import LossInfo
-from nexoclom.modelcode.rk5 import rk5
-from nexoclom.modelcode.bouncepackets import bouncepackets
-from nexoclom.modelcode.source_distribution import (surface_distribution,
-                                                    speed_distribution,
-                                                    angular_distribution)
-from nexoclom.modelcode.SurfaceInteraction import SurfaceInteraction
+from nexoclom.initial_state.satellite_initial_positions import satellite_initial_positions
+from nexoclom.initial_state.LossInfo import LossInfo
+from nexoclom.particle_tracking.rk5 import rk5
+from nexoclom.particle_tracking.bouncepackets import bouncepackets
+from nexoclom.initial_state.source_distribution import (surface_distribution,
+                                                        speed_distribution,
+                                                        angular_distribution)
+from nexoclom.particle_tracking.SurfaceInteraction import SurfaceInteraction
 
 
 class Output:

@@ -3,7 +3,7 @@ from scipy import interpolate
 import astropy.units as u
 import astropy.constants as const
 from nexoclom.atomicdata import atomicmass
-from nexoclom.modelcode.surface_temperature import surface_temperature
+from nexoclom.initial_state.surface_temperature import surface_temperature
 # from nexoclom.math.distributions import MaxwellianDist
 
 def surface_interaction_setup(inputs):

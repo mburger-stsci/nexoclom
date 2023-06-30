@@ -69,6 +69,8 @@ def test_read_configfile_and_database_connect(inputs):
         # Test with different port and external database
         config = NexoclomConfig(os.path.join(os.environ['HOME'], configfile))
         compare_config(config, result)
+        
+        
 if __name__ == '__main__':
     for param in zip(configfiles, results):
         test_read_configfile_and_database_connect(param)

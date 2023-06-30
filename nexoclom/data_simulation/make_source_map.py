@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 import astropy.units as u
 from sklearn.neighbors import BallTree
-from nexoclom.modelcode.Output import Output
+from nexoclom.particle_tracking.Output import Output
 import nexoclom.math as mathMB
 
 

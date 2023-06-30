@@ -5,15 +5,12 @@ import os
 import numpy as np
 import pytest
 import astropy.units  as u
-from nexoclom import Input, Output, __file__ as basefile
+from nexoclom import Input, Output, __path__
 from nexoclom.solarsystem import SSObject
 
-basepath = os.path.dirname(basefile)
-if __name__ == '__main__':
-    inputpath = '/Users/mburger/Work/Research/NeutralCloudModel/nexoclom/nexoclom/'
-    inputpath = os.path.join(inputpath, 'tests', 'test_data', 'inputfiles')
-else:
-    inputpath = os.path.join(basepath, 'tests', 'test_data', 'inputfiles')
+
+basepath = os.path.dirname(__path__[0])
+inputpath = os.path.join(basepath, 'tests', 'test_data', 'inputfiles')
 
 
 @pytest.mark.modelcode

@@ -8,7 +8,7 @@ import sqlalchemy as sqla
 import sqlalchemy.dialects.postgresql as pg
 from nexoclom.solarsystem import SSObject
 from nexoclom.utilities import InputError
-from nexoclom.modelcode.SourceMap import SourceMap
+from nexoclom.initial_state.SourceMap import SourceMap
 from nexoclom import engine
 
 

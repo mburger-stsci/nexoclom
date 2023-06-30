@@ -12,9 +12,9 @@ import time
 
 from nexoclom import engine
 from nexoclom.math import rotation_matrix, Histogram2d
-from nexoclom.modelcode.ModelResult import ModelResult
-from nexoclom.modelcode.Output import Output
-from nexoclom import __file__ as basefile
+from nexoclom.data_simulation.ModelResult import ModelResult
+from nexoclom.particle_tracking.Output import Output
+from nexoclom import __path__ as basepath
 
 import bokeh.plotting as bkp
 from bokeh.palettes import Inferno256
@@ -277,8 +277,7 @@ class ModelImage(ModelResult):
                     ('y', '$y{0.1f} ' + ustr),
                     (rname, '@image ' + runit)]
         
-        curdoc().theme = Theme(os.path.join(os.path.dirname(basefile),
-                                            'data', 'bokeh.yml'))
+        curdoc().theme = Theme(os.path.join(basepath[0], 'data', 'bokeh.yml'))
 
         if log:
             if limits is None:

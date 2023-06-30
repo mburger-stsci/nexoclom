@@ -3,7 +3,6 @@ Computes the magnetic coordinates of each packet
 
 Also determines whether the packet is in shadow
 '''
-
 import numpy as np
 
 def xyz_to_magcoord(t, x, inputs, planet):

@@ -5,7 +5,7 @@ import astropy.constants as const
 import nexoclom.math as mathMB
 from nexoclom.atomicdata import atomicmass
 import nexoclom.math.distributions as distributions
-from nexoclom.modelcode.SourceMap import SourceMap
+from nexoclom.initial_state.SourceMap import SourceMap
 from nexoclom.utilities.exceptions import InputError
 
 

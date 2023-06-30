@@ -32,12 +32,12 @@ import sqlalchemy as sqla
 import dask
 import time
 
-from nexoclom.modelcode.Output import Output
+from nexoclom.particle_tracking.Output import Output
 from nexoclom import config, engine
-from nexoclom.modelcode.input_classes import (Geometry, SurfaceInteraction,
-                                             Forces, SpatialDist, SpeedDist,
-                                             AngularDist, Options)
-from nexoclom.modelcode.ModelImage import ModelImage
+from nexoclom.initial_state.input_classes import (Geometry, SurfaceInteraction,
+                                                  Forces, SpatialDist, SpeedDist,
+                                                  AngularDist, Options)
+from nexoclom.data_simulation.ModelImage import ModelImage
 
 
 @dask.delayed

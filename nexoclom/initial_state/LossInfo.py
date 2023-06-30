@@ -1,6 +1,6 @@
 import numpy as np
-from ..atomicdata import PhotoRate
 import astropy.units as u
+from nexoclom.atomicdata import PhotoRate
 
 class LossInfo:
     def __init__(self, atom, lifetime, aplanet):

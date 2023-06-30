@@ -1,6 +1,6 @@
 import sys
 import pickle
-from nexoclom.modelcode.compute_iteration import compute_iteration
+from nexoclom.data_simulation.compute_iteration import compute_iteration
 
 
 datafile = sys.argv[1]

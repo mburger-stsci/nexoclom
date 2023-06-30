@@ -4,7 +4,7 @@ import copy
 import astropy.units as u
 from nexoclom import math as mathMB
 from nexoclom.atomicdata import gValue
-from nexoclom.modelcode.input_classes import InputError
+from nexoclom.initial_state.input_classes import InputError
 
 
 class ModelResult:

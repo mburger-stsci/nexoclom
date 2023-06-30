@@ -3,10 +3,10 @@ import pandas as pd
 import pickle
 import astropy.units as u
 import sqlalchemy as sqla
-from nexoclom import Output, engine
-from nexoclom.modelcode.LOSResult import LOSResult
-from nexoclom.modelcode.compute_iteration import IterationResultFitted
-from copy import copy
+from nexoclom import engine
+from nexoclom.particle_tracking import Output
+from nexoclom.data_simulation.LOSResult import LOSResult
+from nexoclom.data_simulation.compute_iteration import IterationResultFitted
 
 
 xcols = ['x', 'y', 'z']
