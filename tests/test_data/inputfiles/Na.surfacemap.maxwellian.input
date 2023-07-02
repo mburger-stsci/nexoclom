@@ -1,0 +1,17 @@
+geometry.planet = Mercury
+geometry.taa = 0
+
+surfaceinteraction.stickcoef = 1.
+
+SpatialDist.type = surface map
+SpatialDist.coordinate_system = solar-fixed
+
+SpeedDist.type = maxwellian
+SpeedDist.Temperature = 1200.
+
+AngularDist.type = isotropic
+
+options.endtime = 50000
+options.species = Na
+options.outeredge = 25
+options.step_size = 30

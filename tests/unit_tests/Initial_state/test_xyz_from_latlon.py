@@ -4,7 +4,7 @@ import astropy.units as u
 from nexoclom.initial_state.source_distribution import xyz_from_lonlat
 
 
-@pytest.mark.modelcode
+@pytest.mark.initial_state
 def test_xyz_from_latlon():
     # Check points around the equator for planet
     lon = np.arange(0, 2*np.pi, np.pi/4)*u.rad

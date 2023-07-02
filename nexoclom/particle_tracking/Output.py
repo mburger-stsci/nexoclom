@@ -22,7 +22,7 @@ from nexoclom.particle_tracking.SurfaceInteraction import SurfaceInteraction
 
 
 class Output:
-    def __init__(self, inputs, npackets, compress=True):
+    def __init__(self, inputs, npackets, compress=True, run_model=True):
         """Determine and store packet trajectories.
         
         **Parameters**
@@ -88,108 +88,115 @@ class Output:
 
         self.inputs = inputs
         self.planet = inputs.geometry.planet
-        
-        # initialize the random generator
-        self.randgen = np.random.default_rng()
-        
-        # Not implemented yet.
-        assert self.inputs.geometry.type != 'geometry with time', (
-            'Initialization with time stamp not implemented yet.')
-
-        # Keep track of whether output is compressed
-        self.compress = compress
-
-        # Determine spatial unit
-        self.unit = u.def_unit('R_' + self.planet.object, self.planet.radius)
-
-        # Change unit for GM
-        self.GM = self.planet.GM.to(self.unit**3/u.s**2).value
-
-        # Determine distance and radial velocity of planet relative to the Sun
-        r, v_r = planet_dist(self.planet, self.inputs.geometry.taa)
-        self.aplanet = r.value
-        self.vrplanet = v_r.to(self.unit/u.s).value
-
-        # Find the default reactions and datasets
-        if inputs.options.lifetime.value <= 0:
-            self.loss_info = LossInfo(inputs.options.species,
-                                      inputs.options.lifetime,
-                                      self.aplanet)
-        else:
-            self.loss_info = None
-
-        # Set up the radiation pressure
-        if inputs.forces.radpres:
-            radpres = RadPresConst(inputs.options.species,
-                                   self.aplanet)
-            radpres.velocity = radpres.velocity.to(self.unit/u.s).value
-            radpres.accel = radpres.accel.to(self.unit/u.s**2).value
-            self.radpres = radpres
-        else:
-            self.radpres = None
-
-        # set up surface accommodation + maybe other things if needed
-        if (('stickcoef' not in inputs.surfaceinteraction.__dict__) or
-            (inputs.surfaceinteraction.stickcoef != 1)):
-            self.surfaceint = SurfaceInteraction(inputs, nt=201, nv=101, nprob=101)
-
-        # Define the time that packets will run
-        if inputs.options.step_size > 0:
-            time = np.ones(npackets) * inputs.options.endtime
-        else:
-            time = self.randgen.random(npackets) * inputs.options.endtime
-        
-        self.X0 = pd.DataFrame()
-        self.X0['time'] = time.value
-
-        # Define the fractional content
-        self.X0['frac'] = np.ones(npackets)
-
-        self.npackets = npackets
-        self.totalsource = self.X0['frac'].sum()
-
-        # Determine initial satellite positions if necessary
-        if self.planet.moons is not None:
-            assert False, 'Not set up'
-            sat_init_pos = satellite_initial_positions(inputs)
-        else:
-            pass
-
-        # Determine starting location for each packet
-        if self.inputs.spatialdist.type in ('uniform', 'surface map',
-                                            'surface spot'):
-            surface_distribution(self)
-        else:
-            assert 0, 'Not a valid spatial distribution type'
-        
-        # Determine inital speed for each packet
-        speed_distribution(self)
-        
-        # Choose direction for each packet
-        angular_distribution(self)
-
-        # Rotate everything to proper position for running the model
-        if (self.inputs.geometry.planet.object !=
-            self.inputs.geometry.startpoint):
-            assert 0, 'Not set up yet'
-        else:
-            pass
-        
-        # Reorder the dataframe columns
-        cols = ['time', 'x', 'y', 'z', 'vx', 'vy', 'vz', 'frac', 'v',
-                'longitude', 'latitude', 'local_time', 'altitude', 'azimuth']
-        self.X0 = self.X0[cols]
-        
-        # Integrate the packets forward
-        if self.inputs.options.step_size == 0:
-            print('Running variable step size integrator.')
-            self.X = self.X0.drop(['longitude', 'latitude', 'localtime'], axis=1)
-            self.X['lossfrac'] = np.zeros(npackets)
-            self.variable_step_size_driver()
-        else:
-            print('Running constant step size integrator.')
-            self.constant_step_size_driver()
+        if run_model:
+            # initialize the random generator
+            self.randgen = np.random.default_rng()
             
+            # Not implemented yet.
+            assert self.inputs.geometry.type != 'geometry with time', (
+                'Initialization with time stamp not implemented yet.')
+
+            # Keep track of whether output is compressed
+            self.compress = compress
+
+            # Determine spatial unit
+            self.unit = u.def_unit('R_' + self.planet.object, self.planet.radius)
+
+            # Change unit for GM
+            self.GM = self.planet.GM.to(self.unit**3/u.s**2).value
+
+            # Determine distance and radial velocity of planet relative to the Sun
+            r, v_r = planet_dist(self.planet, self.inputs.geometry.taa)
+            self.aplanet = r.value
+            self.vrplanet = v_r.to(self.unit/u.s).value
+
+            # Find the default reactions and datasets
+            if inputs.options.lifetime.value <= 0:
+                self.loss_info = LossInfo(inputs.options.species,
+                                          inputs.options.lifetime,
+                                          self.aplanet)
+            else:
+                self.loss_info = None
+
+            # Set up the radiation pressure
+            if inputs.forces.radpres:
+                radpres = RadPresConst(inputs.options.species,
+                                       self.aplanet)
+                radpres.velocity = radpres.velocity.to(self.unit/u.s).value
+                radpres.accel = radpres.accel.to(self.unit/u.s**2).value
+                self.radpres = radpres
+            else:
+                self.radpres = None
+
+            # set up surface accommodation + maybe other things if needed
+            if (('stickcoef' not in inputs.surfaceinteraction.__dict__) or
+                (inputs.surfaceinteraction.stickcoef != 1)):
+                self.surfaceint = SurfaceInteraction(inputs, nt=201, nv=101, nprob=101)
+
+            # Define the time that packets will run
+            if inputs.options.step_size > 0:
+                time = np.ones(npackets) * inputs.options.endtime
+            else:
+                time = self.randgen.random(npackets) * inputs.options.endtime
+            
+            self.X0 = pd.DataFrame()
+            self.X0['time'] = time.value
+
+            # Define the fractional content
+            self.X0['frac'] = np.ones(npackets)
+
+            self.npackets = npackets
+            self.totalsource = self.X0['frac'].sum()
+
+            # Determine initial satellite positions if necessary
+            if self.planet.moons is not None:
+                assert False, 'Not set up'
+                sat_init_pos = satellite_initial_positions(inputs)
+            else:
+                pass
+
+            # Determine starting location for each packet
+            if self.inputs.spatialdist.type in ('uniform', 'surface map',
+                                                'surface spot'):
+                surface_distribution(self)
+            else:
+                assert 0, 'Not a valid spatial distribution type'
+            
+            # Determine inital speed for each packet
+            speed_distribution(self)
+            
+            # Choose direction for each packet
+            angular_distribution(self)
+
+            # Rotate everything to proper position for running the model
+            if (self.inputs.geometry.planet.object !=
+                self.inputs.geometry.startpoint):
+                assert 0, 'Not set up yet'
+            else:
+                pass
+            
+            # Reorder the dataframe columns
+            cols = ['time', 'x', 'y', 'z', 'vx', 'vy', 'vz', 'frac', 'v',
+                    'longitude', 'latitude', 'local_time', 'altitude', 'azimuth']
+            self.X0 = self.X0[cols]
+            
+            # Integrate the packets forward
+            if self.inputs.options.step_size == 0:
+                print('Running variable step size integrator.')
+                self.X = self.X0.drop(['longitude', 'latitude', 'localtime'], axis=1)
+                self.X['lossfrac'] = np.zeros(npackets)
+                self.variable_step_size_driver()
+            else:
+                print('Running constant step size integrator.')
+                self.constant_step_size_driver()
+        else:
+            print('Not running anything')
+            self.compress = False
+            self.X0 = pd.DataFrame()
+            self.X = pd.DataFrame()
+            self.npackets = npackets
+            self.totalsource = npackets
+
         self.save()
 
     def __str__(self):

@@ -13,7 +13,7 @@ basepath = os.path.dirname(__path__[0])
 inputpath = os.path.join(basepath, 'tests', 'test_data', 'inputfiles')
 
 
-@pytest.mark.modelcode
+@pytest.mark.particle_tracking
 def test_gravity_with_constant_stepsize():
     Mercury = SSObject('Mercury')
     

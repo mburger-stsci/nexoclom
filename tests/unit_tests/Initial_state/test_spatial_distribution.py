@@ -92,7 +92,7 @@ def ks_test(data, expected):
     return D, p
 
 
-@pytest.mark.modelcode
+@pytest.mark.initial_state
 @pytest.mark.parametrize('sparams', spatial_inputs)
 def test_surface_distribution(sparams):
     # Full surface uniform distribution

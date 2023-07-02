@@ -6,8 +6,6 @@ import json
 import sqlalchemy as sqla
 import sqlalchemy.dialects.postgresql as pg
 import dask
-dask.config.set(scheduler='processes')
-from dask.distributed import Client
 import time
 
 from nexoclom import engine

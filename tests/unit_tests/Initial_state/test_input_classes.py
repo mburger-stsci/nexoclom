@@ -16,7 +16,7 @@ else:
     inputpath = os.path.join(basepath, 'tests', 'test_data', 'inputfiles')
 
 
-@pytest.mark.modelcode
+@pytest.mark.initial_state
 def test_geometry():
     inputfile01 = os.path.join(inputpath, 'Geometry.01.input')
     geometry01 = Input(inputfile01).geometry
@@ -53,7 +53,7 @@ def test_geometry():
     assert geometry01 != geometry02
     assert geometry01 != geometry03
 
-@pytest.mark.modelcode
+@pytest.mark.initial_state
 def test_SurfaceInteraction():
     # sticktype = 'constant'
     inputfile01 = os.path.join(inputpath, 'SurfaceInteraction.01.input')
@@ -106,7 +106,7 @@ def test_SurfaceInteraction():
               'accomfactor':0.5}
     assert interaction06.__dict__ == result
 
-@pytest.mark.modelcode
+@pytest.mark.initial_state
 def test_Forces():
     inputfile01 = os.path.join(inputpath, 'Forces.01.input')
     forces01 = Input(inputfile01).forces
@@ -126,7 +126,7 @@ def test_Forces():
               'radpres': False}
     assert forces03.__dict__ == result
 
-@pytest.mark.modelcode
+@pytest.mark.inital_state
 def test_SpatialDist():
     inputfile01 = os.path.join(inputpath, 'Spatial.01.input')
     spatial01 = Input(inputfile01).spatialdist
