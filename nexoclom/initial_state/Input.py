@@ -8,6 +8,7 @@ import sqlalchemy as sqla
 import dask
 import time
 
+
 from nexoclom.particle_tracking.Output import Output
 from nexoclom import config, engine
 from nexoclom.initial_state.input_classes import (Geometry, SurfaceInteraction,
@@ -15,6 +16,7 @@ from nexoclom.initial_state.input_classes import (Geometry, SurfaceInteraction,
                                                   AngularDist, Options)
 from nexoclom.data_simulation.ModelImage import ModelImage
 
+dask.config.set(scheduler='multiprocessing')
 
 @dask.delayed
 def output_wrapper(inputs, npackets, compress):
@@ -248,6 +250,7 @@ class Input:
             _, outputfiles, totalpackets, _ = self.search()
             print(f'Found {len(outputfiles)} files with {totalpackets} '
                   'packets.')
+                
             ntodo = npackets - totalpackets
         else:
             pass

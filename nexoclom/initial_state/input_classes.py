@@ -534,7 +534,8 @@ class SpatialDist:
                 self.subsolarlon *= u.rad
             else:
                 pass
-            self.coordinate_system = None
+            self.coordinate_system = sparam.get('coordinate_system',
+                                                'solar-fixed')
         elif self.type == 'surface spot':
             self.exobase = (float(sparam['exobase'])
                             if 'exobase' in sparam

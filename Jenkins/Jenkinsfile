@@ -1,0 +1,28 @@
+#!groovy
+@Library('dsbjenkins@v1.6.3') _
+
+pipeline {
+    agent any
+    stages {
+        stage('build') {
+            steps {
+                sh '''#!/bin/bash
+                echo Build Stage
+                '''
+            }
+        stage('test') {
+            steps {
+                sh '''#!/bin/bash
+                echo Testing
+                '''
+            }
+        }
+    }
+    post {
+        success {
+            slackSend channel: '@mburger', message: 'Success'        }
+        failure {
+            slackSend channel: '@mburger', message: 'Failure'
+        }
+    }
+}

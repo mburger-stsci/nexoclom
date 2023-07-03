@@ -4,7 +4,7 @@ import pickle
 import astropy.units as u
 import sqlalchemy as sqla
 from nexoclom import engine
-from nexoclom.particle_tracking import Output
+from nexoclom.particle_tracking.Output import Output
 from nexoclom.data_simulation.LOSResult import LOSResult
 from nexoclom.data_simulation.compute_iteration import IterationResultFitted
 
