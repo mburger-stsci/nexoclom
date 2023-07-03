@@ -7,7 +7,7 @@ pipeline {
         stage('build') {
             steps {
                 sh '''#!/bin/bash
-                echo Building
+                echo Building test
                 '''
             }
         stage('test') {
