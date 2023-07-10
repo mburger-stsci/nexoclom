@@ -16,7 +16,7 @@ from nexoclom.initial_state.input_classes import (Geometry, SurfaceInteraction,
                                                   AngularDist, Options)
 from nexoclom.data_simulation.ModelImage import ModelImage
 
-dask.config.set(scheduler='multiprocessing')
+# dask.config.set(scheduler='multiprocessing')
 
 @dask.delayed
 def output_wrapper(inputs, npackets, compress):
@@ -53,6 +53,7 @@ class Input:
         
         """
         # Read the configuration file
+        dask.config.set(scheduler='processes')
         self.config = config
 
         # Read in the input file:

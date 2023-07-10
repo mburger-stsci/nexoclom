@@ -82,6 +82,10 @@ class LOSResultFitted(LOSResult):
             if search_result is None:
                 # Need to compute for this unfit output file
                 output = Output.restore(ufit_outfile)
+                if 'Index' not in output.X.columns:
+                    output.X['Index'] = output.X.index
+                else:
+                    pass
                 unfit_modelfile = unfit_model_result.modelfiles[ufit_outfile]
                 with open(unfit_modelfile, 'rb') as file:
                     iteration_unfit = pickle.load(file)
@@ -159,7 +163,10 @@ class LOSResultFitted(LOSResult):
                 multiplier = weighting.loc[output.X['Index']].values
                 output.X.loc[:, 'frac'] = output.X.loc[:, 'frac'] * multiplier
                 output.X0.loc[:, 'frac'] = output.X0.loc[:, 'frac'] * weighting
-                output.totalsource = output.X0['frac'].sum() * output.nsteps
+                if 'nsteps' in output.__dict__:
+                    output.totalsource = output.X0['frac'].sum() * output.nsteps
+                else:
+                    output.totalsource = output.X0['frac'].sum()
                 packets = output.X.copy()
                 packets['radvel_sun'] = (packets['vy'] +
                                          output.vrplanet.to(self.unit / u.s).value)

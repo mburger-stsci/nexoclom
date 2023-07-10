@@ -1,4 +1,4 @@
-name: nexoclom_dev
+name: nexoclom
 channels:
   - conda-forge
   - http://ssb.stsci.edu/astroconda
@@ -11,14 +11,11 @@ dependencies:
   - ipython
   - pip
   - pytest
-  - git
-  - pylint
   - pip:
-    - sphinx
-    - stsci_rtd_theme
     - statsmodels
+    - nexoclom
+    - MESSENGERuvvs
 
-prefix: /Users/mburger/anaconda/envs/nexoclom
 variables:
-  PGDATA: /Users/mburger/.postgres/main
-  NEXOCLOMCONFIG : /Users/mburger/.nexoclom_dev
+  PGDATA: $HOME/.postgres/main
+  NEXOCLOMCONFIG : $HOME/.nexoclom

@@ -1,20 +1,26 @@
 import os
 import pytest
 import random
+import glob
 from nexoclom import Input, Output, __path__
 
 
-inputfiles = ('Ca.reference.input', 'Na.reference.input',
-              'Ca.surfacemap.maxwellian.input', 'Na.surfacemap.maxwellian.input')
+# inputfiles = ('Ca.reference.input', 'Na.reference.input',
+#               'Ca.surfacemap.maxwellian.input', 'Na.surfacemap.maxwellian.input')
+basepath = os.path.dirname(__path__[0])
+inputfiles = glob.glob(os.path.join(basepath, 'tests', 'test_data',
+                                    'inputfiles', '*.input'))
 n_its = [random.randint(1, 10) for _ in inputfiles]
 
 @pytest.mark.initial_state
 @pytest.mark.parametrize('inputfile, n_it', zip(inputfiles, n_its))
 def test_input_search(inputfile, n_it):
-    basepath = os.path.dirname(__path__[0])
-    inputfile_ = os.path.join(basepath, 'tests', 'test_data', 'inputfiles',
-                              inputfile)
-    inputs = Input(inputfile_)
+    # inputfile_ = os.path.join(basepath, 'tests', 'test_data', 'inputfiles',
+    #                           inputfile)
+    # inputs = Input(inputfile_)
+    print(inputfile)
+    
+    inputs = Input(inputfile)
     if inputs.spatialdist.type == 'surface map':
         inputs.spatialdist.coordinate_system = 'solar-fixed'
     else:

@@ -8,25 +8,22 @@ Packages created by Matthew Burger that need to be installed:
 
 Installation process:
 
-(1) Install Anaconda Python 3.9:
-    (a) Download the installer from:
-        https://www.anaconda.com/distribution/
-    (b) Click Download
-    (c) double-click the installer to install. This installs anaconda python in
-        $HOME/anaconda3 and does not need sysadmin privileges.
+(1) Install the latest version of Anaconda Python
+    * Download either the command line or graphical installer from
+        https://www.anaconda.com/distribution/ and follow the installation
+        directions. The default install path is
+        $HOME/anaconda3 and does not require sysadmin privileges.
     (d) Verify it works: Open a new terminal window and type:
         > python
-        You should see something like (but saying Python 3.9.x):
-
-Python 3.7.1 | packaged by conda-forge | (default, Nov 13 2018, 10:30:07)
-[Clang 4.0.1 (tags/RELEASE_401/final)] :: Anaconda custom (64-bit) on darwin
-Type "help", "copyright", "credits" or "license" for more information.
-
-NOTE: Anaconda python requires you to use the bash shell.
+        You should see something like:
+        (base) [ella m🍔 /~/]$ ipython
+Python 3.10.9 (main, Mar  1 2023, 12:20:14) [Clang 14.0.6 ]
+Type 'copyright', 'credits' or 'license' for more information
+IPython 8.10.0 -- An enhanced Interactive Python. Type '?' for help.
 
 (2) Create a new python environment with the model.
     (a) Obtain the file nexoclom_environment.yml
-    (b) Create the envirnoment:
+    (b) Create the environment:
         > conda env create -f nexoclom_environment.yml
     (c) To use this environment run:
         > conda activate nexoclom

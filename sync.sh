@@ -1,2 +1,2 @@
-rsync -va --progress --exclude *pycache* nexoclom/ /user/mburger/PythonCode/nexoclom/nexoclom
+rsync -va --progress --exclude *pycache* . /user/mburger/PythonCode/nexoclom
 

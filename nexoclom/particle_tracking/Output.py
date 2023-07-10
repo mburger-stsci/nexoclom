@@ -6,6 +6,7 @@ import pickle
 import astropy.units as u
 import sqlalchemy as sqla
 import sqlalchemy.dialects.postgresql as pg
+import dask
 
 from nexoclom import engine
 import nexoclom.math as mathMB
@@ -183,7 +184,8 @@ class Output:
             # Integrate the packets forward
             if self.inputs.options.step_size == 0:
                 print('Running variable step size integrator.')
-                self.X = self.X0.drop(['longitude', 'latitude', 'localtime'], axis=1)
+                self.X = self.X0.drop(['longitude', 'latitude', 'local_time'],
+                                      axis=1)
                 self.X['lossfrac'] = np.zeros(npackets)
                 self.variable_step_size_driver()
             else:
@@ -241,123 +243,123 @@ class Output:
         #########################################################
 
         # initial step size
-        step_size = np.zeros(self.npackets) + 1000.
+        self.X['step_size'] = np.zeros(self.npackets) + 1000.
         cols = ['time', 'x', 'y', 'z', 'vx', 'vy', 'vz', 'frac']
         moretogo = (self.X['time'] > rest) & (self.X['frac'] > 0.)
         while moretogo.any():
-            # Save old values
-            # This is used for determining if anything hits the rings
-            Xtodo = self.X[cols][moretogo].values
-            step = step_size[moretogo]
-            Xold = Xtodo.copy()
+            Xtodo = self.X[moretogo].copy()
             
-            if np.any(step < 0):
-                # self.logger.error('Negative values of h '
-                #                   'in variable_step_size_dirver')
-                print('Negative values of h '
-                      'in variable_step_size_dirver')
-                assert 0, '\n\tNegative values of step_size'
-            else:
-                pass
-
             # Adjust stepsize to be no more than time remaining
-            step = np.minimum(Xtodo[:,0], step)
+            Xtodo.step_size = np.minimum(Xtodo.time, Xtodo.step_size)
+            assert np.all(Xtodo.step_size > 0), 'Bad step size'
+
+            # Save old values - used to track packet shrinkage
+            Xold = Xtodo.copy()
 
             # Run the rk5 step
-            Xnext, delta = rk5(self, Xtodo, step)
+            Xnext, delta = rk5(self, Xtodo[cols].values,
+                               Xtodo['step_size'].values)
+            Xnext = pd.DataFrame(Xnext, columns=cols, index=Xtodo.index)
+            Xnext['step_size'] = Xtodo['step_size']
+            delta = pd.DataFrame(delta, columns=cols, index=Xtodo.index)
 
             # Do the error check
             # scale = a_tol + |y|*r_tol
             #   for x: a_tol = r_tol = resolution
             #   for v: a_tol = r_tol = resolution/10.-require v more precise
             #   for f: a_tol = 0.01, r_tol = 0 -> frac tol = 1%
-            scalex = resx + np.abs(Xnext[:,1:4])*resx
-            scalev = resv + np.abs(Xnext[:,4:7])*resv
-            scalef = resf + np.abs(Xnext[:,7])*resf
+            scalex = resx + np.abs(Xnext[['x', 'y', 'z']])*resx
+            scalev = resv + np.abs(Xnext[['vx', 'vy', 'vz']])*resv
+            scalef = resf + np.abs(Xnext['frac'])*resf
 
             # Difference relative to acceptable difference
-            delta[:,1:4] /= scalex
-            delta[:,4:7] /= scalev
-            delta[:,7] /= scalef
-
+            delta[['x', 'y', 'z']] /= scalex
+            delta[['vx', 'vy', 'vz']] /= scalev
+            delta['frac'] /= scalef
+            
             # Maximum error for each packet
-            errmax = delta.max(axis=1)
+            errmax = delta.apply(lambda row: row.max(), axis=1)
 
             # error check
             assert np.all(np.isfinite(errmax)), '\n\tInfinite values of emax'
 
             # Make sure no negative frac
-            assert not np.any((Xnext[:,7] < 0) & (errmax < 1)),(
+            assert np.logical_not(np.any((Xnext.frac < 0) & (errmax < 1))), (
                 'Found new values of frac that are negative')
 
             # Make sure frac doesn't increase
-            errmax[(Xnext[:,7]-Xtodo[:,7] > scalef) & (errmax > 1)] = 1.1
+            errmax[(Xnext.frac - Xtodo.frac > scalef) & (errmax > 1)] = 1.1
 
             # Check where difference is very small. Adjust step size
             noerr = errmax < 1e-7
             errmax[noerr] = 1
-            step[noerr] *= 10
+            Xtodo.loc[noerr, 'step_size'] *= 10
 
             # Put the post-step values in
             g = errmax < 1.0
             b = errmax >= 1.0
 
-            if np.any(g):
-                Ximpcheck = Xnext[g,:]
-                step_ = safety*step[g]*errmax[g]**grow
+            if np.any(g) > 0:
+                Xnext_good = Xnext[g].copy()
+                Xnext_good.step_size = (safety * Xnext_good.step_size *
+                                         errmax[g]**grow)
 
                 # Impact Check
-                tempR = np.linalg.norm(Ximpcheck[:,1:4], axis=1)
-                hitplanet = (tempR - 1.) < 0
-                if np.any(hitplanet):
-                    if ((self.inputs.surfaceinteraction.sticktype == 'constant')
-                        and (self.inputs.surfaceinteraction.stickcoef == 1.)):
-                        Xnext[hitplanet, 7] = 0.
-                    else:
-                        bouncepackets(self, Xnext[hitplanet, :],
-                                      tempR[hitplanet])
+                tempR = (Xnext_good.x**2 + Xnext_good.y**2 + Xnext_good.z**2)
+                if ((self.inputs.surfaceinteraction.sticktype == 'constant')
+                    and (self.inputs.surfaceinteraction.stickcoef == 1.)):
+                    Xnext_good.loc[tempR < 1, 'frac'] = 0
                 else:
-                    pass
+                    # bouncepackets(self, Xnext[g[hitplanet], :],
+                    #               tempR[hitplanet])
+                    assert False, 'Not set up'
 
                 # Check for escape
-                Ximpcheck[tempR > self.inputs.options.outeredge,7] = 0
+                Xnext_good.loc[tempR > self.inputs.options.outeredge, 'frac'] = 0
 
                 # Check for vanishing
-                Ximpcheck[Ximpcheck[:,7] < 1e-10, 7] = 0.
+                Xnext_good.loc[Xnext_good.frac < 1e-10, 'frac'] = 0.
 
                 # set remaining time = 0 for packets that are done
-                Ximpcheck[Ximpcheck[:,7] == 0, 0] = 0.
-
-                # Put new values into arrays
-                #Xnext[g,:] = Ximpcheck
-                Xtodo[g] = Ximpcheck
-                step[g] = step_
-            else: pass
+                Xnext_good.loc[Xnext_good.frac == 0, 'time'] = 0
+                
+                # Insert back into the original arrays
+                self.X.loc[Xnext_good.index, cols] = Xnext_good[cols]
+                # self.X.loc[g, 'lossfrac'] += (Xold.loc[g, 'frac'] -
+                #                               Xnext.loc[g, 'frac'])
+            else:
+                pass
 
             if np.any(b):
                 # Don't adjust the bad value, but do fix the stepsize
-                step_ = safety*step[b]*errmax[b]**shrink
+                old_ = Xtodo.loc[b, 'step_size']
+                step_ = safety * old_ * errmax[b]**shrink
+                assert np.logical_not(np.any(np.isclose(step_, old_)))
                 assert np.all(np.isfinite(step_)), (
                     '\n\tInfinite values of step_size')
 
                 # Don't let step size drop below 1/10th previous step size
-                step[b] = np.maximum(step_, 0.1*step[b])
+                self.X.loc[step_.index, 'step_size'] = np.maximum(step_, 0.1*old_)
+            else:
+                pass
 
-            assert np.all(step >= 0), '\n\tNegative values of step_size'
-
-            # Insert back into the original arrays
-            self.X.loc[moretogo,cols] = Xtodo
-            self.X.loc[moretogo,'lossfrac'] += Xold[:,7] - Xtodo[:,7]
-            step_size[moretogo] = step
+            assert np.all(Xtodo.step_size >= 0), 'Negative values of step_size'
+            
+            # Verify there aren't any with R < 1
+            # radius = self.X.x**2 + self.X.y**2 + self.X.z**2
+            # assert np.all(radius[self.X.frac > 0] >= 1)
 
             # Find which packets still need to run
-            moretogo = (self.X['time'] > rest) & (self.X['frac'] > 0.)
+            moretogo = (self.X.time > rest) & (self.X.frac > 0.)
             if count % 100 == 0:
-                print(f'Step {count}. {np.sum(moretogo)} more to go\n'
-                      f'\tstep_size: {mathMB.minmaxmean(step_size)}')
+                print(f'Step {count}. {np.sum(moretogo)} more to go')
+                # print("\tstep_size: "
+                #       f"{mathMB.minmaxmean(self.X.loc[moretogo,  'step_size'])}")
+                
             count += 1
 
         # Add units back in
+        self.X['Index'] = self.X.index
         self.aplanet *= u.au
         self.vrplanet *= self.unit/u.s
         self.vrplanet = self.vrplanet.to(u.km/u.s)
@@ -540,9 +542,6 @@ class Output:
 
         # Save output as a pickle
         print(f'Saving file {self.filename}')
-        if self.inputs.surfaceinteraction.sticktype == 'temperature dependent':
-            self.surfaceint.stickcoef = 'FUNCTION'
-            
         with open(self.filename, 'wb') as file:
             pickle.dump(self, file, protocol=pickle.HIGHEST_PROTOCOL)
 

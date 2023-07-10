@@ -196,15 +196,14 @@ class Geometry:
             objects = [o.object for o in self.objects]
             
         if self.type == 'geometry with starttime':
-            table = sqla.Table("geometry_without_time",
+            table = sqla.Table("geometry_with_time",
                                metadata_obj,
                                autoload_with=engine)
-            query = sqla.select(table.columns.idnum,
-                                table.columns.taa).where(
+            query = sqla.select(table.columns.idnum).where(
                 table.columns.planet == self.planet.object,
                 table.columns.startpoint == self.startpoint,
                 table.columns.objects == objects,
-                table.columns.starttime == self.time)
+                table.columns.starttime == self.time.isot)
         elif self.type == 'geometry without starttime':
             if self.phi is None:
                 phi = None
@@ -237,10 +236,15 @@ class Geometry:
         elif len(results) == 1:
             return [int(results.loc[0, 'idnum'])]
         else:
-            diff = np.abs(results.taa - self.taa.value)
-            q = np.where(diff == diff.min())[0]
-            ids = [int(x) for x in results.loc[q, 'idnum'].values]
-            return ids
+            if self.type == 'geometry without starttime':
+                diff = np.abs(results.taa - self.taa.value)
+                q = np.where(diff == diff.min())[0]
+                ids = [int(x) for x in results.loc[q, 'idnum'].values]
+                return ids
+            else:
+                ids = results.idnum.apply(int).values
+                return
+
 
 
 class SurfaceInteraction:
@@ -254,13 +258,13 @@ class SurfaceInteraction:
                      else None)
         if sticktype == 'temperature dependent':
             self.sticktype = sticktype
-            
+
             if 'accomfactor' in sparam:
                 self.accomfactor = float(sparam['accomfactor'])
             else:
                 raise InputError('SurfaceInteraction.__init__',
                                  'surfaceinteraction.accomfactor not given.')
-            
+
             if 'a' in sparam:
                 A = tuple([float(a) for a in sparam['a'].split(',')])
                 if len(A) == 3:

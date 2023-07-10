@@ -4,8 +4,10 @@ import astropy.units as u
 from sklearn.neighbors import BallTree
 from nexoclom.particle_tracking.Output import Output
 import nexoclom.math as mathMB
+import dask
 
 
+# @dask.delayed
 def make_source_map(outputfile, params, todo=None):
     """
     At each point in lon/lat grid want:

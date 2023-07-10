@@ -59,6 +59,7 @@ distribute-*.tar.gz
 .project
 .pydevproject
 .settings
+nexoclom_environment_dev.yml
 
 # Mac OSX
 .DS_Store

@@ -119,6 +119,10 @@ def compute_iteration(self, outputfile, scdata, delay=False):
 
     X0_index = output.X0.index
     packets = output.X
+    if 'Index' not in packets.columns:
+        packets['Index'] = list(packets.index)
+    if isinstance(output.vrplanet, float):
+        output.vrplanet *= output.unit/u.s
     packets['radvel_sun'] = (packets['vy'] +
                              output.vrplanet.to(self.unit / u.s).value)
     aplanet = output.aplanet
