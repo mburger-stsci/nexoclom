@@ -317,15 +317,7 @@ fitted = {self.fitted}'''
                             for outputfile, modelfile in self.modelfiles.items()]
                 
                 sources = dask.compute(sources_, scheduler='processes')
-                
                 sources = sources[0]
-                
-                from inspect import currentframe, getframeinfo
-                frameinfo = getframeinfo(currentframe())
-                print(frameinfo.filename, frameinfo.lineno)
-                from IPython import embed; embed()
-                import sys; sys.exit()
-                
             else:
                 sources = [make_source_map(outputfile, grid_params, todo=todo_)
                            for outputfile, modelfile in self.modelfiles.items()]
