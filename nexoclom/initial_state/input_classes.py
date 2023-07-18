@@ -243,7 +243,7 @@ class Geometry:
                 return ids
             else:
                 ids = results.idnum.apply(int).values
-                return
+                return ids
 
 
 

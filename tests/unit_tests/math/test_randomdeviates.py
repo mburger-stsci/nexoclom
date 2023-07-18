@@ -41,6 +41,9 @@ def test_random_deviates():
     print(np.mean((hist.histogram-f1_)**2),np.std((hist.histogram-f1_)**2))
     assert np.mean((hist.histogram-f1_)**2) == pytest.approx(0, abs=1e-3)
     assert np.std((hist.histogram-f1_)**2) == pytest.approx(0, abs=1e-3)
+    
+@pytest.mark.math
+def test_random_deviates2d():
 
 if __name__ == '__main__':
     test_random_deviates()

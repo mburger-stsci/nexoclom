@@ -113,12 +113,14 @@ def surface_distribution(outputs):
         cosphi[cosphi < -1] = -1
         phi = np.arccos(cosphi)
         sourcemap = np.exp(-phi/sigma0.value)
-    
+
         lon, lat = mathMB.random_deviates_2d(sourcemap, longitude.value,
-                                             np.sin(latitude.value), npack)
-        lat = np.arcsin(lat)
+                                             latitude.value, npack)
+        # lon, lat = mathMB.random_deviates_2d(sourcemap, longitude.value,
+        #                                      np.sin(latitude.value), npack)
+        # lat = np.arcsin(lat)
     else:
-        assert 0, "Can't get here"
+        assert False, "Can't get here"
 
     X_ = xyz_from_lonlat(lon, lat,
                          outputs.inputs.geometry.planet.type == 'Planet',

@@ -1,0 +1,25 @@
+name: nexoclom_test
+channels:
+  - conda-forge
+  - http://ssb.stsci.edu/astroconda
+  - defaults
+dependencies:
+  - python=3.10
+  - poetry
+  - postgresql
+  - mongodb
+  - ipython
+  - pip
+  - pytest
+  - python-dotenv
+  - hypothesis
+  - git
+  - pylint
+  - pip:
+    - sphinx
+    - stsci_rtd_theme
+    - statsmodels
+
+variables:
+  PGDATA: /Users/mburger/.postgres/main
+  NEXOCLOMCONFIG : /Users/mburger/.nexoclom_test

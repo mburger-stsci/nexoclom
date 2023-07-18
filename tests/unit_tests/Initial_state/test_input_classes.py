@@ -7,17 +7,15 @@ import pytest
 import astropy.units as u
 from astropy.time import Time
 from nexoclom.solarsystem import SSObject
-from nexoclom import Input, __file__ as basefile
+from nexoclom import Input, __path__ as  basepath
 
-basepath = os.path.dirname(basefile)
-if __name__ == '__main__':
-    inputpath = os.path.join('test_data', 'inputfiles')
-else:
-    inputpath = os.path.join(basepath, 'tests', 'test_data', 'inputfiles')
+basepath = os.path.dirname(basepath[0])
+inputpath = os.path.join(basepath, 'tests', 'test_data', 'inputfiles')
 
 
 @pytest.mark.initial_state
 def test_geometry():
+    assert os.environ['NEXOCLOMCONFIG'] == '/Users/mburger/.nexoclom_test'
     inputfile01 = os.path.join(inputpath, 'Geometry.01.input')
     geometry01 = Input(inputfile01).geometry
     result = {'planet': SSObject('Jupiter'),
@@ -126,7 +124,7 @@ def test_Forces():
               'radpres': False}
     assert forces03.__dict__ == result
 
-@pytest.mark.inital_state
+@pytest.mark.initial_state
 def test_SpatialDist():
     inputfile01 = os.path.join(inputpath, 'Spatial.01.input')
     spatial01 = Input(inputfile01).spatialdist
