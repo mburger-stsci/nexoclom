@@ -6,6 +6,7 @@ import pandas as pd
 from astropy.time import Time
 import sqlalchemy as sqla
 import dask
+from dask.distributed import Client
 import time
 
 
@@ -175,7 +176,7 @@ class Input:
 
 
     def run(self, npackets, packs_per_it=None, overwrite=False, compress=True,
-            distribute=None):
+            distribute=False):
         """Run the nexoclom model with the current inputs.
         
         **Parameters**
@@ -201,7 +202,7 @@ class Input:
         """
         t0_ = Time.now()
         print(f'Starting at {t0_}')
-
+        distribute = distribute in (True, 'delay', 'delayed')
         # Determine how many packets have already been run
         if overwrite:
             self.delete_files()
@@ -213,7 +214,7 @@ class Input:
 
         npackets = int(npackets)
         ntodo = npackets - totalpackets
-        
+
         while ntodo > 0:
             if (packs_per_it is None) and (self.options.step_size == 0):
                 packs_per_it = 1000000
@@ -234,10 +235,14 @@ class Input:
             print('Running Model')
             print(f'Will complete {nits} iterations of {packs_per_it} packets.')
 
-            if distribute in ('delay', 'delayed'):
-                outputs = [output_wrapper(self, packs_per_it, compress=compress)
-                           for _ in range(nits)]
-                dask.compute(*outputs)
+            if distribute:
+                # client = Client(processes=True,  # threads_per_worker=4,
+                #                 n_workers=nits)
+                with Client(processes=True, n_workers=nits) as client:
+                    outputs = [dask.delayed(output_wrapper)(self, packs_per_it,
+                                                            compress=compress)
+                               for _ in range(nits)]
+                    dask.compute(*outputs)
             else:
                 for _ in range(nits):
                     tit0_ = Time.now()

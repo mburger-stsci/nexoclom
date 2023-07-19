@@ -6,6 +6,7 @@ from astropy.modeling import models, fitting
 from astropy.visualization import PercentileInterval
 import sqlalchemy as sqla
 import dask
+from dask.distributed import Client
 
 from nexoclom import engine
 from nexoclom.data_simulation.ModelResult import ModelResult
@@ -225,12 +226,15 @@ fitted = {self.fitted}'''
             # Will retry if something fails due to memory error
             print(f'LOSResult: {list(search_results.values()).count(None)} '
                   'to compute')
-            if distribute in ('delay', 'delayed'):
-                iterations = [dask.delayed(compute_iteration)(self, outputfile,
-                                                              scdata, True)
-                              for outputfile, search_result in search_results.items()
-                              if search_result is None]
-                dask.compute(*iterations)
+            if distribute in (True, 'delay', 'delayed'):
+                outputfiles = [outputfile for outputfile, search_result
+                               in search_results.items()
+                               if search_result is None]
+                with Client(processes=True, n_workers=len(outputfiles)) as client:
+                    iterations = [dask.delayed(compute_iteration)(self, outputfile,
+                                                                  scdata, True)
+                                  for outputfile in outputfiles]
+                    dask.compute(*iterations)
             else:
                 for outputfile, search_result in search_results.items():
                     if search_result is None:
@@ -307,17 +311,24 @@ fitted = {self.fitted}'''
         else:
             pass
         
-        print(distribute)
         for todo_ in todo:
-            if distribute in ('delay', 'delayed'):
-                # sources_ = [dask.delayed(make_source_map)(outputfile, grid_params,
-                #                                           todo=todo_)
-                #             for outputfile, modelfile in self.modelfiles.items()]
-                sources_ = [make_source_map(outputfile, grid_params, todo=todo_)
-                            for outputfile, modelfile in self.modelfiles.items()]
+            print(distribute)
+            if distribute in (True, 'delay', 'delayed'):
+                with Client(processes=True,
+                            n_workers=len(self.modelfiles)) as client:
+                    sources_ = [dask.delayed(make_source_map)(outputfile,
+                                                              grid_params,
+                                                              todo=todo_)
+                                for outputfile, modelfile
+                                in self.modelfiles.items()]
                 
-                sources = dask.compute(sources_, scheduler='processes')
-                sources = sources[0]
+                    sources = dask.compute(*sources_)
+                for source in sources:
+                    source['longitude'] *= u.rad
+                    source['latitude'] *= u.rad
+                    source['speed'] *= u.km/u.s
+                    source['altitude'] *= u.rad
+                    source['azimuth'] *= u.rad
             else:
                 sources = [make_source_map(outputfile, grid_params, todo=todo_)
                            for outputfile, modelfile in self.modelfiles.items()]
