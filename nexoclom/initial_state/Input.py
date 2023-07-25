@@ -238,11 +238,11 @@ class Input:
             if distribute:
                 # client = Client(processes=True,  # threads_per_worker=4,
                 #                 n_workers=nits)
-                with Client(processes=True, n_workers=nits) as client:
-                    outputs = [dask.delayed(output_wrapper)(self, packs_per_it,
-                                                            compress=compress)
-                               for _ in range(nits)]
-                    dask.compute(*outputs)
+                # with Client(processes=True, n_workers=nits) as client:
+                outputs = [dask.delayed(output_wrapper)(self, packs_per_it,
+                                                        compress=compress)
+                           for _ in range(nits)]
+                dask.compute(*outputs)
             else:
                 for _ in range(nits):
                     tit0_ = Time.now()

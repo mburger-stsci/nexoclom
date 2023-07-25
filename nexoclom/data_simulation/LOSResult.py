@@ -230,11 +230,11 @@ fitted = {self.fitted}'''
                 outputfiles = [outputfile for outputfile, search_result
                                in search_results.items()
                                if search_result is None]
-                with Client(processes=True, n_workers=len(outputfiles)) as client:
-                    iterations = [dask.delayed(compute_iteration)(self, outputfile,
-                                                                  scdata, True)
-                                  for outputfile in outputfiles]
-                    dask.compute(*iterations)
+                # with Client(processes=True, n_workers=len(outputfiles)) as client:
+                iterations = [dask.delayed(compute_iteration)(self, outputfile,
+                                                              scdata, True)
+                              for outputfile in outputfiles]
+                dask.compute(*iterations)
             else:
                 for outputfile, search_result in search_results.items():
                     if search_result is None:
