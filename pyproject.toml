@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "nexoclom"
-version = "3.7.1"
+version = "3.7.2"
 description = "Neutral EXosphere and CLoud Model"
 authors = ["Matthew Burger <mburger@stsci.edu>"]
 license = "BSD 3-Clause"
