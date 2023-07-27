@@ -8,8 +8,6 @@ import sqlalchemy as sqla
 import dask
 from dask.distributed import Client
 import time
-
-
 from nexoclom.particle_tracking.Output import Output
 from nexoclom import config, engine
 from nexoclom.initial_state.input_classes import (Geometry, SurfaceInteraction,
@@ -236,13 +234,12 @@ class Input:
             print(f'Will complete {nits} iterations of {packs_per_it} packets.')
 
             if distribute:
-                # client = Client(processes=True,  # threads_per_worker=4,
-                #                 n_workers=nits)
-                # with Client(processes=True, n_workers=nits) as client:
+                print('Distributing tasks')
                 outputs = [dask.delayed(output_wrapper)(self, packs_per_it,
                                                         compress=compress)
                            for _ in range(nits)]
-                dask.compute(*outputs)
+                with Client(os.environ['dask']) as client:
+                    dask.compute(*outputs)
             else:
                 for _ in range(nits):
                     tit0_ = Time.now()

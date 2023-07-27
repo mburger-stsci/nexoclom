@@ -1,3 +1,4 @@
+import os
 import numpy as np
 import pandas as pd
 import pickle
@@ -230,11 +231,11 @@ fitted = {self.fitted}'''
                 outputfiles = [outputfile for outputfile, search_result
                                in search_results.items()
                                if search_result is None]
-                # with Client(processes=True, n_workers=len(outputfiles)) as client:
                 iterations = [dask.delayed(compute_iteration)(self, outputfile,
                                                               scdata, True)
                               for outputfile in outputfiles]
-                dask.compute(*iterations)
+                with Client(os.environ['dask']) as client:
+                    dask.compute(*iterations)
             else:
                 for outputfile, search_result in search_results.items():
                     if search_result is None:
@@ -320,7 +321,8 @@ fitted = {self.fitted}'''
                             for outputfile, modelfile
                             in self.modelfiles.items()]
             
-                sources = dask.compute(*sources_)
+                with Client(os.environ['dask']) as client:
+                    sources = dask.compute(*sources_)
             else:
                 sources = [make_source_map(outputfile, grid_params, todo=todo_)
                            for outputfile, modelfile in self.modelfiles.items()]
