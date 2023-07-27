@@ -123,6 +123,7 @@ def make_source_map(outputfile, params, todo=None):
         abundance = np.zeros((points.shape[0], ))
     else:
         pass
+    
     for index in range(points.shape[0]):
         if len(ind[index]) > 0:
             subset = X0.loc[ind[index]]

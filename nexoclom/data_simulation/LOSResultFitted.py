@@ -1,3 +1,5 @@
+import copy
+
 import numpy as np
 import pandas as pd
 import pickle
@@ -81,6 +83,7 @@ class LOSResultFitted(LOSResult):
             search_result = self.fitted_iteration_search(ufit_id)
             if search_result is None:
                 # Need to compute for this unfit output file
+                # for use_weight in (True, False):
                 output = Output.restore(ufit_outfile)
                 if 'Index' not in output.X.columns:
                     output.X['Index'] = output.X.index
@@ -187,7 +190,16 @@ class LOSResultFitted(LOSResult):
                         radiance.loc[spnum] = wtemp.sum()
                     else:
                         pass
-
+                    
+                # if use_weight:
+                #     output_weight = copy.deepcopy(output)
+                #     radiance_weight = copy.deepcopy(radiance)
+                #     del output
+                # else:
+                #     output_noweight = copy.deepcopy(output)
+                #     radiance_noweight = copy.deepcopy(radiance)
+                #     del output
+                
                 # Save the fitted output
                 output.inputs = self.inputs
                 output.save()

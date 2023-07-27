@@ -314,25 +314,17 @@ fitted = {self.fitted}'''
         for todo_ in todo:
             print(distribute)
             if distribute in (True, 'delay', 'delayed'):
-                with Client(processes=True,
-                            n_workers=len(self.modelfiles)) as client:
-                    sources_ = [dask.delayed(make_source_map)(outputfile,
-                                                              grid_params,
-                                                              todo=todo_)
-                                for outputfile, modelfile
-                                in self.modelfiles.items()]
-                
-                    sources = dask.compute(*sources_)
-                for source in sources:
-                    source['longitude'] *= u.rad
-                    source['latitude'] *= u.rad
-                    source['speed'] *= u.km/u.s
-                    source['altitude'] *= u.rad
-                    source['azimuth'] *= u.rad
+                sources_ = [dask.delayed(make_source_map)(outputfile,
+                                                          grid_params,
+                                                          todo=todo_)
+                            for outputfile, modelfile
+                            in self.modelfiles.items()]
+            
+                sources = dask.compute(*sources_)
             else:
                 sources = [make_source_map(outputfile, grid_params, todo=todo_)
                            for outputfile, modelfile in self.modelfiles.items()]
-             
+            
             # Add the iterations
             distribution = {key: np.zeros_like(value)
                             for key, value in sources[0].items()}
