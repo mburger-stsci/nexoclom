@@ -2,22 +2,22 @@
 """
 import os
 import numpy as np
+import pickle
 import pandas as pd
 from astropy.time import Time
 import sqlalchemy as sqla
-import dask
-from dask.distributed import Client
 import time
+from nexoclom import __path__
 from nexoclom.particle_tracking.Output import Output
 from nexoclom import config, engine
 from nexoclom.initial_state.input_classes import (Geometry, SurfaceInteraction,
                                                   Forces, SpatialDist, SpeedDist,
                                                   AngularDist, Options)
 from nexoclom.data_simulation.ModelImage import ModelImage
+from nexoclom.utilities.Condor import Condor
 
-# dask.config.set(scheduler='multiprocessing')
 
-@dask.delayed
+# @dask.delayed
 def output_wrapper(inputs, npackets, compress):
     time.sleep(np.random.random()*10)
     Output(inputs, npackets, compress=compress)
@@ -200,7 +200,7 @@ class Input:
         """
         t0_ = Time.now()
         print(f'Starting at {t0_}')
-        distribute = distribute in (True, 'delay', 'delayed')
+        distribute = distribute in (True, 'delay', 'delayed', 'condor')
         # Determine how many packets have already been run
         if overwrite:
             self.delete_files()
@@ -234,12 +234,28 @@ class Input:
             print(f'Will complete {nits} iterations of {packs_per_it} packets.')
 
             if distribute:
-                print('Distributing tasks')
-                outputs = [dask.delayed(output_wrapper)(self, packs_per_it,
-                                                        compress=compress)
-                           for _ in range(nits)]
-                with Client(os.environ['dask']) as client:
-                    dask.compute(*outputs)
+                print('Distributing tasks using HTCondor')
+                condor = Condor()
+                tempfiles = []
+                output = os.path.join(__path__[0], 'particle_tracking',
+                                      'Output.py')
+                for _ in range(nits):
+                    tempfile = os.path.join(self.config.savepath, 'temp',
+                                            f'{np.random.randint(10000000)}.temp')
+                    with open(tempfile, 'wb') as file:
+                        pickle.dump((self, packs_per_it, compress), file)
+                    command = f'{output} {tempfile}'
+                    condor.submit(command)
+                    tempfiles.append(tempfile)
+                    
+                for tempfile in tempfiles:
+                    os.remove(tempfile)
+                    
+                # with Client(threads_per_worker=1) as client:
+                #     print(client)
+                #     outputs = [client.submit(output_wrapper,
+                #                              self, packs_per_it, compress)
+                #                for _ in range(nits)]
             else:
                 for _ in range(nits):
                     tit0_ = Time.now()

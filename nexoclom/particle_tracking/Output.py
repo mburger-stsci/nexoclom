@@ -1,15 +1,13 @@
 import os
-import os.path
+import sys
 import pandas as pd
 import numpy as np
 import pickle
 import astropy.units as u
 import sqlalchemy as sqla
 import sqlalchemy.dialects.postgresql as pg
-import dask
 
 from nexoclom import engine
-import nexoclom.math as mathMB
 from nexoclom.solarsystem import planet_dist
 from nexoclom.atomicdata import RadPresConst
 from nexoclom.initial_state.satellite_initial_positions import satellite_initial_positions
@@ -568,3 +566,9 @@ class Output:
                 pass
 
         return output
+
+if __name__ == '__main__':
+    tempfile = sys.argv[1]
+    with open(tempfile, 'rb') as file:
+        inputs, npack, compress = pickle.load(tempfile)
+    Output(inputs, npack, compress=compress)
