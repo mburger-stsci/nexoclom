@@ -6,8 +6,8 @@ import astropy.units as u
 from astropy.modeling import models, fitting
 from astropy.visualization import PercentileInterval
 import sqlalchemy as sqla
-import dask
-from dask.distributed import Client
+# import dask
+# from dask.distributed import Client
 
 from nexoclom import engine
 from nexoclom.data_simulation.ModelResult import ModelResult
@@ -228,14 +228,15 @@ fitted = {self.fitted}'''
             print(f'LOSResult: {list(search_results.values()).count(None)} '
                   'to compute')
             if distribute in (True, 'delay', 'delayed'):
-                outputfiles = [outputfile for outputfile, search_result
-                               in search_results.items()
-                               if search_result is None]
-                iterations = [dask.delayed(compute_iteration)(self, outputfile,
-                                                              scdata, True)
-                              for outputfile in outputfiles]
-                with Client(os.environ['dask']) as client:
-                    dask.compute(*iterations)
+                assert False, "Don't do this"
+                # outputfiles = [outputfile for outputfile, search_result
+                #                in search_results.items()
+                #                if search_result is None]
+                # iterations = [dask.delayed(compute_iteration)(self, outputfile,
+                #                                               scdata, True)
+                #               for outputfile in outputfiles]
+                # with Client(os.environ['dask']) as client:
+                #     dask.compute(*iterations)
             else:
                 for outputfile, search_result in search_results.items():
                     if search_result is None:
@@ -315,14 +316,15 @@ fitted = {self.fitted}'''
         for todo_ in todo:
             print(distribute)
             if distribute in (True, 'delay', 'delayed'):
-                sources_ = [dask.delayed(make_source_map)(outputfile,
-                                                          grid_params,
-                                                          todo=todo_)
-                            for outputfile, modelfile
-                            in self.modelfiles.items()]
-            
-                with Client(os.environ['dask']) as client:
-                    sources = dask.compute(*sources_)
+                assert False, "Don't do this"
+                # sources_ = [dask.delayed(make_source_map)(outputfile,
+                #                                           grid_params,
+                #                                           todo=todo_)
+                #             for outputfile, modelfile
+                #             in self.modelfiles.items()]
+                #
+                # with Client(os.environ['dask']) as client:
+                #     sources = dask.compute(*sources_)
             else:
                 sources = [make_source_map(outputfile, grid_params, todo=todo_)
                            for outputfile, modelfile in self.modelfiles.items()]

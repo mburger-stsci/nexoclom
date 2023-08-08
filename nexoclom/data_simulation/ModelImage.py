@@ -5,7 +5,7 @@ import astropy.units as u
 import json
 import sqlalchemy as sqla
 import sqlalchemy.dialects.postgresql as pg
-import dask
+# import dask
 import time
 
 from nexoclom import engine
@@ -98,17 +98,18 @@ class ModelImage(ModelResult):
         self.outid, self.outputfiles, _, _ = self.inputs.search()
 
         if distribute in ('delay', 'delayed'):
-            client = Client()
-            results = [dask.delayed(image_step)(self, fname, overwrite, True)
-                       for fname in self.outputfiles]
-            results = dask.compute(*results)
-            client.close()
-            for image_, packets_, totalsource_ in results:
-                self.image += image_.histogram
-                self.packet_image += packets_.histogram
-                self.totalsource += totalsource_
-                self.xaxis = image_.x * self.unit
-                self.zaxis = image_.y * self.unit
+            assert False, "Don't do this"
+            # client = Client()
+            # results = [dask.delayed(image_step)(self, fname, overwrite, True)
+            #            for fname in self.outputfiles]
+            # results = dask.compute(*results)
+            # client.close()
+            # for image_, packets_, totalsource_ in results:
+            #     self.image += image_.histogram
+            #     self.packet_image += packets_.histogram
+            #     self.totalsource += totalsource_
+            #     self.xaxis = image_.x * self.unit
+            #     self.zaxis = image_.y * self.unit
         else:
             for fname in self.outputfiles:
                 image_, packets_, totalsource_ = image_step(self, fname, overwrite)

@@ -4,7 +4,7 @@ import astropy.units as u
 from sklearn.neighbors import BallTree
 from nexoclom.particle_tracking.Output import Output
 import nexoclom.math as mathMB
-import dask
+# import dask
 
 
 # @dask.delayed
