@@ -14,7 +14,6 @@ from nexoclom.initial_state.input_classes import (Geometry, SurfaceInteraction,
                                                   Forces, SpatialDist, SpeedDist,
                                                   AngularDist, Options)
 from nexoclom.data_simulation.ModelImage import ModelImage
-from nexoclom.utilities.Condor import Condor
 
 
 # @dask.delayed
@@ -52,7 +51,7 @@ class Input:
         
         """
         # Read the configuration file
-        dask.config.set(scheduler='processes')
+        # dask.config.set(scheduler='processes')
         self.config = config
 
         # Read in the input file:
@@ -200,7 +199,7 @@ class Input:
         """
         t0_ = Time.now()
         print(f'Starting at {t0_}')
-        distribute = distribute in (True, 'delay', 'delayed', 'condor')
+        distribute = distribute in (True, 'delay', 'delayed')
         # Determine how many packets have already been run
         if overwrite:
             self.delete_files()
@@ -234,23 +233,7 @@ class Input:
             print(f'Will complete {nits} iterations of {packs_per_it} packets.')
 
             if distribute:
-                print('Distributing tasks using HTCondor')
-                condor = Condor()
-                tempfiles = []
-                output = os.path.join(__path__[0], 'particle_tracking',
-                                      'Output.py')
-                for _ in range(nits):
-                    tempfile = os.path.join(self.config.savepath, 'temp',
-                                            f'{np.random.randint(10000000)}.temp')
-                    with open(tempfile, 'wb') as file:
-                        pickle.dump((self, packs_per_it, compress), file)
-                    command = f'{output} {tempfile}'
-                    condor.submit(command)
-                    tempfiles.append(tempfile)
-                    
-                for tempfile in tempfiles:
-                    os.remove(tempfile)
-                    
+                assert False, 'Dont do this'
                 # with Client(threads_per_worker=1) as client:
                 #     print(client)
                 #     outputs = [client.submit(output_wrapper,

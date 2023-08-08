@@ -1,5 +1,5 @@
 import numpy as np
-from nexoclom.atomicdata import atomicmass
+from nexoclom.atomicdata.atomicmass import atomicmass
 import astropy.units as u
 import astropy.constants as const
 
