@@ -22,7 +22,7 @@ class NexoclomConfig:
     """
     def __init__(self, verbose=False):
         configfile = os.environ.get('NEXOCLOMCONFIG', None)
-        assert configfile is not None
+        assert configfile is not None, 'NEXOCLOMCONFIG environment variable not set'
         self.configfile = os.path.expandvars(configfile)
         
         if verbose:
@@ -65,6 +65,7 @@ class NexoclomConfig:
                 pass
             
         self.dbhost = config.get('dbhost', None)
+        self.config = config
         
     def __repr__(self):
         return self.__dict__.__repr__()
@@ -104,6 +105,14 @@ class NexoclomConfig:
             database = self.database
         else:
             pass
+        
+        if 'USER' in self.config:
+            user = self.config['USER']
+        elif 'user' in self.config:
+            user = self.config['user']
+        else:
+            user = os.environ.get('USER', None)
+        assert user is not None, 'User needs to be defined in configfile'
         
         if self.dbhost:
             url = (f"postgresql+psycopg://{os.environ['USER']}@{self.dbhost}:"
