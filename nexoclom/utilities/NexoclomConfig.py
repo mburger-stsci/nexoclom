@@ -21,8 +21,8 @@ class NexoclomConfig:
     If savepath is not present, an exception is raised
     """
     def __init__(self, verbose=False):
-        configfile = os.environ.get('NEXOCLOMCONFIG', os.path.join(
-            os.environ['HOME'], '.nexoclom'))
+        configfile = os.environ.get('NEXOCLOMCONFIG', None)
+        assert configfile is not None
         self.configfile = os.path.expandvars(configfile)
         
         if verbose:
