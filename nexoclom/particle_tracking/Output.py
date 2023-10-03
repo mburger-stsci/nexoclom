@@ -133,10 +133,12 @@ class Output:
                 self.surfaceint = SurfaceInteraction(inputs, nt=201, nv=101, nprob=101)
 
             # Define the time that packets will run
-            if inputs.options.step_size > 0:
+            if inputs.options.step_size != 0:
                 time = np.ones(npackets) * inputs.options.endtime
-            else:
+            elif inputs.options.step_size == 0:
                 time = self.randgen.random(npackets) * inputs.options.endtime
+            else:
+                assert False, 'Should not be able to get here'
             
             self.X0 = pd.DataFrame()
             self.X0['time'] = time.value
@@ -370,8 +372,7 @@ class Output:
         #  step size and counters
         step_size = np.zeros(self.npackets) + self.inputs.options.step_size
         
-        self.nsteps = int(np.ceil(self.inputs.options.endtime.value/step_size[0]
-                                  + 1))
+        self.nsteps = int(np.ceil(self.inputs.options.endtime.value/step_size[0] + 1))
         results = np.zeros((self.npackets,8,self.nsteps))
         results[:,:,0] = self.X0[cols]
         lossfrac = np.ndarray((self.npackets,self.nsteps))
@@ -442,6 +443,7 @@ class Output:
         X['vz'] = results[:,6,:].reshape(npackets)
         X['frac'] = results[:,7,:].reshape(npackets)
         X['lossfrac'] = lossfrac.reshape(npackets)
+        
         self.X = X
 
         # Add units back in

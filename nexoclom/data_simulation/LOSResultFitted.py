@@ -1,10 +1,10 @@
-import copy
-
 import numpy as np
 import pandas as pd
 import pickle
 import astropy.units as u
 import sqlalchemy as sqla
+from scipy.spatial import distance_matrix
+from sklearn.neighbors import BallTree
 from nexoclom import engine
 from nexoclom.particle_tracking.Output import Output
 from nexoclom.data_simulation.LOSResult import LOSResult
@@ -16,7 +16,8 @@ borecols = ['xbore', 'ybore', 'zbore']
 
 
 class LOSResultFitted(LOSResult):
-    def __init__(self, scdata, label_for_fitted, params=None, dphi=1*u.deg, **kwargs):
+    def __init__(self, scdata, label_for_fitted, params=None, dphi=1*u.deg,
+                 **kwargs):
         inputs = scdata.model_result[label_for_fitted].inputs
         inputs.options.fitted = True
         super().__init__(scdata, inputs, params=params, dphi=dphi, **kwargs)
@@ -63,7 +64,7 @@ class LOSResultFitted(LOSResult):
             assert False, 'Error'
 
     def determine_source_from_data(self, scdata, overwrite=False,
-                                   use_weight=False):
+                                   use_weight=None):
         """Determine the source using a previous LOSResult
         scdata = spacecraft data with at least one model result saved
         """
@@ -77,109 +78,124 @@ class LOSResultFitted(LOSResult):
         
         fitted_iteration_results = []
         print(f'LOSResultFitted: {len(unfit_model_result.outid)} unfitted files.')
+        ct = 0
         for ufit_id, ufit_outfile in zip(unfit_model_result.outid,
                                          unfit_model_result.outputfiles):
             # Check to see if there is already a result for this
             search_result = self.fitted_iteration_search(ufit_id)
             if search_result is None:
                 # Need to compute for this unfit output file
-                # for use_weight in (True, False):
                 output = Output.restore(ufit_outfile)
                 if 'Index' not in output.X.columns:
                     output.X['Index'] = output.X.index
                 else:
                     pass
-                unfit_modelfile = unfit_model_result.modelfiles[ufit_outfile]
-                with open(unfit_modelfile, 'rb') as file:
-                    iteration_unfit = pickle.load(file)
-                    
-                # Remove packets that don't intersect the line of sight
-                # all_used_packets = set(np.concatenate(
-                #     iteration_unfit.used_packets.apply(list).values))
-                #
-                # output.X.frac *= output.X.index.isin(all_used_packets)
-                # output.X = output.X[output.X.frac > 0]
+
+                if output.inputs.options.step_size != 0:
+                    # Save one random packet from each trajectory
+                    Xorig = output.X.copy()
+                    output.X['ind_'] = output.X.index
+                    times = output.X.time.unique()
+                    output.X.set_index(['Index', 'time'], inplace=True)
+                    index = set(output.X.index)
+                    steps = set(zip(np.arange(output.npackets),
+                                    output.randgen.choice(times, output.npackets)))
+                    steps = steps.intersection(index)
+
+                    ind = pd.MultiIndex.from_tuples(steps,
+                                                    names=['Index', 'time'])
+                    output.X = output.X.loc[ind]
+                    output.X.reset_index(inplace=True)
+                    output.X.index = output.X.ind_
+                    output.X.drop(columns=['ind_'], inplace=True)
+                else:
+                    pass
                 
                 packets = output.X.copy()
                 packets0 = output.X0.copy()
 
+                unfit_modelfile = unfit_model_result.modelfiles[ufit_outfile]
+                with open(unfit_modelfile, 'rb') as file:
+                    iteration_unfit = pickle.load(file)
+                    
                 # radiance = fitted radiance
                 radiance = pd.Series(np.zeros(data.shape[0]), index=data.index)
                 
-                # These are used if doing a weighted mean
+                # weighting = (distance from s/c)**(-2)
+                # Final multiplier:
+                #   f_i = sum_j(w_ij * m_ij)/sum_ij(w_ij) for packet0_i and
+                #       specutrm_j
+                
                 ratio_x_sigma = pd.Series(np.zeros(packets0.shape[0]),
                                           index=packets0.index)
                 sigma = pd.Series(np.zeros(packets0.shape[0]),
                                   index=packets0.index)
 
-                # These are used if not doing a weighted mean
-                # weighting = weighting factor for each X0
-                # included = number of times trajectory included in lines of sight
-                weighting = pd.Series(np.zeros(packets0.shape[0]),
-                                      index=packets0.index)
-                included = pd.Series(np.zeros(packets0.shape[0]),
-                                     index=packets0.index)
-
                 ratio = data.radiance / unfit_model_result.radiance
                 ratio.fillna(0, inplace=True)
 
-                # This is the slow way
-                # for pnum in output2.X0.index:
-                #     ind = output2.X.Index == pnum
-                #     packets_sub = set(output.X[ind].index)
-                #     spec_count = iteration_unfit.used_packets.apply(
-                #         lambda x: len(x.intersection(packets_sub)))
-                #     if spec_count.sum() > 0:
-                #         weighting = np.sum(ratio * spec_count)/spec_count.sum()
-                #     else:
-                #         weighting = 0
-                #     output2.X0.loc[pnum, 'frac'] *= weighting
-                #     output2.X.loc[ind, 'frac'] *= weighting
-                #     if pnum % 1000 == 0:
-                #         print(pnum)
-                # output2.totalsource = output2.X0['frac'].sum() * output2.nsteps
-
                 # Using weighted mean to determine adjustment
                 mask = data[f'mask_{self.unfitted_label}']
+                
+                used_by, used_by0 = {}, {}
+                # print(f'Weighting = {use_weight}')
                 for spnum, spectrum in data[mask].iterrows():
-                    used = list(iteration_unfit.used_packets.loc[spnum])
-                    cts = packets.loc[used, 'Index'].value_counts()
+                    to_use = [x for x in iteration_unfit.used_packets.loc[spnum]
+                              if x in packets.index]
+                    for x in to_use:
+                        if x in used_by:
+                            used_by[x].append(spnum)
+                        else:
+                            used_by[x] = [spnum]
 
-                    if use_weight:
-                        ratio_x_sigma.loc[cts.index] += (cts.values * ratio[spnum] /
-                                                         spectrum.sigma**2)
-                        sigma.loc[cts.index] += cts.values / spectrum.sigma**2
+                        x0 = packets.loc[x, 'Index']
+                        if x0 in used_by0:
+                            used_by0[packets.loc[x, 'Index']].append(spnum)
+                        else:
+                            used_by0[x0] = [spnum]
+
+                    if use_weight == 'dist2':
+                        sc_dist = np.sqrt((packets.loc[to_use, 'x'] - spectrum.x)**2 +
+                                          (packets.loc[to_use, 'y'] - spectrum.y)**2 +
+                                          (packets.loc[to_use, 'z'] - spectrum.z)**2)
+                        weight = 1/sc_dist**2
+                    elif use_weight == 'dist':
+                        sc_dist = np.sqrt((packets.loc[to_use, 'x'] - spectrum.x)**2 +
+                                          (packets.loc[to_use, 'y'] - spectrum.y)**2 +
+                                          (packets.loc[to_use, 'z'] - spectrum.z)**2)
+                        weight = 1/sc_dist
+                    elif use_weight == 'sigma':
+                        weight = pd.Series(np.ones(len(to_use))/spectrum.sigma*2,
+                                           index=packets.loc[to_use].index)
                     else:
-                        weighting.loc[cts.index] += cts.values * ratio[spnum]
-                        included.loc[cts.index] += cts.values
-                        
-                if use_weight:
-                    used = sigma > 0
-                    ratio_x_sigma[used] = ratio_x_sigma[used] / sigma[used]
-                    weighting = ratio_x_sigma / ratio_x_sigma[used].mean()
-                else:
-                    used = included > 0
-                    weighting[used] = weighting[used] / included[used]
-                    weighting /= weighting[used].mean()
-                assert np.all(np.isfinite(weighting))
+                        weight = pd.Series(np.ones(len(to_use)),
+                                           index=packets.loc[to_use].index)
+                    
+                    for tu in to_use:
+                        ind0 = packets.loc[tu, 'Index']
+                        ratio_x_sigma.loc[ind0] += ratio[spnum] * weight[tu]
+                        sigma.loc[ind0] += weight[tu]
+                    
+                used = sigma > 0
+                ratio_x_sigma[used] = ratio_x_sigma[used] / sigma[used]
+                weighting = ratio_x_sigma / ratio_x_sigma[used].mean()
                 
                 multiplier = weighting.loc[output.X['Index']].values
                 output.X.loc[:, 'frac'] = output.X.loc[:, 'frac'] * multiplier
                 output.X0.loc[:, 'frac'] = output.X0.loc[:, 'frac'] * weighting
-                if 'nsteps' in output.__dict__:
-                    output.totalsource = output.X0['frac'].sum() * output.nsteps
-                else:
-                    output.totalsource = output.X0['frac'].sum()
+
+                output.totalsource = output.X0['frac'].sum() * output.nsteps
                 packets = output.X.copy()
                 packets['radvel_sun'] = (packets['vy'] +
                                          output.vrplanet.to(self.unit / u.s).value)
                 self.packet_weighting(packets, output.aplanet)
 
                 for spnum, spectrum in data.iterrows():
-                    used = list(iteration_unfit.used_packets.loc[spnum])
-                    
-                    if len(used) > 0:
-                        subset = packets.loc[used]
+                    to_use = [x for x in iteration_unfit.used_packets.loc[spnum]
+                              if x in packets.index]
+
+                    if len(to_use) > 0:
+                        subset = packets.loc[to_use]
                         x_sc = spectrum[xcols].values.astype(float)
                         subset_rel_sc = subset[xcols].values - x_sc[np.newaxis, :]
                         subset_dist_sc = np.linalg.norm(subset_rel_sc, axis=1)
@@ -191,15 +207,6 @@ class LOSResultFitted(LOSResult):
                     else:
                         pass
                     
-                # if use_weight:
-                #     output_weight = copy.deepcopy(output)
-                #     radiance_weight = copy.deepcopy(radiance)
-                #     del output
-                # else:
-                #     output_noweight = copy.deepcopy(output)
-                #     radiance_noweight = copy.deepcopy(radiance)
-                #     del output
-                
                 # Save the fitted output
                 output.inputs = self.inputs
                 output.save()
@@ -212,11 +219,11 @@ class LOSResultFitted(LOSResult):
                              'unfit_outputfile': ufit_outfile,
                              'unfit_outid': ufit_id,
                              'unfit_modelfile': unfit_modelfile,
-                             'included': included > 0}
+                             'included': True}
                 iteration_result = IterationResultFitted(iteration, self)
                 iteration_result.save_iteration()
                 fitted_iteration_results.append(iteration_result)
-
+                
                 del output
             else:
                 print(f'Using saved file {search_result[1]}')
@@ -225,6 +232,7 @@ class LOSResultFitted(LOSResult):
                 iteration_result.model_idnum = search_result[0]
                 iteration_result.modelfile = search_result[2]
                 fitted_iteration_results.append(iteration_result)
+            print(f'Completed {ct} of {len(unfit_model_result.outid)}')
 
         self.modelfiles = {}
         self.outputfiles = []
@@ -234,12 +242,12 @@ class LOSResultFitted(LOSResult):
             self.modelfiles[iteration_result.outputfile] = (
                 iteration_result.modelfile)
             self.outputfiles.append(iteration_result.outputfile)
-
+            
         model_rate = self.totalsource/self.inputs.options.endtime.value
         self.atoms_per_packet = 1e23 / model_rate
         self.radiance *= self.atoms_per_packet/1e3*u.kR
-        self.determine_source_rate(scdata)
-        self.atoms_per_packet *= self.sourcerate.unit
+        self.determine_source_rate(scdata, use_weight=False)
+        self.atoms_per_packet *= self.sourcerate.unit * u.s
         self.unfit_outputfiles = list(self.modelfiles.keys())
 
         print(self.totalsource, self.atoms_per_packet)

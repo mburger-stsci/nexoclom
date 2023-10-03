@@ -2,7 +2,7 @@ from importlib.metadata import version
 from nexoclom.utilities.configure import configure
 config, engine = configure(verbose=False)
 
-import dask
+# import dask
 # dask.config.set(scheduler='processes')
 # from dask.distributed import Client
 

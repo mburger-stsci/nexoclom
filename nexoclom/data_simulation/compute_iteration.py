@@ -190,7 +190,7 @@ def compute_iteration(self, outputfile, scdata, delay=False):
             Apix = np.pi * (subset_dist_sc * np.sin(self.dphi))**2 * (
                 self.unit.to(u.cm))**2
             wtemp = subset['weight'] / Apix
-        
+            
             if self.quantity == 'radiance':
                 # Determine if any packets are in shadow
                 # Projection of packet onto LOS

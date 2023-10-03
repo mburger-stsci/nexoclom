@@ -225,8 +225,8 @@ fitted = {self.fitted}'''
         
         while None in search_results.values():
             # Will retry if something fails due to memory error
-            print(f'LOSResult: {list(search_results.values()).count(None)} '
-                  'to compute')
+            ntodo = list(search_results.values()).count(None)
+            print(f'LOSResult: {ntodo} to compute')
             if distribute in (True, 'delay', 'delayed'):
                 assert False, "Don't do this"
                 # outputfiles = [outputfile for outputfile, search_result
@@ -238,14 +238,16 @@ fitted = {self.fitted}'''
                 # with Client(os.environ['dask']) as client:
                 #     dask.compute(*iterations)
             else:
+                ct = 1
                 for outputfile, search_result in search_results.items():
                     if search_result is None:
+                        print(f'starting outputfile {ct} of {ntodo}')
                         compute_iteration(self, outputfile, scdata)
                     else:
                         pass
                     
             search_results = self.search_iterations()
-            
+        
         iteration_results = []
         for outputfile, search_result in search_results.items():
             assert search_result is not None
@@ -267,31 +269,35 @@ fitted = {self.fitted}'''
         model_rate = self.totalsource / self.inputs.options.endtime.value
         self.atoms_per_packet = 1e23 / model_rate
         self.radiance *= self.atoms_per_packet/1e3  # kR
-        self.determine_source_rate(scdata)
+        self.determine_source_rate(scdata, use_weight=False)
         self.atoms_per_packet *= self.sourcerate.unit * u.s
         self.outputfiles = list(self.modelfiles.keys())
     
         print(self.totalsource, self.atoms_per_packet)
         
-    def determine_source_rate(self, scdata):
+    def determine_source_rate(self, scdata, use_weight=True):
         mask, sigmalimit = self.make_mask(scdata.data)
+        if use_weight:
+            weights = 1./scdata.data.sigma.values[mask]**2
+        else:
+            weights = np.ones_like(scdata.data.sigma.values[mask])
         linmodel = models.Multiply()
         fitter = fitting.LinearLSQFitter()
         best_fit = fitter(linmodel, self.radiance.values[mask],
                           scdata.data.radiance.values[mask],
-                          weights=1./scdata.data.sigma.values[mask]**2)
+                          weights=weights)
         
         if sigmalimit is not None:
             diff = np.abs((scdata.data.radiance.values -
-                           best_fit.factor*self.radiance.values)/
+                           best_fit.factor*self.radiance.values) /
                           scdata.data.sigma)
             mask = mask & (diff < sigmalimit)
             best_fit = fitter(linmodel, self.radiance.values[mask],
                               scdata.data.radiance.values[mask],
-                              weights=1./scdata.data.sigma.values[mask]**2)
+                              weights=weights)
         else:
             pass
-
+        
         self.radiance *= best_fit.factor.value
         self.sourcerate = best_fit.factor.value * u.def_unit('10**23 atoms/s', 1e23 / u.s)
         self.goodness_of_fit = None

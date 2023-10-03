@@ -19,6 +19,7 @@ from nexoclom.data_simulation.ModelImage import ModelImage
 # @dask.delayed
 def output_wrapper(inputs, npackets, compress):
     time.sleep(np.random.random()*10)
+   
     Output(inputs, npackets, compress=compress)
     return 0
  
@@ -51,7 +52,6 @@ class Input:
         
         """
         # Read the configuration file
-        # dask.config.set(scheduler='processes')
         self.config = config
 
         # Read in the input file:
