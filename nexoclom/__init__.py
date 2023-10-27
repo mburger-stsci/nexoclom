@@ -18,4 +18,4 @@ __name__ = 'nexoclom'
 __author__ = 'Matthew Burger'
 __email__ = 'mburger@stsci.edu'
 __version__ = version("nexoclom")
-__date__ = '2023-07-28'
+__date__ = '2023-10-27'
