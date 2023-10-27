@@ -64,7 +64,7 @@ class LOSResultFitted(LOSResult):
             assert False, 'Error'
 
     def determine_source_from_data(self, scdata, overwrite=False,
-                                   use_weight=None):
+                                   use_selected=False, use_weight=None):
         """Determine the source using a previous LOSResult
         scdata = spacecraft data with at least one model result saved
         """
@@ -91,7 +91,7 @@ class LOSResultFitted(LOSResult):
                 else:
                     pass
 
-                if output.inputs.options.step_size != 0:
+                if use_selected:
                     # Save one random packet from each trajectory
                     Xorig = output.X.copy()
                     output.X['ind_'] = output.X.index
