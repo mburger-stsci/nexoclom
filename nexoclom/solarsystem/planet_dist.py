@@ -39,44 +39,32 @@ def planet_dist(planet_, taa=None, time=None):
 
         # make sure taa is in radians. If not a quantity, assume it is.
         if isinstance(taa, type(1*u.s)):
-            taa_ = taa.to(u.rad).value
+            taa_ = taa.to(u.rad)
         elif type(taa) in (int, float):
-            taa_ = taa
+            taa_ = taa * u.rad
         else:
             raise TypeError('taa must be a number or angle quantity')
 
         if eps > 0:
             # determine r
             r = a * (1-eps**2)/(1+eps*np.cos(taa_))
-            P = np.sqrt(a**3/(1*u.au)**3) * u.yr
-
+            period = planet.orbperiod.to(u.s)
+            
             # determine v_r = dr/dt
-            def trueanom(time):
-                # Mean anomally
-                M = 2*np.pi*time/P.value
-
-                # Determine eccentric anomaly from M = E-e*sin(E)
-                EEtemp = np.linspace(0, 2*np.pi, 1001)
-                mm = EEtemp - eps*np.sin(EEtemp)
-                EE = np.array([np.interp(x, mm, EEtemp) for x in M])
-
-                # True anomaly
-                phi = (2*np.arctan(np.sqrt((1+eps)/(1-eps)) * np.tan(EE/2)) +
-                       (2*np.pi)) % (2*np.pi)
-                return phi
-
-            def radius(time):
-                phi = trueanom(time)
-                r = a * (1-eps**2)/(1+eps*np.cos(phi))
-                return r.value
-
-            time = np.linspace(-1, 1, 2001)*P.value
-            radvel = derivative(radius, time, dx=1e-3)
-            radvel = radvel.astype(np.float64)
-            ttt = trueanom(time)
-            v_r = np.interp(taa_, ttt, radvel, period=2*np.pi)
-            v_r *= a.unit/P.unit
-            v_r = v_r.to(u.km/u.s)
+            time= np.linspace(0, 1, 1000)*period.value
+            time= np.concatenate([np.array([time[0]-time[1]]), time])*u.s
+            
+            mean_anomaly = np.linspace(0, 2*np.pi, 1000)
+            mean_anomaly = np.concatenate(
+                [np.array([mean_anomaly[0]-mean_anomaly[1]]), mean_anomaly])*u.rad
+            
+            true_anomaly = (mean_anomaly +
+                            (2*eps - eps**3/4)*np.sin(mean_anomaly)*u.rad +
+                            5/4 * eps**2 * np.sin(2*mean_anomaly)*u.rad +
+                            13/12 * eps**3 * np.sin(3*mean_anomaly)*u.rad)
+            r_true = a * (1-eps**2)/(1+eps*np.cos(true_anomaly))
+            drdt = (r_true[1:] - r_true[:-1])/(time[1:] - time[:-1])
+            v_r = np.interp(taa_, true_anomaly[1:], drdt.to(u.km/u.s))
         else:
             r, v_r = a, 0.*u.km/u.s
     else:

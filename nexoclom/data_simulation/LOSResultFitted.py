@@ -91,6 +91,7 @@ class LOSResultFitted(LOSResult):
                 else:
                     pass
 
+                print(f'use_selected = {use_selected}')
                 if use_selected:
                     # Save one random packet from each trajectory
                     Xorig = output.X.copy()
@@ -113,7 +114,8 @@ class LOSResultFitted(LOSResult):
                 
                 packets = output.X.copy()
                 packets0 = output.X0.copy()
-
+                print(packets.shape)
+                
                 unfit_modelfile = unfit_model_result.modelfiles[ufit_outfile]
                 with open(unfit_modelfile, 'rb') as file:
                     iteration_unfit = pickle.load(file)

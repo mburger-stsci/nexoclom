@@ -1,17 +1,15 @@
-"""``atomicmass`` - Return the atomic mass of an atom or molecule.
-
-This is really just a wrapper for
-`periodictable
-<https://periodictable.readthedocs.io/en/latest/index.html>`_
-but returns the mass as an `astropy quantity
-<http://docs.astropy.org/en/stable/units/index.html>`_.
-"""
 import periodictable as pt
 import astropy.units as u
 
 
 def atomicmass(species):
     r"""Return the atomic mass of an atom or molecule.
+    
+    This is really just a wrapper for
+    `periodictable
+    <https://periodictable.readthedocs.io/en/latest/index.html>`_
+    but returns the mass as an `astropy quantity
+    <http://docs.astropy.org/en/stable/units/index.html>`_.
 
     **Parameters**
 
