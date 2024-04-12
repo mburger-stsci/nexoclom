@@ -106,7 +106,7 @@ def state_(x, output):
     else:
         if output.loss_info.photo is not None:
             # Compute photoionization rate
-            rho = np.linalg.norm(x[:,[1,3]], axis=1)
+            rho = np.linalg.norm(x[:,[1,3]],axis=1)
             out_of_shadow = (rho > 1) | (x[:,2] < 0)
             photorate = output.loss_info.photo * out_of_shadow
         else:

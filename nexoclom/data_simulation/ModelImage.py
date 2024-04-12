@@ -22,22 +22,6 @@ from bokeh.io import curdoc, export_png
 from bokeh.themes import Theme
 
 
-def image_step(self, fname, overwrite, delay=False):
-    # Search to see if its already been done
-    if delay:
-        time.sleep(np.random.random()*5)
-    print(f'Output filename: {fname}')
-    image, packets = self.restore(fname, overwrite=overwrite)
-    output = Output.restore(fname)
-    
-    if image is None:
-        image, packets, = self.create_image(fname)
-    else:
-        print('previously completed.')
-        
-    return image, packets, output.totalsource
-
-
 class ModelImage(ModelResult):
     def __init__(self, inputs, params, overwrite=False, distribute=None):
         """ Create Images from model results.
@@ -94,30 +78,25 @@ class ModelImage(ModelResult):
 
         self.xaxis = None
         self.zaxis = None
-
+        
         self.outid, self.outputfiles, _, _ = self.inputs.search()
 
-        if distribute in ('delay', 'delayed'):
-            assert False, "Don't do this"
-            # client = Client()
-            # results = [dask.delayed(image_step)(self, fname, overwrite, True)
-            #            for fname in self.outputfiles]
-            # results = dask.compute(*results)
-            # client.close()
-            # for image_, packets_, totalsource_ in results:
-            #     self.image += image_.histogram
-            #     self.packet_image += packets_.histogram
-            #     self.totalsource += totalsource_
-            #     self.xaxis = image_.x * self.unit
-            #     self.zaxis = image_.y * self.unit
-        else:
-            for fname in self.outputfiles:
-                image_, packets_, totalsource_ = image_step(self, fname, overwrite)
-                self.image += image_.histogram
-                self.packet_image += packets_.histogram
-                self.totalsource += totalsource_
-                self.xaxis = image_.x * self.unit
-                self.zaxis = image_.y * self.unit
+        for fname in self.outputfiles:
+            print(f'Output filename: {fname}')
+            image, packets = self.restore(fname, overwrite=overwrite)
+            output = Output.restore(fname)
+            
+            if image is None:
+                image, packets, = self.create_image(fname)
+            else:
+                print('previously completed.')
+            
+            # image_, packets_, totalsource_ = image_step(self, fname, overwrite)
+            self.image += image.histogram
+            self.packet_image += packets.histogram
+            self.totalsource += output.totalsource
+            self.xaxis = image.x * self.unit
+            self.zaxis = image.y * self.unit
 
         mod_rate = self.totalsource / self.inputs.options.endtime.value
         self.atoms_per_packet = 1e23 / mod_rate
@@ -139,17 +118,31 @@ class ModelImage(ModelResult):
         metadata_obj = sqla.MetaData()
         table = sqla.Table("modelimages", metadata_obj, autoload_with=engine)
         
-        insert_stmt = pg.insert(table).values(
-            out_idnum = idnum,
-            quantity = self.quantity,
-            origin = self.origin.object,
-            dims = self.dims,
-            center = [c.value for c in self.center],
-            width = [w.value for w in self.width],
-            subobslongitude = self.subobslongitude.value,
-            subobslatitude = self.subobslatitude.value,
-            mechanism = self.mechanism,
-            wavelength = [w.value for w in self.wavelength])
+        if self.quantity == 'column':
+            insert_stmt = pg.insert(table).values(
+                out_idnum = idnum,
+                quantity = self.quantity,
+                origin = self.origin.object,
+                dims = self.dims,
+                center = [c.value for c in self.center],
+                width = [w.value for w in self.width],
+                subobslongitude = self.subobslongitude.value,
+                subobslatitude = self.subobslatitude.value,
+                mechanism = self.mechanism)
+        else:
+            g = None if self.g is None else self.g.value
+            insert_stmt = pg.insert(table).values(
+                out_idnum = idnum,
+                quantity = self.quantity,
+                origin = self.origin.object,
+                dims = self.dims,
+                center = [c.value for c in self.center],
+                width = [w.value for w in self.width],
+                subobslongitude = self.subobslongitude.value,
+                subobslatitude = self.subobslatitude.value,
+                mechanism = self.mechanism,
+                wavelength = [w.value for w in self.wavelength],
+                g = g)
 
         with engine.connect() as con:
             result = con.execute(insert_stmt)
@@ -178,17 +171,33 @@ class ModelImage(ModelResult):
         oid = idnum_.idnum
 
         images = sqla.Table("modelimages", metadata_obj, autoload_with=engine)
-        im_query = sqla.select(images.columns.filename).where(
-            images.columns.out_idnum == oid,
-            images.columns.quantity == self.quantity,
-            images.columns.origin == self.origin.object,
-            images.columns.dims == self.dims,
-            images.columns.center == [s.value for s in self.center],
-            images.columns.width == [w.value for w in self.width],
-            images.columns.subobslongitude == self.subobslongitude.value,
-            images.columns.subobslatitude == self.subobslatitude.value,
-            images.columns.mechanism == self.mechanism,
-            images.columns.wavelength == [w.value for w in self.wavelength])
+        if self.quantity == 'column':
+            im_query = sqla.select(images.columns.filename).where(
+                images.columns.out_idnum == oid,
+                images.columns.quantity == self.quantity,
+                images.columns.origin == self.origin.object,
+                images.columns.dims == self.dims,
+                images.columns.center == [s.value for s in self.center],
+                images.columns.width == [w.value for w in self.width],
+                images.columns.subobslongitude == self.subobslongitude.value,
+                images.columns.subobslatitude == self.subobslatitude.value,
+                images.columns.mechanism == self.mechanism)
+        elif self.quantity == 'radiance':
+            g = None if self.g is None else self.g.value
+            im_query = sqla.select(images.columns.filename).where(
+                images.columns.out_idnum == oid,
+                images.columns.quantity == self.quantity,
+                images.columns.origin == self.origin.object,
+                images.columns.dims == self.dims,
+                images.columns.center == [s.value for s in self.center],
+                images.columns.width == [w.value for w in self.width],
+                images.columns.subobslongitude == self.subobslongitude.value,
+                images.columns.subobslatitude == self.subobslatitude.value,
+                images.columns.mechanism == self.mechanism,
+                images.columns.wavelength == [w.value for w in self.wavelength],
+                images.columns.g == g)
+        else:
+            assert False
         
         with engine.connect() as con:
             result = con.execute(im_query)

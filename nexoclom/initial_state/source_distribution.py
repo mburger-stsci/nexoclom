@@ -237,9 +237,9 @@ def angular_distribution(outputs):
         rad = np.array([x0, y0, z0]).transpose()
         east = np.array([y0, -x0, np.zeros_like(z0)]).transpose()
         north = np.array([-z0*x0, -z0*y0, x0**2+y0**2]).transpose()
-
+        
         rad_ = np.linalg.norm(rad, axis=1)
-        rad = np.array([x0, y0, z0]).transpose()
+        rad = rad/rad_[:,np.newaxis]
         east_ = np.linalg.norm(east, axis=1)
         east = east/east_[:,np.newaxis]
         north_ = np.linalg.norm(north, axis=1)
@@ -247,6 +247,7 @@ def angular_distribution(outputs):
 
         v0 = (v_tan0[:,np.newaxis]*north + v_tan1[:,np.newaxis]*east +
               v_rad[:,np.newaxis]*rad)
+        
         outputs.X0['vx'] = v0[:, 0] * outputs.X0.v.values
         outputs.X0['vy'] = v0[:, 1] * outputs.X0.v.values
         outputs.X0['vz'] = v0[:, 2] * outputs.X0.v.values

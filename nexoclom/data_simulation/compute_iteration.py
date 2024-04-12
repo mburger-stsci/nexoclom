@@ -144,12 +144,16 @@ def compute_iteration(self, outputfile, scdata, delay=False):
     used0 = pd.Series([set() for _ in range(data.shape[0])], index=data.index)
     included = pd.Series(index=X0_index, dtype=bool)
     included[:] = False
+    
+    data['points'] = tree.query_radius(data[xcols].values, 0.1)
 
     print(f'{data.shape[0]} spectra taken.')
     for i, spectrum in data.iterrows():
         x_sc = spectrum[xcols].values.astype(float)
         bore = spectrum[borecols].values.astype(float)
     
+        points = spectrum.points
+        
         # Distance from spacecraft to edge of field of view
         a = 1
         b = 2*np.sum(x_sc*bore)

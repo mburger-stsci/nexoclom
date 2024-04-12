@@ -45,7 +45,7 @@ def bouncepackets(outputs, Ximpcheck, r0, hitplanet):
     a = np.sum(Xtemp[:,4:7]**2, axis=1)  # = vv02
     b = 2 * np.sum(Xtemp[:,1:4] * Xtemp[:,4:7], axis=1)
     c = np.sum(Xtemp[:,1:4]**2, axis=1) - 1.
-    dd = b**2 - 4*a*c
+    # dd = b**2 - 4*a*c
 
     t0 = (-b - np.sqrt(b**2-4*a*c))/(2*a)
     t1 = (-b + np.sqrt(b**2-4*a*c))/(2*a)

@@ -4,7 +4,7 @@ channels:
   - http://ssb.stsci.edu/astroconda
   - defaults
 dependencies:
-  - python=3.10
+  - python=3.11
   - poetry
   - postgresql
   - mongodb

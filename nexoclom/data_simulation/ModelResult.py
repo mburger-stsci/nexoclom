@@ -101,13 +101,15 @@ class ModelResult:
                             'params must be a dict or filename.')
             
         # Do some validation
-        quantities = ['column', 'radiance', 'density']
+        quantities = ('column', 'radiance', 'density', 'difrad')
         self.quantity = self.params.get('quantity', None)
         if (self.quantity is None) or (self.quantity not in quantities):
             raise InputError('ModelImage.__init__',
                              "quantity must be 'column' or 'radiance'")
         else:
             pass
+        
+        self.g = params.get('g', None)
 
         if self.quantity == 'radiance':
             # Note - only resonant scattering currently possible
@@ -143,18 +145,19 @@ class ModelResult:
         :param aplanet: Distance of planet from Sun (used for g-value calculation)
         :return: Adds a 'weight' column to the packets DataFrame
         """
-        if self.quantity == 'column':
+        if self.quantity in ('column', 'density'):
             packets['weight'] = packets['frac']
-        elif self.quantity == 'density':
-            packets['weight'] = packets['frac']
-        elif self.quantity == 'radiance':
+        elif self.quantity in ('radiance', 'difrad'):
             if 'resonant scattering' in self.mechanism:
-                gg = np.zeros(len(packets))/u.s
-                for w in self.wavelength:
-                    gval = gValue(self.inputs.options.species, w, aplanet)
-                    gg += mathMB.interpu(packets['radvel_sun'].values *
-                                         self.unit/u.s, gval.velocity, gval.g)
-
+                if self.g is None:
+                    gg = np.zeros(len(packets))/u.s
+                    for w in self.wavelength:
+                        gval = gValue(self.inputs.options.species, w, aplanet)
+                        gg += mathMB.interpu(packets['radvel_sun'].values *
+                                             self.unit/u.s, gval.velocity, gval.g)
+                else:
+                    gg = self.g
+                
                 weight_resscat = packets['frac']*out_of_shadow*gg.value/1e6
             else:
                 weight_resscat = np.zeros(len(packets))

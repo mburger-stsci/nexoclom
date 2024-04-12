@@ -183,6 +183,7 @@ CREATE TABLE if not exists modelimages (
     subobslatitude DOUBLE PRECISION NOT NULL,
     mechanism TEXT[],
     wavelength TEXT[],
+    g DOUBLE PRECISION,
     generation_date TIMESTAMP DEFAULT current_timestamp,
     filename TEXT UNIQUE);
 
