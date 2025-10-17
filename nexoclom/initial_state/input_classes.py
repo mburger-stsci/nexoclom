@@ -13,7 +13,7 @@ from nexoclom import engine
 
 
 # Tolerances for floating point values
-dtaa = np.radians(2.)
+dtaa = np.radians(1.)
 
 
 class Geometry:

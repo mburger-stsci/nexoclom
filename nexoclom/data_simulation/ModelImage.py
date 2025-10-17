@@ -1,4 +1,5 @@
 import os.path
+import pandas as pd
 import numpy as np
 import pickle
 import astropy.units as u
@@ -63,8 +64,8 @@ class ModelImage(ModelResult):
         subobslong = self.params.get('subobslongitude', '0')
         self.subobslongitude = float(subobslong) * u.rad
 
-        subobsllat = self.params.get('subobslatitude', np.pi/2)
-        self.subobslatitude = float(subobsllat) * u.rad
+        subobslat = self.params.get('subobslatitude', np.pi/2)
+        self.subobslatitude = float(subobslat) * u.rad
 
         self.image = np.zeros(self.dims)
         self.packet_image = np.zeros(self.dims)
@@ -199,19 +200,25 @@ class ModelImage(ModelResult):
         else:
             assert False
         
+        # with engine.connect() as con:
+        #     result = con.execute(im_query)
         with engine.connect() as con:
-            result = con.execute(im_query)
+            result = pd.read_sql(im_query, con)
 
-        if (result.rowcount == 1) and overwrite:
-            result_ = result.fetchone()
+        if (len(result) == 1) and overwrite:
+            result_ = result.loc[0]
             sqla.delete(images).where(images.columns.filename == result_.filename)
             if os.path.exists(result_.filename):
                 os.remove(result_.filename)
             image, packets = None, None
-        elif result.rowcount == 1:
-            result_ = result.fetchone()
-            image, packets = pickle.load(open(result_.filename, 'rb'))
-        elif result.rowcount == 0:
+        elif len(result) >= 1:
+            for _, result_ in result.iterrows():
+                # result_ = result.fetchone()
+                if os.path.exists(result_.filename):
+                    image, packets = pickle.load(open(result_.filename, 'rb'))
+                else:
+                    image, packets = None, None
+        elif len(result) == 0:
             image, packets = None, None
         else:
             raise RuntimeError('ModelImage.restore',

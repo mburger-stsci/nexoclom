@@ -191,7 +191,6 @@ def speed_distribution(outputs):
 
 def angular_distribution(outputs):
     npackets = outputs.npackets
-
     angulardist = outputs.inputs.angulardist
 
     if angulardist.type == 'none':

@@ -40,7 +40,7 @@ def planet_dist(planet_, taa=None, time=None):
         # make sure taa is in radians. If not a quantity, assume it is.
         if isinstance(taa, type(1*u.s)):
             taa_ = taa.to(u.rad)
-        elif type(taa) in (int, float):
+        elif type(taa) in (int, float, np.float64):
             taa_ = taa * u.rad
         else:
             raise TypeError('taa must be a number or angle quantity')

@@ -21,7 +21,7 @@ from nexoclom.particle_tracking.SurfaceInteraction import SurfaceInteraction
 
 
 class Output:
-    def __init__(self, inputs, npackets, compress=True, run_model=True):
+    def __init__(self, inputs, npackets, compress=True, run_model=True, seed=None):
         """Determine and store packet trajectories.
         
         **Parameters**
@@ -89,7 +89,7 @@ class Output:
         self.planet = inputs.geometry.planet
         if run_model:
             # initialize the random generator
-            self.randgen = np.random.default_rng()
+            self.randgen = np.random.default_rng(seed=seed)
             
             # Not implemented yet.
             assert self.inputs.geometry.type != 'geometry with time', (
@@ -384,46 +384,48 @@ class Output:
         while (curtime > 0) and (moretogo.any()):
             Xtodo = results[moretogo,:,ct-1]
             step = step_size[moretogo]
-
+            
             assert np.all(Xtodo[:,7] > 0)
             assert np.all(np.isfinite(Xtodo))
-
+            
             # Run the rk5 step
             Xnext, _ = rk5(self, Xtodo, step)
-
+            
             # Check for surface impacts
             tempR = np.linalg.norm(Xnext[:,1:4], axis=1)
             hitplanet = (tempR - 1.) < 0
-
-            if np.any(hitplanet):
-                if ((self.inputs.surfaceinteraction.sticktype == 'constant')
-                    and (self.inputs.surfaceinteraction.stickcoef == 1.)):
-                        Xnext[hitplanet,7] = 0.
-                else:
-                    bouncepackets(self, Xnext, tempR, hitplanet)
+            
+            if ((self.inputs.surfaceinteraction.sticktype == 'constant')
+                and (self.inputs.surfaceinteraction.stickcoef == 1.)):
+                Xnext[hitplanet,7] = 0.
             else:
-                pass
-
+                bouncepackets(self, Xnext, tempR, hitplanet)
+                
+            # if np.any(hitplanet):
+            #     pass
+            # else:
+            #     pass
+            
             # Check for escape
             Xnext[tempR > self.inputs.options.outeredge,7] = 0
             
             # Check for vanishing
             Xnext[Xnext[:, 7] < 1e-10, 7] = 0.
-
+            
             # set remaining time = 0 for packets that are done
             Xnext[Xnext[:, 7] == 0, 0] = 0.
-
+            
             # Put new values back into the original array
             results[moretogo,:,ct] = Xnext
             lossfrac[moretogo,ct] = (lossfrac[moretogo,ct-1] +
-                results[moretogo,7,ct-1] - results[moretogo,7,ct])
+                                     results[moretogo,7,ct-1] - results[moretogo,7,ct])
             
             # Check to see what still needs to be done
             moretogo = results[:,7,ct] > 0
-
+            
             if (ct % 100) == 0:
                 print(ct, curtime, int(np.sum(moretogo)))
-
+            
             # Update the times
             ct += 1
             curtime -= step_size[0]

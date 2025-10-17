@@ -39,7 +39,7 @@ def state(x, output):
     
     # Compute total acceleration
     accel = agrav + arad
-
+    
     # Compute ionization rate
     if output.inputs.options.lifetime > 0:
         # Explicitly set lifetime

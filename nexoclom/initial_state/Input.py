@@ -173,7 +173,7 @@ class Input:
 
 
     def run(self, npackets, packs_per_it=None, overwrite=False, compress=True,
-            distribute=False):
+            distribute=False, seed=None):
         """Run the nexoclom model with the current inputs.
         
         **Parameters**
@@ -243,7 +243,7 @@ class Input:
                 for _ in range(nits):
                     tit0_ = Time.now()
                     print(f'Starting iteration #{_+1} of {nits}')
-                    Output(self, packs_per_it, compress=compress)
+                    Output(self, packs_per_it, compress=compress, seed=seed)
                     tit1_ = Time.now()
                     print(f'Completed iteration #{_+1} in '
                           f'{(tit1_ - tit0_).sec} seconds.')
@@ -271,7 +271,7 @@ class Input:
         return ModelImage(self, format_, overwrite=overwrite,
                           distribute=distribute)
     
-    def delete_files(self):
+    def delete_files(self, filename=None):
         """Delete output files and remove them from the database.
 
         **Parameters**
@@ -285,6 +285,11 @@ class Input:
 
         """
         idnum, filelist, _, _ = self.search()
+        if filename is not None:
+            idnum = [num for num, file in zip(idnum, filelist) if file == filename]
+        else:
+            pass
+        
         metadata_obj = sqla.MetaData()
         outputfile = sqla.Table("outputfile", metadata_obj, autoload_with=engine)
         modelimages = sqla.Table("modelimages", metadata_obj, autoload_with=engine)

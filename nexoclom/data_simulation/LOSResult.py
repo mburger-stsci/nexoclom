@@ -283,25 +283,28 @@ fitted = {self.fitted}'''
             weights = np.ones_like(scdata.data.sigma.values[mask])
         linmodel = models.Multiply()
         fitter = fitting.LinearLSQFitter()
-        best_fit = fitter(linmodel, self.radiance.values[mask],
-                          scdata.data.radiance.values[mask],
-                          weights=weights)
-        
-        if sigmalimit is not None:
-            diff = np.abs((scdata.data.radiance.values -
-                           best_fit.factor*self.radiance.values) /
-                          scdata.data.sigma)
-            mask = mask & (diff < sigmalimit)
+        if not np.all(self.radiance.values == 0):
             best_fit = fitter(linmodel, self.radiance.values[mask],
                               scdata.data.radiance.values[mask],
                               weights=weights)
+            if sigmalimit is not None:
+                diff = np.abs((scdata.data.radiance.values -
+                               best_fit.factor*self.radiance.values) /
+                              scdata.data.sigma)
+                mask = mask & (diff < sigmalimit)
+                best_fit = fitter(linmodel, self.radiance.values[mask],
+                                  scdata.data.radiance.values[mask],
+                                  weights=weights)
+            else:
+                pass
+            
+            self.radiance *= best_fit.factor.value
+            self.sourcerate = best_fit.factor.value * u.def_unit('10**23 atoms/s', 1e23 / u.s)
+            self.goodness_of_fit = None
         else:
-            pass
-        
-        self.radiance *= best_fit.factor.value
-        self.sourcerate = best_fit.factor.value * u.def_unit('10**23 atoms/s', 1e23 / u.s)
-        self.goodness_of_fit = None
-
+            self.sourcerate = 0 * u.def_unit('10**23 atoms/s', 1e23 / u.s)
+            self.goodness_of_fit = None
+            
         self.mask = mask
 
     def make_source_map(self, grid_params=None, normalize=True, do_source=True,
